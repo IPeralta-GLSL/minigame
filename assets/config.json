@@ -1,0 +1,10 @@
+{
+    "car_model": {
+        "path": "assets/models/low_poly_car_muscle_car_2.glb",
+        "scale": 0.2,
+        "rotation_offset_x": 4.7,
+        "rotation_offset_y": 0.0,
+        "rotation_offset_z": 0.0,
+        "position_offset_y": -0.7
+    }
+}

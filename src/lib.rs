@@ -1,9 +1,26 @@
 use wasm_bindgen::prelude::*;
-use web_sys::{WebGlRenderingContext, WebGlProgram, WebGlBuffer, WebGlUniformLocation, HtmlCanvasElement, KeyboardEvent};
+use web_sys::{WebGlRenderingContext, WebGlProgram, WebGlBuffer, WebGlUniformLocation, HtmlCanvasElement, KeyboardEvent, Request, RequestInit, RequestMode, Response};
 use std::cell::RefCell;
 use std::rc::Rc;
 use nalgebra::{Matrix4, Vector3, Perspective3};
 use wasm_bindgen::JsCast;
+use wasm_bindgen_futures::JsFuture;
+use serde::{Deserialize, Serialize};
+
+#[derive(Serialize, Deserialize)]
+struct ModelConfig {
+    path: String,
+    scale: f32,
+    rotation_offset_x: f32,
+    rotation_offset_y: f32,
+    rotation_offset_z: f32,
+    position_offset_y: f32,
+}
+
+#[derive(Serialize, Deserialize)]
+struct AppConfig {
+    car_model: ModelConfig,
+}
 
 const VERTEX_SHADER: &str = r#"
     attribute vec3 aPosition;
@@ -97,6 +114,43 @@ impl Mesh {
         add_face(-s, -s, -s, -s, -s, s, -s, s, s, -s, s, -s, 0.6);
 
         Mesh { vertices, indices }
+    }
+
+    fn from_gltf(bytes: &[u8]) -> Result<Self, String> {
+        let (document, buffers, _) = gltf::import_slice(bytes).map_err(|e| e.to_string())?;
+        
+        let mut vertices = Vec::new();
+        let mut indices = Vec::new();
+        
+        for mesh in document.meshes() {
+            for primitive in mesh.primitives() {
+                let reader = primitive.reader(|buffer| Some(&buffers[buffer.index()]));
+                
+                let positions: Vec<[f32; 3]> = reader.read_positions().ok_or("No positions")?.collect();
+                let colors: Vec<[f32; 3]> = if let Some(iter) = reader.read_colors(0) {
+                    iter.into_rgb_f32().collect()
+                } else {
+                    vec![[1.0, 1.0, 1.0]; positions.len()]
+                };
+                
+                let base_index = (vertices.len() / 6) as u16;
+                
+                for (pos, color) in positions.iter().zip(colors.iter()) {
+                    vertices.extend_from_slice(&[
+                        pos[0], pos[1], pos[2],
+                        color[0], color[1], color[2]
+                    ]);
+                }
+                
+                if let Some(iter) = reader.read_indices() {
+                    for index in iter.into_u32() {
+                        indices.push(base_index + index as u16);
+                    }
+                }
+            }
+        }
+        
+        Ok(Mesh { vertices, indices })
     }
 
     fn car(body_r: f32, body_g: f32, body_b: f32) -> Self {
@@ -253,10 +307,12 @@ struct Game {
     world_seed: u32,
     furthest_lane: i32,
     time: f32,
+    car_mesh: Option<Mesh>,
+    config: Option<AppConfig>,
 }
 
 impl Game {
-    fn new(gl: WebGlRenderingContext) -> Result<Self, JsValue> {
+    fn new(gl: WebGlRenderingContext, car_mesh: Option<Mesh>, config: Option<AppConfig>) -> Result<Self, JsValue> {
         let program = create_program(&gl)?;
         gl.use_program(Some(&program));
 
@@ -296,6 +352,8 @@ impl Game {
             world_seed,
             furthest_lane: 24,
             time: 0.0,
+            car_mesh,
+            config,
         })
     }
 
@@ -826,26 +884,45 @@ impl Game {
     }
 
     fn draw_car(&self, x: f32, y: f32, z: f32, w: f32, h: f32, d: f32, r: f32, g: f32, b: f32, velocity_x: f32, projection: &Matrix4<f32>, view: &Matrix4<f32>) {
-        let mesh = Mesh::car(r, g, b);
-        // Rotate 90 degrees to face direction of travel (along X axis)
-        // If velocity_x > 0, face right; if < 0, face left
         let rotation = if velocity_x >= 0.0 {
-            std::f32::consts::FRAC_PI_2  // 90 degrees
+            std::f32::consts::FRAC_PI_2
         } else {
-            -std::f32::consts::FRAC_PI_2  // -90 degrees
+            -std::f32::consts::FRAC_PI_2
         };
-        self.draw_mesh_rotated(&mesh, x, y, z, w, h, d, rotation, projection, view);
+
+        if let Some(mesh) = &self.car_mesh {
+            // Use loaded mesh with config
+            let (scale, rot_offset_x, rot_offset_y, rot_offset_z, pos_offset) = if let Some(ref c) = self.config {
+                (c.car_model.scale, c.car_model.rotation_offset_x, c.car_model.rotation_offset_y, c.car_model.rotation_offset_z, c.car_model.position_offset_y)
+            } else {
+                (0.5, 0.0, 0.0, 0.0, 0.0)
+            };
+            
+            self.draw_mesh_rotated(
+                mesh, 
+                x, y + pos_offset, z, 
+                scale, scale, scale, 
+                rot_offset_x,
+                rotation + rot_offset_y, 
+                rot_offset_z,
+                projection, view
+            );
+        } else {
+            // Fallback to procedural car
+            let mesh = Mesh::car(r, g, b);
+            self.draw_mesh_rotated(&mesh, x, y, z, w, h, d, 0.0, rotation, 0.0, projection, view);
+        }
     }
 
     fn draw_mesh(&self, mesh: &Mesh, x: f32, y: f32, z: f32, w: f32, h: f32, d: f32, projection: &Matrix4<f32>, view: &Matrix4<f32>) {
-        self.draw_mesh_internal(mesh, x, y, z, w, h, d, 0.0, projection, view);
+        self.draw_mesh_internal(mesh, x, y, z, w, h, d, 0.0, 0.0, 0.0, projection, view);
     }
 
-    fn draw_mesh_rotated(&self, mesh: &Mesh, x: f32, y: f32, z: f32, w: f32, h: f32, d: f32, rotation_y: f32, projection: &Matrix4<f32>, view: &Matrix4<f32>) {
-        self.draw_mesh_internal(mesh, x, y, z, w, h, d, rotation_y, projection, view);
+    fn draw_mesh_rotated(&self, mesh: &Mesh, x: f32, y: f32, z: f32, w: f32, h: f32, d: f32, rotation_x: f32, rotation_y: f32, rotation_z: f32, projection: &Matrix4<f32>, view: &Matrix4<f32>) {
+        self.draw_mesh_internal(mesh, x, y, z, w, h, d, rotation_x, rotation_y, rotation_z, projection, view);
     }
 
-    fn draw_mesh_internal(&self, mesh: &Mesh, x: f32, y: f32, z: f32, w: f32, h: f32, d: f32, rotation_y: f32, projection: &Matrix4<f32>, view: &Matrix4<f32>) {
+    fn draw_mesh_internal(&self, mesh: &Mesh, x: f32, y: f32, z: f32, w: f32, h: f32, d: f32, rotation_x: f32, rotation_y: f32, rotation_z: f32, projection: &Matrix4<f32>, view: &Matrix4<f32>) {
 
         self.gl.bind_buffer(WebGlRenderingContext::ARRAY_BUFFER, Some(&self.vertex_buffer));
         unsafe {
@@ -877,7 +954,7 @@ impl Game {
         self.gl.enable_vertex_attrib_array(col_loc);
 
         let model = Matrix4::new_translation(&Vector3::new(x, y, z)) *
-                    Matrix4::from_euler_angles(0.0, rotation_y, 0.0) *
+                    Matrix4::from_euler_angles(rotation_x, rotation_y, rotation_z) *
                     Matrix4::new_nonuniform_scaling(&Vector3::new(w, h, d));
         let mvp = projection * view * model;
 
@@ -1095,8 +1172,50 @@ thread_local! {
     static GAME: RefCell<Option<Game>> = RefCell::new(None);
 }
 
+fn start_config_reloader() {
+    let f = Closure::wrap(Box::new(move || {
+        wasm_bindgen_futures::spawn_local(async move {
+            let window = web_sys::window().unwrap();
+            let mut opts = RequestInit::new();
+            opts.method("GET");
+            opts.mode(RequestMode::Cors);
+            
+            let url = format!("/assets/config.json?t={}", js_sys::Date::now());
+
+            if let Ok(request) = Request::new_with_str_and_init(&url, &opts) {
+                if let Ok(resp_value) = JsFuture::from(window.fetch_with_request(&request)).await {
+                    let resp: Response = resp_value.dyn_into().unwrap();
+                    if resp.ok() {
+                        if let Ok(json_promise) = resp.json() {
+                            if let Ok(json) = JsFuture::from(json_promise).await {
+                                if let Ok(new_config) = serde_wasm_bindgen::from_value::<AppConfig>(json) {
+                                    GAME.with(|g| {
+                                        if let Some(game) = g.borrow_mut().as_mut() {
+                                            game.config = Some(new_config);
+                                        }
+                                    });
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }) as Box<dyn FnMut()>);
+
+    web_sys::window()
+        .unwrap()
+        .set_interval_with_callback_and_timeout_and_arguments_0(
+            f.as_ref().unchecked_ref(),
+            1000,
+        )
+        .unwrap();
+
+    f.forget();
+}
+
 #[wasm_bindgen]
-pub fn init_game() -> Result<(), JsValue> {
+pub async fn init_game() -> Result<(), JsValue> {
     let window = web_sys::window().ok_or("No window")?;
     let document = window.document().ok_or("No document")?;
     let canvas = document.get_element_by_id("canvas")
@@ -1110,7 +1229,53 @@ pub fn init_game() -> Result<(), JsValue> {
 
     gl.viewport(0, 0, 800, 600);
 
-    let game = Game::new(gl)?;
+    // Load config
+    let mut config: Option<AppConfig> = None;
+    let mut opts = RequestInit::new();
+    opts.method("GET");
+    opts.mode(RequestMode::Cors);
+
+    let config_request = Request::new_with_str_and_init("/assets/config.json", &opts)?;
+    let config_resp_value = JsFuture::from(window.fetch_with_request(&config_request)).await;
+
+    if let Ok(resp_value) = config_resp_value {
+        let resp: Response = resp_value.dyn_into().unwrap();
+        if resp.ok() {
+            let json_promise = resp.json()?;
+            let json = JsFuture::from(json_promise).await?;
+            if let Ok(c) = serde_wasm_bindgen::from_value(json) {
+                config = Some(c);
+            }
+        }
+    }
+
+    // Load assets
+    let mut car_mesh = None;
+    
+    let model_path = if let Some(ref c) = config {
+        c.car_model.path.clone()
+    } else {
+        "/assets/models/grey_voxel_car.glb".to_string()
+    };
+
+    let request = Request::new_with_str_and_init(&model_path, &opts)?;
+    let resp_value = JsFuture::from(window.fetch_with_request(&request)).await;
+    
+    if let Ok(resp_value) = resp_value {
+        let resp: Response = resp_value.dyn_into().unwrap();
+        if resp.ok() {
+            let buffer_promise = resp.array_buffer()?;
+            let buffer = JsFuture::from(buffer_promise).await?;
+            let array = js_sys::Uint8Array::new(&buffer);
+            let bytes = array.to_vec();
+            
+            if let Ok(mesh) = Mesh::from_gltf(&bytes) {
+                car_mesh = Some(mesh);
+            }
+        }
+    }
+
+    let game = Game::new(gl, car_mesh, config)?;
     GAME.with(|g| *g.borrow_mut() = Some(game));
 
     let closure = Closure::wrap(Box::new(move |event: KeyboardEvent| {
@@ -1146,6 +1311,8 @@ pub fn init_game() -> Result<(), JsValue> {
     }) as Box<dyn FnMut()>));
 
     request_animation_frame(g.borrow().as_ref().unwrap());
+
+    start_config_reloader();
 
     Ok(())
 }
