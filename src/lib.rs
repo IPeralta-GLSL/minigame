@@ -979,17 +979,23 @@ impl Game {
 
     fn move_left(&mut self) {
         if !self.moving && !self.game_over {
-            self.moving = true;
-            self.target_x = self.player.x - 2.0;
-            self.move_direction = 2;
+            let new_target = self.player.x - 2.0;
+            if new_target >= -10.0 {
+                self.moving = true;
+                self.target_x = new_target;
+                self.move_direction = 2;
+            }
         }
     }
 
     fn move_right(&mut self) {
         if !self.moving && !self.game_over {
-            self.moving = true;
-            self.target_x = self.player.x + 2.0;
-            self.move_direction = 3;
+            let new_target = self.player.x + 2.0;
+            if new_target <= 10.0 {
+                self.moving = true;
+                self.target_x = new_target;
+                self.move_direction = 3;
+            }
         }
     }
 
