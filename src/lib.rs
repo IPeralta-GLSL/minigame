@@ -12,10 +12,10 @@ const VERTEX_SHADER: &str = r#"
     uniform mat4 uModelViewProjection;
     varying vec3 vColor;
     varying vec2 vTexCoord;
-    varying vec4 vScreenPos;
+    varying vec3 vPos;
     void main() {
         gl_Position = uModelViewProjection * vec4(aPosition, 1.0);
-        vScreenPos = gl_Position;
+        vPos = aPosition;
         vColor = aColor;
         vTexCoord = aTexCoord;
     }
@@ -25,7 +25,7 @@ const FRAGMENT_SHADER: &str = r#"
     precision mediump float;
     varying vec3 vColor;
     varying vec2 vTexCoord;
-    varying vec4 vScreenPos;
+    varying vec3 vPos;
     uniform sampler2D uTexture;
     uniform int uUseTexture;
     void main() {
@@ -34,16 +34,21 @@ const FRAGMENT_SHADER: &str = r#"
             vec4 texColor = texture2D(uTexture, vTexCoord);
             color *= texColor.rgb;
         }
-        float exposure = 1.1;
-        color = color * exposure;
+        
+        // Simple ambient occlusion based on height (darker at bottom)
+        float ao = smoothstep(-0.5, 0.5, vPos.y + 0.5);
+        ao = mix(0.7, 1.0, ao);
+        color *= ao;
+
+        // Color grading
+        // Increase saturation slightly
         float luminance = dot(color, vec3(0.2126, 0.7152, 0.0722));
         vec3 gray = vec3(luminance);
-        color = mix(gray, color, 1.3);
-        vec2 ndc = vScreenPos.xy / vScreenPos.w;
-        float dist = length(ndc);
-        float vignette = smoothstep(1.2, 0.4, dist);
-        color *= vignette;
-        color = pow(color, vec3(1.0/2.2));
+        color = mix(gray, color, 1.2);
+        
+        // Slight contrast
+        color = pow(color, vec3(1.1));
+
         gl_FragColor = vec4(color, 1.0);
     }
 "#;
@@ -614,6 +619,9 @@ impl Game {
                 projection, view
             );
             
+            // Shadow for flower
+            self.draw_shadow(fx, fz, 0.12, 0.12, 0.2, projection, view);
+            
             // Flower head - different colors
             let flower_type = (r3 * 5.0) as i32;
             let (fr, fg, fb) = match flower_type {
@@ -645,6 +653,9 @@ impl Game {
                 0.5, 0.5, 0.48,
                 projection, view
             );
+            
+            // Shadow for rock
+            self.draw_shadow(rx, rz, 0.2 + r1 * 0.1, 0.18 + r2 * 0.08, 0.3, projection, view);
         }
         
         // Add small mushrooms rarely
@@ -668,6 +679,9 @@ impl Game {
                 0.85, 0.2, 0.15,
                 projection, view
             );
+            
+            // Shadow for mushroom
+            self.draw_shadow(mx, mz, 0.12, 0.12, 0.2, projection, view);
         }
     }
 
@@ -799,7 +813,7 @@ impl Game {
     fn draw_shadow(&self, x: f32, z: f32, w: f32, d: f32, alpha: f32, projection: &Matrix4<f32>, view: &Matrix4<f32>) {
         let dark = 0.05 * alpha;
         self.draw_cube(
-            x, 0.01, z,
+            x, -0.24, z,
             w, 0.02, d,
             dark, dark, dark,
             projection, view
