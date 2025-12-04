@@ -12,8 +12,10 @@ const VERTEX_SHADER: &str = r#"
     uniform mat4 uModelViewProjection;
     varying vec3 vColor;
     varying vec2 vTexCoord;
+    varying vec4 vScreenPos;
     void main() {
         gl_Position = uModelViewProjection * vec4(aPosition, 1.0);
+        vScreenPos = gl_Position;
         vColor = aColor;
         vTexCoord = aTexCoord;
     }
@@ -23,15 +25,26 @@ const FRAGMENT_SHADER: &str = r#"
     precision mediump float;
     varying vec3 vColor;
     varying vec2 vTexCoord;
+    varying vec4 vScreenPos;
     uniform sampler2D uTexture;
     uniform int uUseTexture;
     void main() {
+        vec3 color = vColor;
         if (uUseTexture == 1) {
             vec4 texColor = texture2D(uTexture, vTexCoord);
-            gl_FragColor = texColor * vec4(vColor, 1.0);
-        } else {
-            gl_FragColor = vec4(vColor, 1.0);
+            color *= texColor.rgb;
         }
+        float exposure = 1.1;
+        color = color * exposure;
+        float luminance = dot(color, vec3(0.2126, 0.7152, 0.0722));
+        vec3 gray = vec3(luminance);
+        color = mix(gray, color, 1.3);
+        vec2 ndc = vScreenPos.xy / vScreenPos.w;
+        float dist = length(ndc);
+        float vignette = smoothstep(1.2, 0.4, dist);
+        color *= vignette;
+        color = pow(color, vec3(1.0/2.2));
+        gl_FragColor = vec4(color, 1.0);
     }
 "#;
 
@@ -43,24 +56,41 @@ struct Mesh {
 impl Mesh {
     fn cube(size: f32, r: f32, g: f32, b: f32) -> Self {
         let s = size / 2.0;
-        let vertices = vec![
-            -s, -s,  s, r, g, b,
-             s, -s,  s, r * 0.9, g * 0.9, b * 0.9,
-             s,  s,  s, r * 0.8, g * 0.8, b * 0.8,
-            -s,  s,  s, r * 0.85, g * 0.85, b * 0.85,
-            -s, -s, -s, r * 0.7, g * 0.7, b * 0.7,
-             s, -s, -s, r * 0.75, g * 0.75, b * 0.75,
-             s,  s, -s, r * 0.65, g * 0.65, b * 0.65,
-            -s,  s, -s, r * 0.6, g * 0.6, b * 0.6,
-        ];
-        let indices = vec![
-            0, 1, 2, 0, 2, 3,
-            4, 6, 5, 4, 7, 6,
-            0, 3, 7, 0, 7, 4,
-            1, 5, 6, 1, 6, 2,
-            3, 2, 6, 3, 6, 7,
-            0, 4, 5, 0, 5, 1,
-        ];
+        let mut vertices = Vec::new();
+        let mut indices = Vec::new();
+
+        let mut add_face = |
+            x1: f32, y1: f32, z1: f32,
+            x2: f32, y2: f32, z2: f32,
+            x3: f32, y3: f32, z3: f32,
+            x4: f32, y4: f32, z4: f32,
+            brightness: f32
+        | {
+            let base = (vertices.len() / 6) as u16;
+            let br = r * brightness;
+            let bg = g * brightness;
+            let bb = b * brightness;
+            
+            vertices.extend_from_slice(&[
+                x1, y1, z1, br, bg, bb,
+                x2, y2, z2, br, bg, bb,
+                x3, y3, z3, br, bg, bb,
+                x4, y4, z4, br, bg, bb,
+            ]);
+            
+            indices.extend_from_slice(&[
+                base, base + 1, base + 2,
+                base, base + 2, base + 3,
+            ]);
+        };
+
+        add_face(-s, -s, s, s, -s, s, s, s, s, -s, s, s, 0.9);
+        add_face(s, -s, -s, -s, -s, -s, -s, s, -s, s, s, -s, 0.7);
+        add_face(-s, s, s, s, s, s, s, s, -s, -s, s, -s, 1.1);
+        add_face(-s, -s, -s, s, -s, -s, s, -s, s, -s, -s, s, 0.4);
+        add_face(s, -s, s, s, -s, -s, s, s, -s, s, s, s, 0.8);
+        add_face(-s, -s, -s, -s, -s, s, -s, s, s, -s, s, -s, 0.6);
+
         Mesh { vertices, indices }
     }
 
@@ -68,37 +98,45 @@ impl Mesh {
         let mut vertices = Vec::new();
         let mut indices = Vec::new();
         
-        let add_box = |verts: &mut Vec<f32>, idxs: &mut Vec<u16>, 
+        let mut add_box = |verts: &mut Vec<f32>, idxs: &mut Vec<u16>, 
                        ox: f32, oy: f32, oz: f32, 
                        sx: f32, sy: f32, sz: f32, 
                        r: f32, g: f32, b: f32| {
-            let base = (verts.len() / 6) as u16;
             let hx = sx / 2.0;
             let hy = sy / 2.0;
             let hz = sz / 2.0;
             
-            verts.extend_from_slice(&[
-                ox - hx, oy - hy, oz + hz, r, g, b,
-                ox + hx, oy - hy, oz + hz, r * 0.9, g * 0.9, b * 0.9,
-                ox + hx, oy + hy, oz + hz, r * 0.8, g * 0.8, b * 0.8,
-                ox - hx, oy + hy, oz + hz, r * 0.85, g * 0.85, b * 0.85,
-                ox - hx, oy - hy, oz - hz, r * 0.7, g * 0.7, b * 0.7,
-                ox + hx, oy - hy, oz - hz, r * 0.75, g * 0.75, b * 0.75,
-                ox + hx, oy + hy, oz - hz, r * 0.65, g * 0.65, b * 0.65,
-                ox - hx, oy + hy, oz - hz, r * 0.6, g * 0.6, b * 0.6,
-            ]);
-            
-            let face_indices: [u16; 36] = [
-                0, 1, 2, 0, 2, 3,
-                4, 6, 5, 4, 7, 6,
-                0, 3, 7, 0, 7, 4,
-                1, 5, 6, 1, 6, 2,
-                3, 2, 6, 3, 6, 7,
-                0, 4, 5, 0, 5, 1,
-            ];
-            for i in face_indices.iter() {
-                idxs.push(base + i);
-            }
+            let mut add_face = |
+                x1: f32, y1: f32, z1: f32,
+                x2: f32, y2: f32, z2: f32,
+                x3: f32, y3: f32, z3: f32,
+                x4: f32, y4: f32, z4: f32,
+                brightness: f32
+            | {
+                let base = (verts.len() / 6) as u16;
+                let br = r * brightness;
+                let bg = g * brightness;
+                let bb = b * brightness;
+                
+                verts.extend_from_slice(&[
+                    ox + x1, oy + y1, oz + z1, br, bg, bb,
+                    ox + x2, oy + y2, oz + z2, br, bg, bb,
+                    ox + x3, oy + y3, oz + z3, br, bg, bb,
+                    ox + x4, oy + y4, oz + z4, br, bg, bb,
+                ]);
+                
+                idxs.extend_from_slice(&[
+                    base, base + 1, base + 2,
+                    base, base + 2, base + 3,
+                ]);
+            };
+
+            add_face(-hx, -hy, hz, hx, -hy, hz, hx, hy, hz, -hx, hy, hz, 0.9);
+            add_face(hx, -hy, -hz, -hx, -hy, -hz, -hx, hy, -hz, hx, hy, -hz, 0.7);
+            add_face(-hx, hy, hz, hx, hy, hz, hx, hy, -hz, -hx, hy, -hz, 1.1);
+            add_face(-hx, -hy, -hz, hx, -hy, -hz, hx, -hy, hz, -hx, -hy, hz, 0.4);
+            add_face(hx, -hy, hz, hx, -hy, -hz, hx, hy, -hz, hx, hy, hz, 0.8);
+            add_face(-hx, -hy, -hz, -hx, -hy, hz, -hx, hy, hz, -hx, hy, -hz, 0.6);
         };
         
         add_box(&mut vertices, &mut indices, 0.0, -0.1, 0.0, 0.55, 0.25, 0.9, body_r, body_g, body_b);
@@ -380,7 +418,7 @@ impl Game {
     }
 
     fn render(&self) {
-        self.gl.clear_color(0.5, 0.7, 0.9, 1.0);
+        self.gl.clear_color(0.2, 0.6, 1.0, 1.0);
         self.gl.clear(WebGlRenderingContext::COLOR_BUFFER_BIT | WebGlRenderingContext::DEPTH_BUFFER_BIT);
         self.gl.enable(WebGlRenderingContext::DEPTH_TEST);
         self.gl.enable(WebGlRenderingContext::BLEND);
