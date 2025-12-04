@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Crossy Road Clone</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            font-family: Arial, sans-serif;
+        }
+        .game-container {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        canvas {
+            border: 4px solid #4a9eff;
+            border-radius: 8px;
+        }
+        #score {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            font-size: 28px;
+            font-weight: bold;
+            color: #fff;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+        }
+        #gameover {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.85);
+            padding: 40px 60px;
+            border-radius: 16px;
+            text-align: center;
+            border: 3px solid #ff4a4a;
+        }
+        #gameover h2 { color: #ff4a4a; font-size: 36px; margin-bottom: 15px; }
+        #gameover p { color: #fff; font-size: 18px; }
+        .controls { margin-top: 20px; color: #aaa; text-align: center; }
+        .controls h3 { color: #4a9eff; margin-bottom: 10px; }
+        .controls p { margin: 5px 0; }
+        .key {
+            display: inline-block;
+            background: #333;
+            padding: 5px 12px;
+            border-radius: 4px;
+            margin: 0 3px;
+            border: 1px solid #555;
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <canvas id="canvas" width="800" height="600"></canvas>
+        <div id="score">Score: 0</div>
+        <div id="gameover">
+            <h2>GAME OVER</h2>
+            <p>Press <span class="key">R</span> to restart</p>
+        </div>
+        <div class="controls">
+            <h3>Controls</h3>
+            <p><span class="key">Space</span> Move Forward</p>
+            <p><span class="key">A</span> Move Right | <span class="key">D</span> Move Left</p>
+            <p><span class="key">R</span> Restart</p>
+        </div>
+    </div>
+    <script type="module">
+        import init, { init_game } from './pkg/crossy_road_clone.js';
+        init().then(() => {
+            init_game();
+        }).catch(err => {
+            console.error('Error:', err);
+        });
+    </script>
+</body>
+</html>
