@@ -490,7 +490,14 @@ impl Game {
         let aspect = 800.0 / 600.0;
         let projection = Perspective3::new(aspect, 0.8, 0.1, 100.0).to_homogeneous();
         
-        let eye = Vector3::new(self.player.x, 15.0, self.player.z - 10.0);
+        // Dynamic camera zoom effect during jump
+        let zoom_offset = if self.moving {
+            (self.jump_progress * std::f32::consts::PI).sin() * 0.5
+        } else {
+            0.0
+        };
+
+        let eye = Vector3::new(self.player.x, 15.0 + zoom_offset, self.player.z - 10.0 - zoom_offset);
         let target = Vector3::new(self.player.x, 0.0, self.player.z + 5.0);
         let up = Vector3::new(0.0, 1.0, 0.0);
         let view = Matrix4::look_at_rh(&eye.into(), &target.into(), &up);
