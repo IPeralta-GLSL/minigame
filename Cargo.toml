@@ -33,6 +33,9 @@ features = [
     "RequestMode",
     "Response",
     "Headers",
+    "WebGlTexture",
+    "HtmlImageElement",
+    "EventTarget",
 ]
 
 [profile.release]
