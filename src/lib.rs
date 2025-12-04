@@ -77,6 +77,13 @@ impl GameObject {
         dy < (self.height + other.height) / 2.0 &&
         dz < (self.depth + other.depth) / 2.0
     }
+
+    fn collides_horizontal(&self, other: &GameObject) -> bool {
+        let dx = (self.x - other.x).abs();
+        let dz = (self.z - other.z).abs();
+        dx < (self.width + other.width) / 2.0 &&
+        dz < (self.depth + other.depth) / 2.0
+    }
 }
 
 struct Lane {
@@ -105,6 +112,8 @@ struct Game {
     target_z: f32,
     target_x: f32,
     move_direction: i32,
+    jump_progress: f32,
+    base_y: f32,
 }
 
 impl Game {
@@ -139,6 +148,8 @@ impl Game {
             target_z: 0.0,
             target_x: 0.0,
             move_direction: 0,
+            jump_progress: 0.0,
+            base_y: 0.5,
         })
     }
 
@@ -148,20 +159,21 @@ impl Game {
         }
 
         if self.moving {
-            let speed = 0.2;
+            let speed = 0.15;
+            self.jump_progress += speed / 2.0;
+            
+            let jump_height = 1.5;
+            let jump_y = (self.jump_progress * std::f32::consts::PI).sin() * jump_height;
+            self.player.y = self.base_y + jump_y;
+            
             match self.move_direction {
                 0 => {
                     self.player.z += speed;
                     if self.player.z >= self.target_z {
                         self.player.z = self.target_z;
                         self.moving = false;
-                    }
-                }
-                1 => {
-                    self.player.z -= speed;
-                    if self.player.z <= self.target_z {
-                        self.player.z = self.target_z;
-                        self.moving = false;
+                        self.jump_progress = 0.0;
+                        self.player.y = self.base_y;
                     }
                 }
                 2 => {
@@ -169,6 +181,8 @@ impl Game {
                     if self.player.x <= self.target_x {
                         self.player.x = self.target_x;
                         self.moving = false;
+                        self.jump_progress = 0.0;
+                        self.player.y = self.base_y;
                     }
                 }
                 3 => {
@@ -176,6 +190,8 @@ impl Game {
                     if self.player.x >= self.target_x {
                         self.player.x = self.target_x;
                         self.moving = false;
+                        self.jump_progress = 0.0;
+                        self.player.y = self.base_y;
                     }
                 }
                 _ => {}
@@ -195,29 +211,33 @@ impl Game {
         }
 
         let player_lane = (self.player.z / 2.0).round() as usize;
-        if player_lane < self.lanes.len() {
+        if player_lane < self.lanes.len() && !self.moving {
             match self.lanes[player_lane].lane_type {
                 LaneType::Road => {
                     for obstacle in &self.lanes[player_lane].obstacles {
-                        if self.player.collides_with(obstacle) {
+                        if self.player.collides_horizontal(obstacle) {
                             self.game_over = true;
                         }
                     }
                 }
                 LaneType::Water => {
                     let on_log = self.lanes[player_lane].obstacles.iter()
-                        .any(|o| self.player.collides_with(o));
+                        .any(|o| self.player.collides_horizontal(o));
                     if !on_log {
                         self.game_over = true;
-                    } else {
-                        for obstacle in &self.lanes[player_lane].obstacles {
-                            if self.player.collides_with(obstacle) {
-                                self.player.x += obstacle.velocity_x;
-                            }
-                        }
                     }
                 }
                 _ => {}
+            }
+        }
+        
+        if player_lane < self.lanes.len() {
+            if let LaneType::Water = self.lanes[player_lane].lane_type {
+                for obstacle in &self.lanes[player_lane].obstacles {
+                    if self.player.collides_horizontal(obstacle) {
+                        self.player.x += obstacle.velocity_x;
+                    }
+                }
             }
         }
 
@@ -233,6 +253,8 @@ impl Game {
         self.gl.clear_color(0.5, 0.7, 0.9, 1.0);
         self.gl.clear(WebGlRenderingContext::COLOR_BUFFER_BIT | WebGlRenderingContext::DEPTH_BUFFER_BIT);
         self.gl.enable(WebGlRenderingContext::DEPTH_TEST);
+        self.gl.enable(WebGlRenderingContext::BLEND);
+        self.gl.blend_func(WebGlRenderingContext::SRC_ALPHA, WebGlRenderingContext::ONE_MINUS_SRC_ALPHA);
 
         let aspect = 800.0 / 600.0;
         let projection = Perspective3::new(aspect, 0.8, 0.1, 100.0).to_homogeneous();
@@ -254,7 +276,29 @@ impl Game {
                 r, g, b,
                 &projection, &view
             );
+        }
 
+        for lane in &self.lanes {
+            for obstacle in &lane.obstacles {
+                self.draw_shadow(
+                    obstacle.x, obstacle.z,
+                    obstacle.width * 0.8, obstacle.depth * 0.8,
+                    0.3,
+                    &projection, &view
+                );
+            }
+        }
+        
+        let shadow_scale = 1.0 + (self.player.y - self.base_y) * 0.3;
+        let shadow_alpha = 0.4 - (self.player.y - self.base_y) * 0.1;
+        self.draw_shadow(
+            self.player.x, self.player.z,
+            self.player.width * shadow_scale, self.player.depth * shadow_scale,
+            shadow_alpha.max(0.1),
+            &projection, &view
+        );
+
+        for lane in &self.lanes {
             for obstacle in &lane.obstacles {
                 self.draw_cube(
                     obstacle.x, obstacle.y, obstacle.z,
@@ -271,6 +315,18 @@ impl Game {
             self.player.width, self.player.height, self.player.depth,
             player_color.0, player_color.1, player_color.2,
             &projection, &view
+        );
+        
+        self.gl.disable(WebGlRenderingContext::BLEND);
+    }
+
+    fn draw_shadow(&self, x: f32, z: f32, w: f32, d: f32, alpha: f32, projection: &Matrix4<f32>, view: &Matrix4<f32>) {
+        let dark = 0.05 * alpha;
+        self.draw_cube(
+            x, 0.01, z,
+            w, 0.02, d,
+            dark, dark, dark,
+            projection, view
         );
     }
 
@@ -347,10 +403,12 @@ impl Game {
 
     fn restart(&mut self) {
         self.player.x = 0.0;
+        self.player.y = self.base_y;
         self.player.z = 0.0;
         self.score = 0;
         self.game_over = false;
         self.moving = false;
+        self.jump_progress = 0.0;
         self.lanes.clear();
         for i in 0..30 {
             self.lanes.push(create_lane(i as f32 * 2.0, i));
