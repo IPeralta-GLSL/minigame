@@ -23,13 +23,13 @@ const FRAGMENT_SHADER: &str = r#"
     }
 "#;
 
-struct Cube {
+struct Mesh {
     vertices: Vec<f32>,
     indices: Vec<u16>,
 }
 
-impl Cube {
-    fn new(size: f32, r: f32, g: f32, b: f32) -> Self {
+impl Mesh {
+    fn cube(size: f32, r: f32, g: f32, b: f32) -> Self {
         let s = size / 2.0;
         let vertices = vec![
             -s, -s,  s, r, g, b,
@@ -49,7 +49,70 @@ impl Cube {
             3, 2, 6, 3, 6, 7,
             0, 4, 5, 0, 5, 1,
         ];
-        Cube { vertices, indices }
+        Mesh { vertices, indices }
+    }
+
+    fn car(body_r: f32, body_g: f32, body_b: f32) -> Self {
+        let mut vertices = Vec::new();
+        let mut indices = Vec::new();
+        
+        let add_box = |verts: &mut Vec<f32>, idxs: &mut Vec<u16>, 
+                       ox: f32, oy: f32, oz: f32, 
+                       sx: f32, sy: f32, sz: f32, 
+                       r: f32, g: f32, b: f32| {
+            let base = (verts.len() / 6) as u16;
+            let hx = sx / 2.0;
+            let hy = sy / 2.0;
+            let hz = sz / 2.0;
+            
+            verts.extend_from_slice(&[
+                ox - hx, oy - hy, oz + hz, r, g, b,
+                ox + hx, oy - hy, oz + hz, r * 0.9, g * 0.9, b * 0.9,
+                ox + hx, oy + hy, oz + hz, r * 0.8, g * 0.8, b * 0.8,
+                ox - hx, oy + hy, oz + hz, r * 0.85, g * 0.85, b * 0.85,
+                ox - hx, oy - hy, oz - hz, r * 0.7, g * 0.7, b * 0.7,
+                ox + hx, oy - hy, oz - hz, r * 0.75, g * 0.75, b * 0.75,
+                ox + hx, oy + hy, oz - hz, r * 0.65, g * 0.65, b * 0.65,
+                ox - hx, oy + hy, oz - hz, r * 0.6, g * 0.6, b * 0.6,
+            ]);
+            
+            let face_indices: [u16; 36] = [
+                0, 1, 2, 0, 2, 3,
+                4, 6, 5, 4, 7, 6,
+                0, 3, 7, 0, 7, 4,
+                1, 5, 6, 1, 6, 2,
+                3, 2, 6, 3, 6, 7,
+                0, 4, 5, 0, 5, 1,
+            ];
+            for i in face_indices.iter() {
+                idxs.push(base + i);
+            }
+        };
+        
+        add_box(&mut vertices, &mut indices, 0.0, -0.1, 0.0, 0.55, 0.25, 0.9, body_r, body_g, body_b);
+        add_box(&mut vertices, &mut indices, 0.0, -0.18, 0.0, 0.5, 0.08, 0.8, body_r * 0.7, body_g * 0.7, body_b * 0.7);
+        add_box(&mut vertices, &mut indices, 0.0, 0.08, 0.02, 0.35, 0.2, 0.6, body_r * 0.9, body_g * 0.9, body_b * 0.9);
+        add_box(&mut vertices, &mut indices, 0.0, 0.12, 0.02, 0.28, 0.1, 0.45, 0.55, 0.7, 0.85);
+        add_box(&mut vertices, &mut indices, 0.0, -0.03, -0.43, 0.5, 0.06, 0.06, 0.15, 0.15, 0.15);
+        add_box(&mut vertices, &mut indices, 0.0, -0.03, 0.43, 0.5, 0.05, 0.06, 0.15, 0.15, 0.15);
+        add_box(&mut vertices, &mut indices, -0.18, -0.2, -0.3, 0.08, 0.22, 0.22, 0.1, 0.1, 0.1);
+        add_box(&mut vertices, &mut indices, 0.18, -0.2, -0.3, 0.08, 0.22, 0.22, 0.1, 0.1, 0.1);
+        add_box(&mut vertices, &mut indices, -0.18, -0.2, 0.3, 0.08, 0.22, 0.22, 0.1, 0.1, 0.1);
+        add_box(&mut vertices, &mut indices, 0.18, -0.2, 0.3, 0.08, 0.22, 0.22, 0.1, 0.1, 0.1);
+        add_box(&mut vertices, &mut indices, -0.18, -0.2, -0.3, 0.1, 0.12, 0.12, 0.35, 0.35, 0.35);
+        add_box(&mut vertices, &mut indices, 0.18, -0.2, -0.3, 0.1, 0.12, 0.12, 0.35, 0.35, 0.35);
+        add_box(&mut vertices, &mut indices, -0.18, -0.2, 0.3, 0.1, 0.12, 0.12, 0.35, 0.35, 0.35);
+        add_box(&mut vertices, &mut indices, 0.18, -0.2, 0.3, 0.1, 0.12, 0.12, 0.35, 0.35, 0.35);
+        add_box(&mut vertices, &mut indices, -0.12, 0.0, -0.45, 0.08, 0.08, 0.04, 1.0, 1.0, 0.7);
+        add_box(&mut vertices, &mut indices, 0.12, 0.0, -0.45, 0.08, 0.08, 0.04, 1.0, 1.0, 0.7);
+        add_box(&mut vertices, &mut indices, 0.0, -0.06, -0.45, 0.15, 0.03, 0.02, 0.85, 0.85, 0.85);
+        add_box(&mut vertices, &mut indices, -0.12, -0.02, 0.45, 0.1, 0.1, 0.04, 0.9, 0.1, 0.1);
+        add_box(&mut vertices, &mut indices, 0.12, -0.02, 0.45, 0.1, 0.1, 0.04, 0.9, 0.1, 0.1);
+        add_box(&mut vertices, &mut indices, 0.0, -0.06, 0.45, 0.12, 0.03, 0.02, 0.85, 0.85, 0.85);
+        add_box(&mut vertices, &mut indices, 0.0, 0.0, -0.4, 0.1, 0.05, 0.04, 0.15, 0.15, 0.15);
+        add_box(&mut vertices, &mut indices, 0.0, 0.0, -0.4, 0.06, 0.03, 0.02, 0.4, 0.5, 0.6);
+        
+        Mesh { vertices, indices }
     }
 }
 
@@ -62,13 +125,31 @@ struct GameObject {
     depth: f32,
     velocity_x: f32,
     color: (f32, f32, f32),
+    is_car: bool,
 }
+
+const CAR_COLORS: [(f32, f32, f32); 8] = [
+    (0.9, 0.2, 0.2),
+    (0.2, 0.5, 0.9),
+    (0.2, 0.8, 0.3),
+    (0.95, 0.8, 0.2),
+    (0.9, 0.4, 0.1),
+    (0.7, 0.2, 0.8),
+    (0.1, 0.8, 0.8),
+    (0.95, 0.95, 0.95),
+];
 
 impl GameObject {
     fn new(x: f32, y: f32, z: f32, width: f32, height: f32, depth: f32, color: (f32, f32, f32)) -> Self {
-        GameObject { x, y, z, width, height, depth, velocity_x: 0.0, color }
+        GameObject { x, y, z, width, height, depth, velocity_x: 0.0, color, is_car: false }
     }
 
+    fn new_car(x: f32, y: f32, z: f32, width: f32, height: f32, depth: f32, color_idx: usize) -> Self {
+        let color = CAR_COLORS[color_idx % CAR_COLORS.len()];
+        GameObject { x, y, z, width, height, depth, velocity_x: 0.0, color, is_car: true }
+    }
+
+    #[allow(dead_code)]
     fn collides_with(&self, other: &GameObject) -> bool {
         let dx = (self.x - other.x).abs();
         let dy = (self.y - other.y).abs();
@@ -264,9 +345,10 @@ impl Game {
         let up = Vector3::new(0.0, 1.0, 0.0);
         let view = Matrix4::look_at_rh(&eye.into(), &target.into(), &up);
 
+        // Draw lane bases
         for lane in &self.lanes {
             let (r, g, b) = match lane.lane_type {
-                LaneType::Grass => (0.3, 0.7, 0.3),
+                LaneType::Grass => (0.25, 0.55, 0.25),
                 LaneType::Road => (0.3, 0.3, 0.3),
                 LaneType::Water => (0.2, 0.4, 0.8),
             };
@@ -276,6 +358,16 @@ impl Game {
                 r, g, b,
                 &projection, &view
             );
+            
+            // Draw grass texture details
+            if matches!(lane.lane_type, LaneType::Grass) {
+                self.draw_grass_details(lane.z, &projection, &view);
+            }
+            
+            // Draw road markings
+            if matches!(lane.lane_type, LaneType::Road) {
+                self.draw_road_markings(lane.z, &projection, &view);
+            }
         }
 
         for lane in &self.lanes {
@@ -300,12 +392,22 @@ impl Game {
 
         for lane in &self.lanes {
             for obstacle in &lane.obstacles {
-                self.draw_cube(
-                    obstacle.x, obstacle.y, obstacle.z,
-                    obstacle.width, obstacle.height, obstacle.depth,
-                    obstacle.color.0, obstacle.color.1, obstacle.color.2,
-                    &projection, &view
-                );
+                if obstacle.is_car {
+                    self.draw_car(
+                        obstacle.x, obstacle.y, obstacle.z,
+                        obstacle.width, obstacle.height, obstacle.depth,
+                        obstacle.color.0, obstacle.color.1, obstacle.color.2,
+                        obstacle.velocity_x,
+                        &projection, &view
+                    );
+                } else {
+                    self.draw_cube(
+                        obstacle.x, obstacle.y, obstacle.z,
+                        obstacle.width, obstacle.height, obstacle.depth,
+                        obstacle.color.0, obstacle.color.1, obstacle.color.2,
+                        &projection, &view
+                    );
+                }
             }
         }
 
@@ -320,6 +422,97 @@ impl Game {
         self.gl.disable(WebGlRenderingContext::BLEND);
     }
 
+    fn draw_grass_details(&self, z: f32, projection: &Matrix4<f32>, view: &Matrix4<f32>) {
+        // Create procedural grass texture with small patches of different green shades
+        let seed = (z * 100.0) as i32;
+        
+        // Draw grass tufts
+        for i in 0..16 {
+            let pseudo_rand = ((seed + i * 7) % 100) as f32 / 100.0;
+            let pseudo_rand2 = ((seed + i * 13) % 100) as f32 / 100.0;
+            let pseudo_rand3 = ((seed + i * 23) % 100) as f32 / 100.0;
+            
+            let x = -11.0 + (i as f32 * 1.5) + pseudo_rand * 0.8;
+            let z_offset = (pseudo_rand2 - 0.5) * 1.5;
+            
+            // Vary the green color
+            let g = 0.5 + pseudo_rand3 * 0.35;
+            let r = 0.2 + pseudo_rand * 0.15;
+            
+            // Small grass tuft
+            self.draw_cube(
+                x, -0.2, z + z_offset,
+                0.15, 0.15, 0.15,
+                r, g, 0.15,
+                projection, view
+            );
+        }
+        
+        // Add some darker patches
+        for i in 0..8 {
+            let pseudo_rand = ((seed + i * 17 + 50) % 100) as f32 / 100.0;
+            let pseudo_rand2 = ((seed + i * 31 + 50) % 100) as f32 / 100.0;
+            
+            let x = -10.0 + (i as f32 * 2.8) + pseudo_rand * 1.2;
+            let z_offset = (pseudo_rand2 - 0.5) * 1.2;
+            
+            // Darker grass patch
+            self.draw_cube(
+                x, -0.22, z + z_offset,
+                0.4, 0.08, 0.4,
+                0.2, 0.45, 0.18,
+                projection, view
+            );
+        }
+        
+        // Add some flowers/details occasionally
+        let flower_seed = (seed % 5) as usize;
+        if flower_seed < 2 {
+            let fx = -8.0 + ((seed % 16) as f32);
+            let fz = z + ((seed % 3) as f32 - 1.0) * 0.5;
+            let flower_colors = [
+                (0.9, 0.9, 0.2),  // Yellow
+                (0.9, 0.3, 0.3),  // Red
+                (0.9, 0.9, 0.9),  // White
+                (0.8, 0.4, 0.8),  // Purple
+            ];
+            let color = flower_colors[(seed as usize) % flower_colors.len()];
+            self.draw_cube(
+                fx, -0.15, fz,
+                0.12, 0.12, 0.12,
+                color.0, color.1, color.2,
+                projection, view
+            );
+        }
+    }
+
+    fn draw_road_markings(&self, z: f32, projection: &Matrix4<f32>, view: &Matrix4<f32>) {
+        // Draw dashed center line
+        for i in 0..6 {
+            let x = -10.0 + (i as f32 * 4.0);
+            self.draw_cube(
+                x, -0.24, z,
+                1.0, 0.02, 0.1,
+                0.9, 0.9, 0.6,
+                projection, view
+            );
+        }
+        
+        // Draw edge lines
+        self.draw_cube(
+            0.0, -0.24, z + 0.9,
+            24.0, 0.02, 0.08,
+            0.85, 0.85, 0.5,
+            projection, view
+        );
+        self.draw_cube(
+            0.0, -0.24, z - 0.9,
+            24.0, 0.02, 0.08,
+            0.85, 0.85, 0.5,
+            projection, view
+        );
+    }
+
     fn draw_shadow(&self, x: f32, z: f32, w: f32, d: f32, alpha: f32, projection: &Matrix4<f32>, view: &Matrix4<f32>) {
         let dark = 0.05 * alpha;
         self.draw_cube(
@@ -331,11 +524,31 @@ impl Game {
     }
 
     fn draw_cube(&self, x: f32, y: f32, z: f32, w: f32, h: f32, d: f32, r: f32, g: f32, b: f32, projection: &Matrix4<f32>, view: &Matrix4<f32>) {
-        let cube = Cube::new(1.0, r, g, b);
+        let mesh = Mesh::cube(1.0, r, g, b);
+        self.draw_mesh(&mesh, x, y, z, w, h, d, projection, view);
+    }
+
+    fn draw_car(&self, x: f32, y: f32, z: f32, w: f32, h: f32, d: f32, r: f32, g: f32, b: f32, velocity_x: f32, projection: &Matrix4<f32>, view: &Matrix4<f32>) {
+        let mesh = Mesh::car(r, g, b);
+        // Rotate 90 degrees to face direction of travel (along X axis)
+        // If velocity_x > 0, face right; if < 0, face left
+        let rotation = if velocity_x >= 0.0 {
+            std::f32::consts::FRAC_PI_2  // 90 degrees
+        } else {
+            -std::f32::consts::FRAC_PI_2  // -90 degrees
+        };
+        self.draw_mesh_rotated(&mesh, x, y, z, w, h, d, rotation, projection, view);
+    }
+
+    fn draw_mesh(&self, mesh: &Mesh, x: f32, y: f32, z: f32, w: f32, h: f32, d: f32, projection: &Matrix4<f32>, view: &Matrix4<f32>) {
+        self.draw_mesh_rotated(mesh, x, y, z, w, h, d, 0.0, projection, view);
+    }
+
+    fn draw_mesh_rotated(&self, mesh: &Mesh, x: f32, y: f32, z: f32, w: f32, h: f32, d: f32, rotation_y: f32, projection: &Matrix4<f32>, view: &Matrix4<f32>) {
 
         self.gl.bind_buffer(WebGlRenderingContext::ARRAY_BUFFER, Some(&self.vertex_buffer));
         unsafe {
-            let vert_array = js_sys::Float32Array::view(&cube.vertices);
+            let vert_array = js_sys::Float32Array::view(&mesh.vertices);
             self.gl.buffer_data_with_array_buffer_view(
                 WebGlRenderingContext::ARRAY_BUFFER,
                 &vert_array,
@@ -345,7 +558,7 @@ impl Game {
 
         self.gl.bind_buffer(WebGlRenderingContext::ELEMENT_ARRAY_BUFFER, Some(&self.index_buffer));
         unsafe {
-            let idx_array = js_sys::Uint16Array::view(&cube.indices);
+            let idx_array = js_sys::Uint16Array::view(&mesh.indices);
             self.gl.buffer_data_with_array_buffer_view(
                 WebGlRenderingContext::ELEMENT_ARRAY_BUFFER,
                 &idx_array,
@@ -363,6 +576,7 @@ impl Game {
         self.gl.enable_vertex_attrib_array(col_loc);
 
         let model = Matrix4::new_translation(&Vector3::new(x, y, z)) *
+                    Matrix4::from_euler_angles(0.0, rotation_y, 0.0) *
                     Matrix4::new_nonuniform_scaling(&Vector3::new(w, h, d));
         let mvp = projection * view * model;
 
@@ -371,7 +585,7 @@ impl Game {
 
         self.gl.draw_elements_with_i32(
             WebGlRenderingContext::TRIANGLES,
-            cube.indices.len() as i32,
+            mesh.indices.len() as i32,
             WebGlRenderingContext::UNSIGNED_SHORT,
             0
         );
@@ -419,6 +633,9 @@ impl Game {
 fn create_lane(z: f32, index: usize) -> Lane {
     let lane_type = if index == 0 {
         LaneType::Grass
+    } else if index < 3 {
+        // First few lanes are always grass (safe zone)
+        LaneType::Grass
     } else {
         match index % 5 {
             0 | 1 => LaneType::Grass,
@@ -431,28 +648,35 @@ fn create_lane(z: f32, index: usize) -> Lane {
     
     match lane_type {
         LaneType::Road => {
-            let num_cars = 2 + (index % 3);
+            // Fewer cars at the beginning, more later
+            let base_cars = if index < 8 { 1 } else { 2 };
+            let num_cars = base_cars + (index % 2);
             let direction = if index % 2 == 0 { 1.0 } else { -1.0 };
-            let speed = 0.05 + (index as f32 * 0.005);
+            // Slower speed at beginning, gradually increases
+            let base_speed = if index < 6 { 0.02 } else { 0.04 };
+            let speed = base_speed + (index as f32 * 0.003).min(0.08);
             for i in 0..num_cars {
-                let mut car = GameObject::new(
+                let color_idx = (index * 3 + i) % CAR_COLORS.len();
+                let mut car = GameObject::new_car(
                     -10.0 + (i as f32 * 8.0),
                     0.5,
                     z,
                     2.0, 1.0, 1.5,
-                    (0.8, 0.2, 0.2)
+                    color_idx
                 );
                 car.velocity_x = speed * direction;
                 obstacles.push(car);
             }
         }
         LaneType::Water => {
-            let num_logs = 2 + (index % 2);
+            // More logs and slower at beginning for easier gameplay
+            let num_logs = if index < 10 { 3 + (index % 2) } else { 2 + (index % 2) };
             let direction = if index % 2 == 0 { 1.0 } else { -1.0 };
-            let speed = 0.03 + (index as f32 * 0.003);
+            let base_speed = if index < 8 { 0.02 } else { 0.03 };
+            let speed = base_speed + (index as f32 * 0.002).min(0.05);
             for i in 0..num_logs {
                 let mut log = GameObject::new(
-                    -8.0 + (i as f32 * 10.0),
+                    -8.0 + (i as f32 * 7.0),
                     0.3,
                     z,
                     4.0, 0.6, 1.5,
@@ -463,7 +687,8 @@ fn create_lane(z: f32, index: usize) -> Lane {
             }
         }
         LaneType::Grass => {
-            if index > 0 && index % 3 == 0 {
+            // Trees only appear after safe zone
+            if index > 3 && index % 3 == 0 {
                 let tree = GameObject::new(
                     (index as f32 * 1.5) % 10.0 - 5.0,
                     1.0,
