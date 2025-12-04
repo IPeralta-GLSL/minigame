@@ -209,6 +209,7 @@ struct Game {
     base_y: f32,
     world_seed: u32,
     furthest_lane: i32,
+    time: f32,
 }
 
 impl Game {
@@ -251,10 +252,14 @@ impl Game {
             base_y: 0.5,
             world_seed,
             furthest_lane: 24,
+            time: 0.0,
         })
     }
 
     fn update(&mut self) {
+        // Always update time for animations
+        self.time += 0.016; // ~60fps
+        
         if self.game_over {
             return;
         }
@@ -629,18 +634,7 @@ impl Game {
     }
 
     fn draw_road_markings(&self, z: f32, projection: &Matrix4<f32>, view: &Matrix4<f32>) {
-        // Draw dashed center line
-        for i in 0..6 {
-            let x = -10.0 + (i as f32 * 4.0);
-            self.draw_cube(
-                x, -0.24, z,
-                1.0, 0.02, 0.1,
-                0.9, 0.9, 0.6,
-                projection, view
-            );
-        }
-        
-        // Draw edge lines
+        // Draw edge lines only (no center dashed lines)
         self.draw_cube(
             0.0, -0.24, z + 0.9,
             24.0, 0.02, 0.08,
@@ -657,37 +651,50 @@ impl Game {
 
     fn draw_water_details(&self, z: f32, projection: &Matrix4<f32>, view: &Matrix4<f32>) {
         let seed = (z * 100.0) as i32;
+        let time = self.time;
         
         let rand = |s: i32, offset: i32| -> f32 {
             let n = ((s.wrapping_add(offset)).wrapping_mul(1103515245).wrapping_add(12345)) as u32;
             (n % 10000) as f32 / 10000.0
         };
         
-        // Water ripples/waves
+        // Animated water ripples/waves - move horizontally
         for i in 0..12 {
             let r1 = rand(seed, i * 7 + 600);
             let r2 = rand(seed, i * 11 + 600);
             let r3 = rand(seed, i * 17 + 600);
             
-            let x = -11.0 + (i as f32 * 2.0) + r1 * 1.0;
-            let z_offset = (r2 - 0.5) * 1.6;
+            // Wave motion - different speeds and phases for each wave
+            let phase = r1 * 6.28;
+            let wave_speed = 0.8 + r2 * 0.6;
+            let wave_offset = (time * wave_speed + phase).sin() * 0.3;
+            
+            let base_x = -11.0 + (i as f32 * 2.0) + r1 * 1.0;
+            let x = base_x + wave_offset;
+            let z_offset = (r2 - 0.5) * 1.6 + (time * 0.5 + r3 * 6.28).sin() * 0.1;
+            
+            // Animated wave height
+            let y_offset = (time * 1.5 + phase).sin() * 0.02;
             
             // Light blue highlight (wave crest)
             self.draw_cube(
-                x, -0.23, z + z_offset,
+                x, -0.23 + y_offset, z + z_offset,
                 0.8 + r3 * 0.4, 0.02, 0.15,
                 0.4, 0.6, 0.95,
                 projection, view
             );
         }
         
-        // Darker water patches (depth)
+        // Animated darker water patches (depth) - subtle movement
         for i in 0..8 {
             let r1 = rand(seed, i * 13 + 700);
             let r2 = rand(seed, i * 19 + 700);
             
-            let x = -10.0 + (i as f32 * 2.8) + r1 * 1.5;
-            let z_offset = (r2 - 0.5) * 1.2;
+            // Slow drift
+            let drift = (time * 0.3 + r1 * 6.28).sin() * 0.2;
+            
+            let x = -10.0 + (i as f32 * 2.8) + r1 * 1.5 + drift;
+            let z_offset = (r2 - 0.5) * 1.2 + (time * 0.4 + r2 * 6.28).cos() * 0.15;
             
             self.draw_cube(
                 x, -0.24, z + z_offset,
@@ -697,33 +704,43 @@ impl Game {
             );
         }
         
-        // Foam/bubbles near edges
+        // Animated foam/bubbles - flowing movement
         for i in 0..6 {
             let r1 = rand(seed, i * 23 + 800);
             let r2 = rand(seed, i * 29 + 800);
             
-            let x = -10.0 + (i as f32 * 4.0) + r1 * 2.0;
+            // Foam flows along edges
+            let flow = (time * 0.6 + r1 * 6.28).sin() * 0.4;
+            
+            let x = -10.0 + (i as f32 * 4.0) + r1 * 2.0 + flow;
             let z_offset = if i % 2 == 0 { 0.85 } else { -0.85 };
+            
+            // Pulsing size
+            let size_pulse = 1.0 + (time * 2.0 + r2 * 6.28).sin() * 0.15;
             
             // White foam
             self.draw_cube(
                 x, -0.22, z + z_offset + (r2 - 0.5) * 0.1,
-                0.3 + r1 * 0.2, 0.03, 0.1,
+                (0.3 + r1 * 0.2) * size_pulse, 0.03, 0.1,
                 0.85, 0.9, 0.95,
                 projection, view
             );
         }
         
-        // Lily pads occasionally
+        // Lily pads - gentle bobbing
         if seed % 5 == 0 {
             let r1 = rand(seed, 900);
             let r2 = rand(seed, 901);
             let lx = -6.0 + r1 * 12.0;
             let lz = z + (r2 - 0.5) * 1.0;
             
+            // Gentle bobbing motion
+            let bob = (time * 1.2 + r1 * 6.28).sin() * 0.02;
+            let sway_x = (time * 0.8 + r2 * 6.28).sin() * 0.05;
+            
             // Lily pad
             self.draw_cube(
-                lx, -0.21, lz,
+                lx + sway_x, -0.21 + bob, lz,
                 0.35, 0.03, 0.35,
                 0.2, 0.55, 0.25,
                 projection, view
@@ -732,7 +749,7 @@ impl Game {
             // Small flower on lily pad
             if seed % 10 == 0 {
                 self.draw_cube(
-                    lx + 0.05, -0.15, lz,
+                    lx + sway_x + 0.05, -0.15 + bob, lz,
                     0.08, 0.08, 0.08,
                     0.95, 0.7, 0.8,
                     projection, view
