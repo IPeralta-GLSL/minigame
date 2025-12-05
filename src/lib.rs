@@ -280,6 +280,7 @@ struct Lane {
     z: f32,
     lane_type: LaneType,
     obstacles: Vec<GameObject>,
+    coins: Vec<GameObject>,
 }
 
 enum LaneType {
@@ -297,6 +298,7 @@ struct Game {
     player: GameObject,
     lanes: Vec<Lane>,
     score: i32,
+    coins: i32,
     game_over: bool,
     moving: bool,
     target_z: f32,
@@ -342,6 +344,7 @@ impl Game {
             player,
             lanes,
             score: 0,
+            coins: 0,
             game_over: false,
             moving: false,
             target_z: 0.0,
@@ -433,6 +436,28 @@ impl Game {
                     obstacle.x = 15.0;
                 }
             }
+
+            for coin in &mut lane.coins {
+                coin.x += coin.velocity_x;
+                if coin.x > 15.0 {
+                    coin.x = -15.0;
+                }
+                if coin.x < -15.0 {
+                    coin.x = 15.0;
+                }
+            }
+
+            // Check coin collisions
+            let mut coins_collected = 0;
+            lane.coins.retain(|coin| {
+                if self.player.collides_horizontal(coin) {
+                    coins_collected += 1;
+                    false
+                } else {
+                    true
+                }
+            });
+            self.coins += coins_collected;
         }
 
         // Find the lane at player's position
@@ -547,6 +572,14 @@ impl Game {
                     &projection, &view
                 );
             }
+            for coin in &lane.coins {
+                self.draw_shadow(
+                    coin.x, coin.z,
+                    coin.width * 0.6, coin.depth * 0.6,
+                    0.2,
+                    &projection, &view
+                );
+            }
         }
         
         let shadow_scale = 1.0 + (self.player.y - self.base_y) * 0.3;
@@ -576,6 +609,16 @@ impl Game {
                         &projection, &view
                     );
                 }
+            }
+            
+            for coin in &lane.coins {
+                let pulse = (self.time * 5.0).sin() * 0.1 + 1.0;
+                self.draw_cube(
+                    coin.x, coin.y + 0.2 + (self.time * 3.0).sin() * 0.1, coin.z,
+                    coin.width * pulse, coin.height * pulse, coin.depth * pulse,
+                    1.0, 0.84, 0.0, // Gold
+                    &projection, &view
+                );
             }
         }
 
@@ -1011,6 +1054,7 @@ impl Game {
         self.player.y = self.base_y;
         self.player.z = 0.0;
         self.score = 0;
+        self.coins = 0;
         self.game_over = false;
         self.moving = false;
         self.jump_progress = 0.0;
@@ -1059,6 +1103,7 @@ fn create_lane_procedural(z: f32, index: i32, world_seed: u32) -> Lane {
     };
 
     let mut obstacles = Vec::new();
+    let mut coins = Vec::new();
     
     // Difficulty increases with distance
     let difficulty = (abs_index as f32 / 20.0).min(1.5);
@@ -1087,6 +1132,13 @@ fn create_lane_procedural(z: f32, index: i32, world_seed: u32) -> Lane {
                 car.velocity_x = speed * direction;
                 obstacles.push(car);
             }
+
+            // Chance to spawn coin on road (risky!)
+            if proc_rand(world_seed, index, 15) > 0.7 {
+                let coin_x = -8.0 + proc_rand(world_seed, index, 16) * 16.0;
+                let coin = GameObject::new(coin_x, 0.5, z, 0.4, 0.4, 0.4, (1.0, 0.8, 0.0));
+                coins.push(coin);
+            }
         }
         LaneType::Water => {
             // More logs when easier (beginning), fewer when harder
@@ -1111,6 +1163,19 @@ fn create_lane_procedural(z: f32, index: i32, world_seed: u32) -> Lane {
                 );
                 log.velocity_x = speed * direction;
                 obstacles.push(log);
+
+                // Chance to spawn coin on log
+                if proc_rand(world_seed, index, 35 + i as i32) > 0.7 {
+                    let mut coin = GameObject::new(
+                        -10.0 + (i as f32 * 6.0) + offset,
+                        0.8, // Higher on log
+                        z,
+                        0.4, 0.4, 0.4,
+                        (1.0, 0.8, 0.0)
+                    );
+                    coin.velocity_x = speed * direction;
+                    coins.push(coin);
+                }
             }
         }
         LaneType::Grass => {
@@ -1147,10 +1212,27 @@ fn create_lane_procedural(z: f32, index: i32, world_seed: u32) -> Lane {
                     obstacles.push(rock);
                 }
             }
+
+            // Chance to spawn coin on grass
+            if proc_rand(world_seed, index, 95) > 0.6 {
+                let coin_x = -9.0 + proc_rand(world_seed, index, 96) * 18.0;
+                // Check collision with obstacles roughly
+                let mut collides = false;
+                for obs in &obstacles {
+                    if (obs.x - coin_x).abs() < 1.0 {
+                        collides = true;
+                        break;
+                    }
+                }
+                if !collides {
+                    let coin = GameObject::new(coin_x, 0.5, z, 0.4, 0.4, 0.4, (1.0, 0.8, 0.0));
+                    coins.push(coin);
+                }
+            }
         }
     }
 
-    Lane { z, lane_type, obstacles }
+    Lane { z, lane_type, obstacles, coins }
 }
 
 fn create_program(gl: &WebGlRenderingContext) -> Result<WebGlProgram, JsValue> {
@@ -1317,7 +1399,7 @@ pub async fn init_game() -> Result<(), JsValue> {
             if let Some(game) = game.borrow_mut().as_mut() {
                 game.update();
                 game.render();
-                update_ui(game.score, game.game_over);
+                update_ui(game.score, game.coins, game.game_over);
             }
         });
         request_animation_frame(f.borrow().as_ref().unwrap());
@@ -1373,11 +1455,11 @@ fn request_animation_frame(f: &Closure<dyn FnMut()>) {
         .unwrap();
 }
 
-fn update_ui(score: i32, game_over: bool) {
+fn update_ui(score: i32, coins: i32, game_over: bool) {
     if let Some(window) = web_sys::window() {
         if let Some(document) = window.document() {
             if let Some(score_el) = document.get_element_by_id("score") {
-                score_el.set_inner_html(&format!("Score: {}", score));
+                score_el.set_inner_html(&format!("Score: {} | Coins: {}", score, coins));
             }
             if let Some(gameover_el) = document.get_element_by_id("gameover") {
                 if game_over {
