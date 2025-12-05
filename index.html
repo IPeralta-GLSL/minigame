@@ -58,50 +58,6 @@
             display: none; 
         }
         
-        .touch-controls {
-            position: absolute;
-            bottom: 20px;
-            left: 0;
-            width: 100%;
-            height: 150px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: flex-end;
-            pointer-events: none;
-            padding-bottom: 20px;
-        }
-        
-        .touch-btn {
-            background: rgba(255, 255, 255, 0.2);
-            border: 2px solid rgba(255, 255, 255, 0.5);
-            border-radius: 50%;
-            width: 60px;
-            height: 60px;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            color: white;
-            font-size: 24px;
-            pointer-events: auto;
-            user-select: none;
-            -webkit-user-select: none;
-        }
-        
-        .touch-btn:active {
-            background: rgba(255, 255, 255, 0.4);
-        }
-
-        .d-pad {
-            display: flex;
-            gap: 20px;
-            margin-top: 10px;
-        }
-
-        .forward-btn {
-            margin-bottom: 10px;
-        }
-
         @media (min-width: 768px) {
             .game-container {
                 width: auto;
@@ -112,9 +68,6 @@
                 height: 600px;
                 border: 4px solid #42ff13;
                 border-radius: 8px;
-            }
-            .touch-controls {
-                display: none;
             }
             .controls {
                 display: block;
@@ -144,14 +97,6 @@
             <p>Press <span class="key">R</span> or Tap to restart</p>
         </div>
         
-        <div class="touch-controls">
-            <div class="touch-btn forward-btn" id="btn-forward">▲</div>
-            <div class="d-pad">
-                <div class="touch-btn" id="btn-left">◀</div>
-                <div class="touch-btn" id="btn-right">▶</div>
-            </div>
-        </div>
-
         <div class="controls">
             <h3>Controls</h3>
             <p><span class="key">Space</span> Move Forward</p>
@@ -179,25 +124,38 @@
         init().then(() => {
             init_game();
             
-            const btnLeft = document.getElementById('btn-left');
-            const btnRight = document.getElementById('btn-right');
-            const btnForward = document.getElementById('btn-forward');
             const gameover = document.getElementById('gameover');
+            const canvas = document.getElementById('canvas');
 
-            const handleTouch = (action) => (e) => {
+            let touchStartX = 0;
+            let touchStartY = 0;
+            const SWIPE_THRESHOLD = 30;
+
+            canvas.addEventListener('touchstart', (e) => {
                 e.preventDefault();
-                e.stopPropagation();
-                action();
-            };
+                touchStartX = e.changedTouches[0].screenX;
+                touchStartY = e.changedTouches[0].screenY;
+            }, { passive: false });
 
-            btnLeft.addEventListener('touchstart', handleTouch(touch_left));
-            btnLeft.addEventListener('mousedown', handleTouch(touch_left));
-            
-            btnRight.addEventListener('touchstart', handleTouch(touch_right));
-            btnRight.addEventListener('mousedown', handleTouch(touch_right));
-            
-            btnForward.addEventListener('touchstart', handleTouch(touch_forward));
-            btnForward.addEventListener('mousedown', handleTouch(touch_forward));
+            canvas.addEventListener('touchend', (e) => {
+                e.preventDefault();
+                const touchEndX = e.changedTouches[0].screenX;
+                const touchEndY = e.changedTouches[0].screenY;
+                
+                const deltaX = touchEndX - touchStartX;
+                const deltaY = touchEndY - touchStartY;
+
+                if (Math.abs(deltaX) > SWIPE_THRESHOLD) {
+                    if (deltaX > 0) {
+                        touch_left();
+                    } else {
+                        touch_right();
+                    }
+                } else {
+                    // Tap (small movement)
+                    touch_forward();
+                }
+            }, { passive: false });
 
             gameover.addEventListener('touchstart', (e) => {
                 e.preventDefault();
