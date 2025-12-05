@@ -45,8 +45,17 @@ const FRAGMENT_SHADER: &str = r#"
     varying vec3 vPos;
     uniform sampler2D uTexture;
     uniform int uUseTexture;
+    uniform vec3 uUniformColor;
+    uniform bool uUseUniformColor;
+
     void main() {
-        vec3 color = vColor;
+        vec3 color;
+        if (uUseUniformColor) {
+            color = uUniformColor;
+        } else {
+            color = vColor;
+        }
+
         if (uUseTexture == 1) {
             vec4 texColor = texture2D(uTexture, vTexCoord);
             color *= texColor.rgb;
@@ -295,6 +304,11 @@ struct Game {
     vertex_buffer: WebGlBuffer,
     index_buffer: WebGlBuffer,
     mvp_location: WebGlUniformLocation,
+    u_uniform_color_location: WebGlUniformLocation,
+    u_use_uniform_color_location: WebGlUniformLocation,
+    unit_cube_vertex_buffer: WebGlBuffer,
+    unit_cube_index_buffer: WebGlBuffer,
+    unit_cube_index_count: i32,
     player: GameObject,
     lanes: Vec<Lane>,
     score: i32,
@@ -323,6 +337,37 @@ impl Game {
 
         let mvp_location = gl.get_uniform_location(&program, "uModelViewProjection")
             .ok_or("Failed to get uniform location")?;
+        let u_uniform_color_location = gl.get_uniform_location(&program, "uUniformColor")
+            .ok_or("Failed to get uUniformColor location")?;
+        let u_use_uniform_color_location = gl.get_uniform_location(&program, "uUseUniformColor")
+            .ok_or("Failed to get uUseUniformColor location")?;
+
+        // Create unit cube buffers
+        let unit_cube_vertex_buffer = gl.create_buffer().ok_or("Failed to create unit cube buffer")?;
+        let unit_cube_index_buffer = gl.create_buffer().ok_or("Failed to create unit cube index buffer")?;
+        
+        let unit_cube = Mesh::cube(1.0, 1.0, 1.0, 1.0); // White unit cube
+        
+        gl.bind_buffer(WebGlRenderingContext::ARRAY_BUFFER, Some(&unit_cube_vertex_buffer));
+        unsafe {
+            let vert_array = js_sys::Float32Array::view(&unit_cube.vertices);
+            gl.buffer_data_with_array_buffer_view(
+                WebGlRenderingContext::ARRAY_BUFFER,
+                &vert_array,
+                WebGlRenderingContext::STATIC_DRAW
+            );
+        }
+
+        gl.bind_buffer(WebGlRenderingContext::ELEMENT_ARRAY_BUFFER, Some(&unit_cube_index_buffer));
+        unsafe {
+            let idx_array = js_sys::Uint16Array::view(&unit_cube.indices);
+            gl.buffer_data_with_array_buffer_view(
+                WebGlRenderingContext::ELEMENT_ARRAY_BUFFER,
+                &idx_array,
+                WebGlRenderingContext::STATIC_DRAW
+            );
+        }
+        let unit_cube_index_count = unit_cube.indices.len() as i32;
 
         let player = GameObject::new(0.0, 0.5, 0.0, 0.8, 1.0, 0.8, (0.2, 0.6, 1.0));
 
@@ -341,6 +386,11 @@ impl Game {
             vertex_buffer,
             index_buffer,
             mvp_location,
+            u_uniform_color_location,
+            u_use_uniform_color_location,
+            unit_cube_vertex_buffer,
+            unit_cube_index_buffer,
+            unit_cube_index_count,
             player,
             lanes,
             score: 0,
@@ -932,8 +982,39 @@ impl Game {
     }
 
     fn draw_cube(&self, x: f32, y: f32, z: f32, w: f32, h: f32, d: f32, r: f32, g: f32, b: f32, projection: &Matrix4<f32>, view: &Matrix4<f32>) {
-        let mesh = Mesh::cube(1.0, r, g, b);
-        self.draw_mesh(&mesh, x, y, z, w, h, d, projection, view);
+        self.draw_unit_cube(x, y, z, w, h, d, r, g, b, projection, view);
+    }
+
+    fn draw_unit_cube(&self, x: f32, y: f32, z: f32, w: f32, h: f32, d: f32, r: f32, g: f32, b: f32, projection: &Matrix4<f32>, view: &Matrix4<f32>) {
+        self.gl.bind_buffer(WebGlRenderingContext::ARRAY_BUFFER, Some(&self.unit_cube_vertex_buffer));
+        self.gl.bind_buffer(WebGlRenderingContext::ELEMENT_ARRAY_BUFFER, Some(&self.unit_cube_index_buffer));
+
+        let pos_loc = self.gl.get_attrib_location(&self.program, "aPosition") as u32;
+        let col_loc = self.gl.get_attrib_location(&self.program, "aColor") as u32;
+
+        self.gl.vertex_attrib_pointer_with_i32(pos_loc, 3, WebGlRenderingContext::FLOAT, false, 24, 0);
+        self.gl.enable_vertex_attrib_array(pos_loc);
+
+        // We can disable color attribute or just point it to something safe, but since we use uniform color, it doesn't matter much.
+        // However, to avoid warnings or issues, we should probably point it to the same buffer but it might read garbage as color.
+        // Better: Use the uniform bool to switch in shader.
+        
+        self.gl.uniform1i(Some(&self.u_use_uniform_color_location), 1);
+        self.gl.uniform3f(Some(&self.u_uniform_color_location), r, g, b);
+
+        let model = Matrix4::new_translation(&Vector3::new(x, y, z)) *
+                    Matrix4::new_nonuniform_scaling(&Vector3::new(w, h, d));
+        let mvp = projection * view * model;
+
+        let mvp_array: [f32; 16] = mvp.as_slice().try_into().unwrap();
+        self.gl.uniform_matrix4fv_with_f32_array(Some(&self.mvp_location), false, &mvp_array);
+
+        self.gl.draw_elements_with_i32(
+            WebGlRenderingContext::TRIANGLES,
+            self.unit_cube_index_count,
+            WebGlRenderingContext::UNSIGNED_SHORT,
+            0
+        );
     }
 
     fn draw_car(&self, x: f32, y: f32, z: f32, w: f32, h: f32, d: f32, r: f32, g: f32, b: f32, velocity_x: f32, projection: &Matrix4<f32>, view: &Matrix4<f32>) {
@@ -976,6 +1057,8 @@ impl Game {
     }
 
     fn draw_mesh_internal(&self, mesh: &Mesh, x: f32, y: f32, z: f32, w: f32, h: f32, d: f32, rotation_x: f32, rotation_y: f32, rotation_z: f32, projection: &Matrix4<f32>, view: &Matrix4<f32>) {
+        
+        self.gl.uniform1i(Some(&self.u_use_uniform_color_location), 0);
 
         self.gl.bind_buffer(WebGlRenderingContext::ARRAY_BUFFER, Some(&self.vertex_buffer));
         unsafe {
