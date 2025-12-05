@@ -512,10 +512,14 @@ impl Game {
         self.gl.enable(WebGlRenderingContext::BLEND);
         self.gl.blend_func(WebGlRenderingContext::SRC_ALPHA, WebGlRenderingContext::ONE_MINUS_SRC_ALPHA);
 
-        let aspect = 800.0 / 600.0;
+        let canvas = self.gl.canvas().unwrap().dyn_into::<HtmlCanvasElement>().unwrap();
+        let width = canvas.width();
+        let height = canvas.height();
+        self.gl.viewport(0, 0, width as i32, height as i32);
+        
+        let aspect = width as f32 / height as f32;
         let projection = Perspective3::new(aspect, 0.8, 0.1, 100.0).to_homogeneous();
         
-        // Dynamic camera zoom effect during jump
         let zoom_offset = if self.moving {
             (self.jump_progress * std::f32::consts::PI).sin() * 0.5
         } else {
@@ -527,7 +531,6 @@ impl Game {
         let up = Vector3::new(0.0, 1.0, 0.0);
         let view = Matrix4::look_at_rh(&eye.into(), &target.into(), &up);
 
-        // Draw lane bases
         for lane in &self.lanes {
             match lane.lane_type {
                 LaneType::Grass => {
@@ -1322,9 +1325,6 @@ pub async fn init_game() -> Result<(), JsValue> {
         .ok_or("No WebGL")?
         .dyn_into::<WebGlRenderingContext>()?;
 
-    gl.viewport(0, 0, 800, 600);
-
-    // Load config
     let mut config: Option<AppConfig> = None;
     let mut opts = RequestInit::new();
     opts.method("GET");
