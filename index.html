@@ -89,6 +89,15 @@
     </style>
 </head>
 <body>
+    <div id="ui-layer" style="position: absolute; top: 0; left: 0; width: 100%; padding: 10px; display: flex; justify-content: space-between; pointer-events: none; z-index: 100;">
+        <div style="pointer-events: auto;">
+            <label style="color: white; font-family: monospace; background: rgba(0,0,0,0.5); padding: 5px; border-radius: 4px; cursor: pointer;">
+                <input type="checkbox" id="fps-toggle"> Show FPS
+            </label>
+            <div id="fps-counter" style="color: #0f0; font-family: monospace; display: none; margin-top: 5px; background: rgba(0,0,0,0.5); padding: 5px; border-radius: 4px;">FPS: 0</div>
+        </div>
+        <button id="god-mode-btn" style="pointer-events: auto; padding: 10px; background: #ffcc00; border: none; border-radius: 5px; font-weight: bold; cursor: pointer;">GOD MODE</button>
+    </div>
     <div class="game-container">
         <canvas id="canvas"></canvas>
         <div id="score">Score: 0</div>
@@ -105,7 +114,7 @@
         </div>
     </div>
     <script type="module">
-        import init, { init_game, touch_left, touch_right, touch_forward, touch_restart } from './pkg/crossy_road_clone.js';
+        import init, { init_game, touch_left, touch_right, touch_forward, touch_restart, activate_god_mode } from './pkg/crossy_road_clone.js';
         
         function resizeCanvas() {
             const canvas = document.getElementById('canvas');
@@ -126,6 +135,32 @@
             
             const gameover = document.getElementById('gameover');
             const canvas = document.getElementById('canvas');
+
+            // FPS Counter
+            const fpsCounter = document.getElementById('fps-counter');
+            const fpsToggle = document.getElementById('fps-toggle');
+            let lastTime = performance.now();
+            let frames = 0;
+            let showFps = false;
+
+            fpsToggle.addEventListener('change', (e) => {
+                showFps = e.target.checked;
+                fpsCounter.style.display = showFps ? 'block' : 'none';
+            });
+
+            function updateFps() {
+                if (showFps) {
+                    const now = performance.now();
+                    frames++;
+                    if (now - lastTime >= 1000) {
+                        fpsCounter.textContent = `FPS: ${frames}`;
+                        frames = 0;
+                        lastTime = now;
+                    }
+                }
+                requestAnimationFrame(updateFps);
+            }
+            requestAnimationFrame(updateFps);
 
             let touchStartX = 0;
             let touchStartY = 0;
@@ -164,6 +199,15 @@
             gameover.addEventListener('click', (e) => {
                 e.preventDefault();
                 touch_restart();
+            });
+
+            document.getElementById('god-mode-btn').addEventListener('click', (e) => {
+                e.preventDefault();
+                activate_god_mode();
+            });
+            document.getElementById('god-mode-btn').addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                activate_god_mode();
             });
 
         }).catch(err => {

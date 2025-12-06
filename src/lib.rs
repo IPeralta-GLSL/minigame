@@ -47,6 +47,7 @@ const FRAGMENT_SHADER: &str = r#"
     uniform int uUseTexture;
     uniform vec3 uUniformColor;
     uniform bool uUseUniformColor;
+    uniform vec3 uTimeColor;
 
     void main() {
         vec3 color;
@@ -55,6 +56,9 @@ const FRAGMENT_SHADER: &str = r#"
         } else {
             color = vColor;
         }
+
+        // Apply time of day filter
+        color *= uTimeColor;
 
         if (uUseTexture == 1) {
             vec4 texColor = texture2D(uTexture, vTexCoord);
@@ -306,6 +310,7 @@ struct Game {
     mvp_location: WebGlUniformLocation,
     u_uniform_color_location: WebGlUniformLocation,
     u_use_uniform_color_location: WebGlUniformLocation,
+    u_time_color_location: WebGlUniformLocation,
     unit_cube_vertex_buffer: WebGlBuffer,
     unit_cube_index_buffer: WebGlBuffer,
     unit_cube_index_count: i32,
@@ -342,6 +347,8 @@ impl Game {
             .ok_or("Failed to get uUniformColor location")?;
         let u_use_uniform_color_location = gl.get_uniform_location(&program, "uUseUniformColor")
             .ok_or("Failed to get uUseUniformColor location")?;
+        let u_time_color_location = gl.get_uniform_location(&program, "uTimeColor")
+            .ok_or("Failed to get uTimeColor location")?;
 
         // Create unit cube buffers
         let unit_cube_vertex_buffer = gl.create_buffer().ok_or("Failed to create unit cube buffer")?;
@@ -389,6 +396,7 @@ impl Game {
             mvp_location,
             u_uniform_color_location,
             u_use_uniform_color_location,
+            u_time_color_location,
             unit_cube_vertex_buffer,
             unit_cube_index_buffer,
             unit_cube_index_count,
@@ -565,14 +573,49 @@ impl Game {
             _ => (0.1, 0.1, 0.3),
         };
 
+        // Time of day cycle (60s)
+        let cycle = self.time % 60.0;
+        let (time_r, time_g, time_b) = if cycle < 25.0 {
+            // Day
+            (1.0, 1.0, 1.0)
+        } else if cycle < 35.0 {
+            // Afternoon transition
+            let t = (cycle - 25.0) / 10.0;
+            (1.0, 1.0 - t * 0.3, 1.0 - t * 0.5)
+        } else if cycle < 50.0 {
+            // Night transition
+            let t = (cycle - 35.0) / 15.0;
+            (
+                1.0 - t * 0.7,
+                0.7 - t * 0.5,
+                0.5 - t * 0.1
+            )
+        } else {
+            // Sunrise transition
+            let t = (cycle - 50.0) / 10.0;
+            (
+                0.3 + t * 0.7,
+                0.2 + t * 0.8,
+                0.4 + t * 0.6
+            )
+        };
+
         if self.game_over {
             bg_r = 0.8;
             bg_g = 0.1;
             bg_b = 0.1;
+        } else {
+            bg_r *= time_r;
+            bg_g *= time_g;
+            bg_b *= time_b;
         }
 
         self.gl.clear_color(bg_r, bg_g, bg_b, 1.0);
         self.gl.clear(WebGlRenderingContext::COLOR_BUFFER_BIT | WebGlRenderingContext::DEPTH_BUFFER_BIT);
+        
+        // Update time color uniform
+        self.gl.uniform3f(Some(&self.u_time_color_location), time_r, time_g, time_b);
+
         self.gl.enable(WebGlRenderingContext::DEPTH_TEST);
         self.gl.enable(WebGlRenderingContext::BLEND);
         self.gl.blend_func(WebGlRenderingContext::SRC_ALPHA, WebGlRenderingContext::ONE_MINUS_SRC_ALPHA);
@@ -1570,6 +1613,15 @@ pub fn touch_restart() {
     GAME.with(|g| {
         if let Some(game) = g.borrow_mut().as_mut() {
             game.restart();
+        }
+    });
+}
+
+#[wasm_bindgen]
+pub fn activate_god_mode() {
+    GAME.with(|g| {
+        if let Some(game) = g.borrow_mut().as_mut() {
+            game.debug_advance();
         }
     });
 }
