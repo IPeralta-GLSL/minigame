@@ -325,6 +325,7 @@ struct Game {
     time: f32,
     car_mesh: Option<Mesh>,
     config: Option<AppConfig>,
+    invincible: bool,
 }
 
 impl Game {
@@ -407,6 +408,7 @@ impl Game {
             time: 0.0,
             car_mesh,
             config,
+            invincible: false,
         })
     }
 
@@ -521,7 +523,7 @@ impl Game {
                 match lane.lane_type {
                     LaneType::Road => {
                         for obstacle in &lane.obstacles {
-                            if self.player.collides_horizontal(obstacle) {
+                            if self.player.collides_horizontal(obstacle) && !self.invincible {
                                 self.game_over = true;
                             }
                         }
@@ -529,7 +531,7 @@ impl Game {
                     LaneType::Water => {
                         let on_log = lane.obstacles.iter()
                             .any(|o| self.player.collides_horizontal(o));
-                        if !on_log {
+                        if !on_log && !self.invincible {
                             self.game_over = true;
                         }
                     }
@@ -556,7 +558,20 @@ impl Game {
     }
 
     fn render(&self) {
-        self.gl.clear_color(0.2, 0.6, 1.0, 1.0);
+        let biome_idx = (self.player.z / 100.0).floor() as i32;
+        let (mut bg_r, mut bg_g, mut bg_b) = match biome_idx % 3 {
+            0 => (0.2, 0.6, 1.0),
+            1 => (1.0, 0.6, 0.2),
+            _ => (0.1, 0.1, 0.3),
+        };
+
+        if self.game_over {
+            bg_r = 0.8;
+            bg_g = 0.1;
+            bg_b = 0.1;
+        }
+
+        self.gl.clear_color(bg_r, bg_g, bg_b, 1.0);
         self.gl.clear(WebGlRenderingContext::COLOR_BUFFER_BIT | WebGlRenderingContext::DEPTH_BUFFER_BIT);
         self.gl.enable(WebGlRenderingContext::DEPTH_TEST);
         self.gl.enable(WebGlRenderingContext::BLEND);
@@ -687,16 +702,14 @@ impl Game {
     }
 
     fn draw_grass_details(&self, z: f32, projection: &Matrix4<f32>, view: &Matrix4<f32>) {
-        // Create procedural grass texture with small patches of different green shades
+        let biome_idx = (z / 100.0).floor() as i32;
         let seed = (z * 100.0) as i32;
         
-        // Simple pseudo-random function
         let rand = |s: i32, offset: i32| -> f32 {
             let n = ((s.wrapping_add(offset)).wrapping_mul(1103515245).wrapping_add(12345)) as u32;
             (n % 10000) as f32 / 10000.0
         };
         
-        // Draw varied grass base patches for texture
         for i in 0..20 {
             let r1 = rand(seed, i * 7);
             let r2 = rand(seed, i * 13);
@@ -705,20 +718,28 @@ impl Game {
             let x = -11.5 + (i as f32 * 1.2) + r1 * 0.6;
             let z_offset = (r2 - 0.5) * 1.6;
             
-            // Vary green shades
-            let base_g = 0.45 + r3 * 0.25;
-            let base_r = 0.18 + r1 * 0.12;
+            let mut base_g = 0.45 + r3 * 0.25;
+            let mut base_r = 0.18 + r1 * 0.12;
+            let mut base_b = 0.12;
+
+            if biome_idx % 3 == 1 {
+                base_r += 0.4;
+                base_g -= 0.1;
+                base_b -= 0.05;
+            } else if biome_idx % 3 == 2 {
+                base_r += 0.4;
+                base_g += 0.4;
+                base_b += 0.6;
+            }
             
-            // Grass patch
             self.draw_cube(
                 x, -0.23, z + z_offset,
                 0.5 + r2 * 0.3, 0.04, 0.5 + r1 * 0.3,
-                base_r, base_g, 0.12,
+                base_r, base_g, base_b,
                 projection, view
             );
         }
         
-        // Draw small grass blades (vertical rectangles)
         for i in 0..30 {
             let r1 = rand(seed, i * 11 + 100);
             let r2 = rand(seed, i * 17 + 100);
@@ -728,15 +749,22 @@ impl Game {
             let x = -11.0 + (i as f32 * 0.75) + r1 * 0.5;
             let z_offset = (r2 - 0.5) * 1.7;
             
-            // Height variation
             let height = 0.08 + r3 * 0.12;
             
-            // Color variation - different greens
-            let g = 0.4 + r4 * 0.35;
-            let r = 0.15 + r1 * 0.15;
-            let b = 0.05 + r2 * 0.1;
+            let mut g = 0.4 + r4 * 0.35;
+            let mut r = 0.15 + r1 * 0.15;
+            let mut b = 0.05 + r2 * 0.1;
+
+            if biome_idx % 3 == 1 {
+                r += 0.4;
+                g -= 0.1;
+                b -= 0.05;
+            } else if biome_idx % 3 == 2 {
+                r += 0.4;
+                g += 0.4;
+                b += 0.6;
+            }
             
-            // Grass blade
             self.draw_cube(
                 x, -0.22 + height / 2.0, z + z_offset,
                 0.06, height, 0.06,
@@ -1135,6 +1163,11 @@ impl Game {
         }
     }
 
+    fn debug_advance(&mut self) {
+        self.invincible = true;
+        self.move_forward();
+    }
+
     fn restart(&mut self) {
         self.player.x = 0.0;
         self.player.y = self.base_y;
@@ -1144,6 +1177,7 @@ impl Game {
         self.game_over = false;
         self.moving = false;
         self.jump_progress = 0.0;
+        self.invincible = false;
         
         // New random seed for new world
         self.world_seed = (js_sys::Math::random() * 1000000.0) as u32;
@@ -1167,24 +1201,32 @@ fn proc_rand(seed: u32, x: i32, y: i32) -> f32 {
 }
 
 fn create_lane_procedural(z: f32, index: i32, world_seed: u32) -> Lane {
-    // Use procedural randomness based on index and world seed
     let r = proc_rand(world_seed, index, 0);
     let abs_index = index.unsigned_abs() as usize;
+    let biome_idx = (index / 50) as i32;
     
-    // First lanes are always safe
     let lane_type = if index <= 0 {
         LaneType::Grass
     } else if index < 3 {
         LaneType::Grass
     } else {
-        // Procedural lane type selection
         let type_rand = proc_rand(world_seed, index, 1);
-        if type_rand < 0.35 {
-            LaneType::Grass
-        } else if type_rand < 0.7 {
-            LaneType::Road
-        } else {
-            LaneType::Water
+        match biome_idx % 3 {
+            0 => {
+                if type_rand < 0.35 { LaneType::Grass }
+                else if type_rand < 0.7 { LaneType::Road }
+                else { LaneType::Water }
+            },
+            1 => {
+                if type_rand < 0.2 { LaneType::Water }
+                else if type_rand < 0.6 { LaneType::Grass }
+                else { LaneType::Road }
+            },
+            _ => {
+                if type_rand < 0.2 { LaneType::Road }
+                else if type_rand < 0.5 { LaneType::Grass }
+                else { LaneType::Water }
+            }
         }
     };
 
@@ -1465,6 +1507,7 @@ pub async fn init_game() -> Result<(), JsValue> {
                     "ArrowLeft" | "d" | "D" => game.move_left(),
                     "ArrowRight" | "a" | "A" => game.move_right(),
                     "r" | "R" => game.restart(),
+                    "k" | "K" => game.debug_advance(),
                     _ => {}
                 }
             }
