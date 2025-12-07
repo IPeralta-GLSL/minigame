@@ -51,6 +51,8 @@ const FRAGMENT_SHADER: &str = r#"
     const vec3 lightColor = vec3(1.0, 1.0, 1.0);
     const float ambientStrength = 0.05;
 
+    uniform bool uUseLighting;
+
     void main() {
         vec3 color;
         if (uUseUniformColor) {
@@ -64,28 +66,35 @@ const FRAGMENT_SHADER: &str = r#"
             color *= texColor.rgb;
         }
         
-        // Lighting Calculation
-        // Ambient
-        vec3 ambient = ambientStrength * lightColor;
+        vec3 result;
         
-        // Diffuse
-        vec3 norm = normalize(vNormal);
-        vec3 lightDir = normalize(lightPos - vFragPos);
-        
-        // If the object is the sun (at 0,0,0), it should be fully lit
-        float diff = max(dot(norm, lightDir), 0.0);
-        
-        // Special case for Sun (or objects very close to 0,0,0)
-        // If distance to light source is very small, it's the light source itself
-        float dist = length(vFragPos);
-        if (dist < 1.0) {
-            diff = 1.0;
-            ambient = vec3(1.0); // Full brightness for sun
+        if (uUseLighting) {
+            // Lighting Calculation
+            // Ambient
+            vec3 ambient = ambientStrength * lightColor;
+            
+            // Diffuse
+            vec3 norm = normalize(vNormal);
+            vec3 lightDir = normalize(lightPos - vFragPos);
+            
+            // If the object is the sun (at 0,0,0), it should be fully lit
+            float diff = max(dot(norm, lightDir), 0.0);
+            
+            // Special case for Sun (or objects very close to 0,0,0)
+            // If distance to light source is very small, it's the light source itself
+            float dist = length(vFragPos);
+            if (dist < 1.0) {
+                diff = 1.0;
+                ambient = vec3(1.0); // Full brightness for sun
+            }
+            
+            vec3 diffuse = diff * lightColor;
+            
+            result = (ambient + diffuse) * color;
+        } else {
+            // No lighting (unlit)
+            result = color;
         }
-        
-        vec3 diffuse = diff * lightColor;
-        
-        vec3 result = (ambient + diffuse) * color;
 
         // Apply time of day filter (if used for other scenes)
         result *= uTimeColor;
@@ -114,6 +123,7 @@ pub struct Renderer {
     u_time_color_location: WebGlUniformLocation,
     u_use_texture_location: WebGlUniformLocation,
     u_texture_location: WebGlUniformLocation,
+    pub u_use_lighting_location: WebGlUniformLocation,
     unit_cube_vertex_buffer: WebGlBuffer,
     unit_cube_index_buffer: WebGlBuffer,
     unit_cube_index_count: i32,
@@ -145,6 +155,8 @@ impl Renderer {
             .ok_or("Failed to get uUseTexture location")?;
         let u_texture_location = gl.get_uniform_location(&program, "uTexture")
             .ok_or("Failed to get uTexture location")?;
+        let u_use_lighting_location = gl.get_uniform_location(&program, "uUseLighting")
+            .ok_or("Failed to get uUseLighting location")?;
 
         // Create unit cube buffers
         let unit_cube_vertex_buffer = gl.create_buffer().ok_or("Failed to create unit cube buffer")?;
@@ -192,6 +204,7 @@ impl Renderer {
             unit_cube_index_count,
             dynamic_vertex_buffer,
             dynamic_index_buffer,
+            u_use_lighting_location,
         })
     }
 
@@ -263,6 +276,9 @@ impl Renderer {
     }
 
     pub fn draw_mesh(&self, mesh: &Mesh, x: f32, y: f32, z: f32, w: f32, h: f32, d: f32, rotation_x: f32, rotation_y: f32, rotation_z: f32, projection: &Matrix4<f32>, view: &Matrix4<f32>, texture: Option<&WebGlTexture>, color_override: Option<(f32, f32, f32)>) {
+        // Enable lighting by default for meshes
+        self.gl.uniform1i(Some(&self.u_use_lighting_location), 1);
+
         if let Some(tex) = texture {
             self.gl.active_texture(WebGlRenderingContext::TEXTURE0);
             self.gl.bind_texture(WebGlRenderingContext::TEXTURE_2D, Some(tex));
@@ -385,6 +401,8 @@ impl Renderer {
 
         self.gl.uniform1i(Some(&self.u_use_uniform_color_location), 1);
         self.gl.uniform1i(Some(&self.u_use_texture_location), 0);
+        // Disable lighting for lines
+        self.gl.uniform1i(Some(&self.u_use_lighting_location), 0);
         self.gl.uniform3f(Some(&self.u_uniform_color_location), r, g, b);
 
         let mvp = projection * view;

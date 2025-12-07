@@ -443,6 +443,9 @@ impl SolarSystem {
 
         self.renderer.gl.disable(web_sys::WebGlRenderingContext::DEPTH_TEST);
         
+        // Disable lighting for background stars
+        self.renderer.gl.uniform1i(Some(&self.renderer.u_use_lighting_location), 0);
+
         self.renderer.draw_mesh(
             &self.background_mesh,
             cam_x, cam_y, cam_z,
@@ -453,6 +456,10 @@ impl SolarSystem {
             self.background_texture.as_ref(),
             None
         );
+        
+        // Re-enable lighting for planets
+        self.renderer.gl.uniform1i(Some(&self.renderer.u_use_lighting_location), 1);
+        
         self.renderer.enable_depth_test();
 
         // Positions already calculated above
