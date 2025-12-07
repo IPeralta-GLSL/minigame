@@ -552,7 +552,9 @@ impl SolarSystem {
     }
 
     pub fn handle_wheel(&mut self, delta: f32) {
-        self.camera_distance += delta * 0.05 * (self.camera_distance / 50.0).max(0.1); // Logarithmic zoom speed
-        self.camera_distance = self.camera_distance.max(1.0).min(20000.0);
+        let zoom_sensitivity = 0.001;
+        let factor = (delta * zoom_sensitivity).exp();
+        self.camera_distance *= factor;
+        self.camera_distance = self.camera_distance.max(0.0001).min(50000.0);
     }
 }
