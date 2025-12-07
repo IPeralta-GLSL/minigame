@@ -152,6 +152,38 @@ impl SolarSystem {
         let background_texture = renderer.create_texture("assets/textures/8k_stars.jpg").ok();
         let background_mesh = Mesh::sphere(1.0, 40, 40, 1.0, 1.0, 1.0);
 
+        // Pre-calculate trails for all bodies
+        let trail_points = 1000;
+        for i in 0..bodies.len() {
+            let body = &mut bodies[i];
+            if body.orbit_radius > 0.0 && body.orbit_speed != 0.0 {
+                let full_circle = 2.0 * std::f32::consts::PI;
+                let angle_step = full_circle / trail_points as f32;
+                
+                // We want to generate the TRAIL behind the planet.
+                // So we go from current_angle - 2PI to current_angle.
+                // But we push them in order so the last point is the current position.
+                
+                for j in 0..trail_points {
+                    let angle_offset = -full_circle + (j as f32 * angle_step);
+                    let angle = body.orbit_angle + angle_offset;
+                    
+                    let x = body.orbit_radius * angle.cos();
+                    let z = body.orbit_radius * angle.sin();
+                    let y = z * body.orbit_inclination.sin();
+                    let z = z * body.orbit_inclination.cos();
+                    
+                    let mut pos = Vector3::new(x, y, z);
+                    
+                    if body.parent.is_some() && body.parent.unwrap() == 0 {
+                         body.trail.push(pos.x);
+                         body.trail.push(pos.y);
+                         body.trail.push(pos.z);
+                    }
+                }
+            }
+        }
+
         SolarSystem {
             renderer,
             bodies,
@@ -221,6 +253,13 @@ impl SolarSystem {
             positions[i] = pos;
             
             if body.orbit_radius > 0.0 {
+                // Adaptive trail density based on orbit size
+                // We want exactly the same density as the pre-calculation to avoid overlap
+                let points_per_orbit = 1000.0;
+                let circumference = 2.0 * std::f32::consts::PI * body.orbit_radius;
+                let threshold = circumference / points_per_orbit;
+                let threshold_sq = threshold * threshold;
+                
                 let should_add_point = if body.trail.len() >= 3 {
                     let last_x = body.trail[body.trail.len() - 3];
                     let last_y = body.trail[body.trail.len() - 2];
@@ -231,7 +270,7 @@ impl SolarSystem {
                     let dz = pos.z - last_z;
                     
                     let dist_sq = dx*dx + dy*dy + dz*dz;
-                    dist_sq > 0.05
+                    dist_sq > threshold_sq
                 } else {
                     true
                 };
@@ -241,7 +280,8 @@ impl SolarSystem {
                     body.trail.push(pos.y);
                     body.trail.push(pos.z);
                     
-                    if body.trail.len() > 5000 {
+                    // Keep trail length exactly one orbit
+                    if body.trail.len() > 3000 { // 1000 points * 3 coords
                         body.trail.drain(0..3);
                     }
                 }
