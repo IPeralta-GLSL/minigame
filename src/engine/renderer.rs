@@ -8,15 +8,27 @@ const VERTEX_SHADER: &str = r#"
     attribute vec3 aPosition;
     attribute vec3 aColor;
     attribute vec2 aTexCoord;
+    attribute vec3 aNormal;
+    
     uniform mat4 uModelViewProjection;
+    uniform mat4 uModel;
+    uniform mat3 uNormalMatrix;
+    
     varying vec3 vColor;
     varying vec2 vTexCoord;
     varying vec3 vPos;
+    varying vec3 vNormal;
+    varying vec3 vFragPos;
+    
     void main() {
         gl_Position = uModelViewProjection * vec4(aPosition, 1.0);
         vPos = aPosition;
         vColor = aColor;
         vTexCoord = aTexCoord;
+        
+        // Calculate world space position and normal
+        vFragPos = vec3(uModel * vec4(aPosition, 1.0));
+        vNormal = uNormalMatrix * aNormal; // Assuming aNormal is available in mesh
     }
 "#;
 
@@ -25,11 +37,19 @@ const FRAGMENT_SHADER: &str = r#"
     varying vec3 vColor;
     varying vec2 vTexCoord;
     varying vec3 vPos;
+    varying vec3 vNormal;
+    varying vec3 vFragPos;
+    
     uniform sampler2D uTexture;
     uniform int uUseTexture;
     uniform vec3 uUniformColor;
     uniform bool uUseUniformColor;
     uniform vec3 uTimeColor;
+    
+    // Light properties (Sun at 0,0,0)
+    const vec3 lightPos = vec3(0.0, 0.0, 0.0);
+    const vec3 lightColor = vec3(1.0, 1.0, 1.0);
+    const float ambientStrength = 0.05;
 
     void main() {
         vec3 color;
@@ -39,29 +59,47 @@ const FRAGMENT_SHADER: &str = r#"
             color = vColor;
         }
 
-        // Apply time of day filter
-        color *= uTimeColor;
-
         if (uUseTexture == 1) {
             vec4 texColor = texture2D(uTexture, vTexCoord);
             color *= texColor.rgb;
         }
         
-        // Simple ambient occlusion based on height (darker at bottom)
-        float ao = smoothstep(-0.5, 0.5, vPos.y + 0.5);
-        ao = mix(0.7, 1.0, ao);
-        color *= ao;
+        // Lighting Calculation
+        // Ambient
+        vec3 ambient = ambientStrength * lightColor;
+        
+        // Diffuse
+        vec3 norm = normalize(vNormal);
+        vec3 lightDir = normalize(lightPos - vFragPos);
+        
+        // If the object is the sun (at 0,0,0), it should be fully lit
+        float diff = max(dot(norm, lightDir), 0.0);
+        
+        // Special case for Sun (or objects very close to 0,0,0)
+        // If distance to light source is very small, it's the light source itself
+        float dist = length(vFragPos);
+        if (dist < 1.0) {
+            diff = 1.0;
+            ambient = vec3(1.0); // Full brightness for sun
+        }
+        
+        vec3 diffuse = diff * lightColor;
+        
+        vec3 result = (ambient + diffuse) * color;
+
+        // Apply time of day filter (if used for other scenes)
+        result *= uTimeColor;
 
         // Color grading
         // Increase saturation slightly
-        float luminance = dot(color, vec3(0.2126, 0.7152, 0.0722));
+        float luminance = dot(result, vec3(0.2126, 0.7152, 0.0722));
         vec3 gray = vec3(luminance);
-        color = mix(gray, color, 1.2);
+        result = mix(gray, result, 1.2);
         
         // Slight contrast
-        color = pow(color, vec3(1.1));
+        result = pow(result, vec3(1.1));
 
-        gl_FragColor = vec4(color, 1.0);
+        gl_FragColor = vec4(result, 1.0);
     }
 "#;
 
@@ -69,6 +107,8 @@ pub struct Renderer {
     pub gl: WebGlRenderingContext,
     program: WebGlProgram,
     mvp_location: WebGlUniformLocation,
+    model_location: WebGlUniformLocation,
+    normal_matrix_location: WebGlUniformLocation,
     u_uniform_color_location: WebGlUniformLocation,
     u_use_uniform_color_location: WebGlUniformLocation,
     u_time_color_location: WebGlUniformLocation,
@@ -91,6 +131,10 @@ impl Renderer {
 
         let mvp_location = gl.get_uniform_location(&program, "uModelViewProjection")
             .ok_or("Failed to get uniform location")?;
+        let model_location = gl.get_uniform_location(&program, "uModel")
+            .ok_or("Failed to get uModel location")?;
+        let normal_matrix_location = gl.get_uniform_location(&program, "uNormalMatrix")
+            .ok_or("Failed to get uNormalMatrix location")?;
         let u_uniform_color_location = gl.get_uniform_location(&program, "uUniformColor")
             .ok_or("Failed to get uUniformColor location")?;
         let u_use_uniform_color_location = gl.get_uniform_location(&program, "uUseUniformColor")
@@ -136,6 +180,8 @@ impl Renderer {
             gl,
             program,
             mvp_location,
+            model_location,
+            normal_matrix_location,
             u_uniform_color_location,
             u_use_uniform_color_location,
             u_time_color_location,
@@ -256,15 +302,31 @@ impl Renderer {
         let pos_loc = self.gl.get_attrib_location(&self.program, "aPosition") as u32;
         let col_loc = self.gl.get_attrib_location(&self.program, "aColor") as u32;
         let tex_loc = self.gl.get_attrib_location(&self.program, "aTexCoord") as u32;
+        let norm_loc = self.gl.get_attrib_location(&self.program, "aNormal") as u32;
 
-        self.gl.vertex_attrib_pointer_with_i32(pos_loc, 3, WebGlRenderingContext::FLOAT, false, 32, 0);
+        // Stride is now 32 + 12 = 44 bytes (3 pos + 3 col + 2 tex + 3 norm) * 4 bytes/float
+        // Wait, Mesh struct needs to be updated to include normals in the vertex buffer.
+        // Currently Mesh::vertices is just a Vec<f32>.
+        // Let's check Mesh implementation.
+        // Assuming we update Mesh to include normals:
+        // Position (3) + Color (3) + TexCoord (2) + Normal (3) = 11 floats = 44 bytes.
+        
+        // For now, let's assume the mesh data is updated.
+        // If not, we need to update Mesh generation first.
+        
+        // Actually, let's check Mesh first.
+        
+        self.gl.vertex_attrib_pointer_with_i32(pos_loc, 3, WebGlRenderingContext::FLOAT, false, 44, 0);
         self.gl.enable_vertex_attrib_array(pos_loc);
 
-        self.gl.vertex_attrib_pointer_with_i32(col_loc, 3, WebGlRenderingContext::FLOAT, false, 32, 12);
+        self.gl.vertex_attrib_pointer_with_i32(col_loc, 3, WebGlRenderingContext::FLOAT, false, 44, 12);
         self.gl.enable_vertex_attrib_array(col_loc);
 
-        self.gl.vertex_attrib_pointer_with_i32(tex_loc, 2, WebGlRenderingContext::FLOAT, false, 32, 24);
+        self.gl.vertex_attrib_pointer_with_i32(tex_loc, 2, WebGlRenderingContext::FLOAT, false, 44, 24);
         self.gl.enable_vertex_attrib_array(tex_loc);
+        
+        self.gl.vertex_attrib_pointer_with_i32(norm_loc, 3, WebGlRenderingContext::FLOAT, false, 44, 32);
+        self.gl.enable_vertex_attrib_array(norm_loc);
 
         let model = Matrix4::new_translation(&Vector3::new(x, y, z)) *
                     Matrix4::from_axis_angle(&Vector3::z_axis(), rotation_z) *
@@ -275,6 +337,22 @@ impl Renderer {
 
         let mvp_array: [f32; 16] = mvp.as_slice().try_into().unwrap();
         self.gl.uniform_matrix4fv_with_f32_array(Some(&self.mvp_location), false, &mvp_array);
+        
+        let model_array: [f32; 16] = model.as_slice().try_into().unwrap();
+        self.gl.uniform_matrix4fv_with_f32_array(Some(&self.model_location), false, &model_array);
+        
+        // Normal matrix is the transpose of the inverse of the upper-left 3x3 part of the model matrix.
+        // For uniform scaling and rotation, it's just the upper-left 3x3 of the model matrix.
+        // But we have non-uniform scaling potentially.
+        // nalgebra doesn't have a direct normal matrix helper for 4x4.
+        // We can extract the 3x3 rotation part if scaling is uniform.
+        // Or compute inverse transpose.
+        
+        let model_3x3 = model.fixed_view::<3, 3>(0, 0);
+        let normal_matrix = model_3x3.try_inverse().unwrap_or_else(|| model_3x3.clone_owned()).transpose();
+        
+        let normal_matrix_array: [f32; 9] = normal_matrix.as_slice().try_into().unwrap();
+        self.gl.uniform_matrix3fv_with_f32_array(Some(&self.normal_matrix_location), false, &normal_matrix_array);
 
         self.gl.draw_elements_with_i32(
             WebGlRenderingContext::TRIANGLES,
