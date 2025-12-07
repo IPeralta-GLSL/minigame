@@ -127,4 +127,23 @@ impl Mesh {
 
         Mesh { vertices, indices }
     }
+
+    pub fn quad(width: f32, height: f32) -> Self {
+        let hw = width / 2.0;
+        let hh = height / 2.0;
+        
+        let vertices = vec![
+            -hw, -hh, 0.0,  1.0, 1.0, 1.0,  0.0, 1.0,
+             hw, -hh, 0.0,  1.0, 1.0, 1.0,  1.0, 1.0,
+             hw,  hh, 0.0,  1.0, 1.0, 1.0,  1.0, 0.0,
+            -hw,  hh, 0.0,  1.0, 1.0, 1.0,  0.0, 0.0,
+        ];
+        
+        let indices = vec![
+            0, 1, 2,
+            0, 2, 3,
+        ];
+        
+        Mesh { vertices, indices }
+    }
 }

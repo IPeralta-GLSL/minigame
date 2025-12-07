@@ -262,7 +262,9 @@ impl Renderer {
         self.gl.enable_vertex_attrib_array(tex_loc);
 
         let model = Matrix4::new_translation(&Vector3::new(x, y, z)) *
-                    Matrix4::from_euler_angles(rotation_x, rotation_y, rotation_z) *
+                    Matrix4::from_axis_angle(&Vector3::z_axis(), rotation_z) *
+                    Matrix4::from_axis_angle(&Vector3::x_axis(), rotation_x) *
+                    Matrix4::from_axis_angle(&Vector3::y_axis(), rotation_y) *
                     Matrix4::new_nonuniform_scaling(&Vector3::new(w, h, d));
         let mvp = projection * view * model;
 

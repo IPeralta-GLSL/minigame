@@ -17,10 +17,10 @@ pub struct Body {
     pub trail: Vec<f32>,
     pub label_element: Option<HtmlElement>,
     pub texture: Option<WebGlTexture>,
-    pub rotation_period: f32, // days
-    pub axial_tilt: f32, // radians
-    pub current_rotation: f32, // radians
-    pub orbit_inclination: f32, // radians
+    pub rotation_period: f32,
+    pub axial_tilt: f32,
+    pub current_rotation: f32,
+    pub orbit_inclination: f32,
 }
 
 pub struct SolarSystem {
@@ -33,6 +33,8 @@ pub struct SolarSystem {
     last_mouse_pos: (i32, i32),
     time_scale: f32,
     current_time: f64,
+    background_mesh: Mesh,
+    background_texture: Option<WebGlTexture>,
 }
 
 impl SolarSystem {
@@ -107,45 +109,37 @@ impl SolarSystem {
             }
         };
 
-        // Textures from local assets
-        // Sun: Tilt 7.25, Rot 25 days
         bodies.push(create_body("Sun", 2.0, 0.0, 0.0, 0.0, (1.0, 1.0, 0.0), None, Mesh::sphere, Some("assets/textures/2k_sun.jpg"), 25.0, 7.25, 0.0));
 
         let p_mercury = 87.969;
-        // Mercury: Tilt 0.03, Rot 58.6 days, Inc 7.0
         bodies.push(create_body("Mercury", 0.38, 5.0, get_orbit_speed(p_mercury), get_initial_angle(252.25, p_mercury), (0.5, 0.5, 0.5), Some(0), Mesh::sphere, Some("https://upload.wikimedia.org/wikipedia/commons/3/30/Mercury_in_color_-_Prockter07-edit1.jpg"), 58.6, 0.03, 7.0));
 
         let p_venus = 224.701;
-        // Venus: Tilt 177.3, Rot 243 days (retrograde), Inc 3.4
         bodies.push(create_body("Venus", 0.95, 8.0, get_orbit_speed(p_venus), get_initial_angle(181.98, p_venus), (0.9, 0.7, 0.2), Some(0), Mesh::sphere, Some("assets/textures/2k_venus_surface.jpg"), -243.0, 177.3, 3.4));
 
         let p_earth = 365.256;
-        // Earth: Tilt 23.4, Rot 1 day, Inc 0.0
         bodies.push(create_body("Earth", 1.0, 11.0, get_orbit_speed(p_earth), get_initial_angle(100.46, p_earth), (0.0, 0.0, 1.0), Some(0), Mesh::sphere, Some("assets/textures/2k_earth_daymap.jpg"), 1.0, 23.4, 0.0));
 
         let p_moon = 27.322;
-        // Moon: Tilt 6.7, Rot 27.3 days, Inc 5.1
         bodies.push(create_body("Moon", 0.27, 2.0, get_orbit_speed(p_moon), get_initial_angle(0.0, p_moon), (0.6, 0.6, 0.6), Some(3), Mesh::sphere, Some("assets/textures/2k_moon.jpg"), 27.3, 6.7, 5.1));
 
         let p_mars = 686.980;
-        // Mars: Tilt 25.2, Rot 1.03 days, Inc 1.85
         bodies.push(create_body("Mars", 0.53, 15.0, get_orbit_speed(p_mars), get_initial_angle(355.45, p_mars), (1.0, 0.0, 0.0), Some(0), Mesh::sphere, Some("assets/textures/2k_mars.jpg"), 1.03, 25.2, 1.85));
 
         let p_jupiter = 4332.589;
-        // Jupiter: Tilt 3.1, Rot 0.41 days, Inc 1.3
         bodies.push(create_body("Jupiter", 3.0, 25.0, get_orbit_speed(p_jupiter), get_initial_angle(34.40, p_jupiter), (0.8, 0.6, 0.4), Some(0), Mesh::sphere, Some("assets/textures/2k_jupiter.jpg"), 0.41, 3.1, 1.3));
 
         let p_saturn = 10759.22;
-        // Saturn: Tilt 26.7, Rot 0.45 days, Inc 2.48
         bodies.push(create_body("Saturn", 2.5, 35.0, get_orbit_speed(p_saturn), get_initial_angle(49.94, p_saturn), (0.9, 0.8, 0.5), Some(0), Mesh::sphere, Some("assets/textures/2k_saturn.jpg"), 0.45, 26.7, 2.48));
 
         let p_uranus = 30685.4;
-        // Uranus: Tilt 97.8, Rot 0.72 days (retrograde), Inc 0.77
         bodies.push(create_body("Uranus", 1.8, 45.0, get_orbit_speed(p_uranus), get_initial_angle(313.23, p_uranus), (0.0, 0.8, 0.8), Some(0), Mesh::sphere, Some("assets/textures/2k_uranus.jpg"), -0.72, 97.8, 0.77));
 
         let p_neptune = 60189.0;
-        // Neptune: Tilt 28.3, Rot 0.67 days, Inc 1.77
         bodies.push(create_body("Neptune", 1.7, 55.0, get_orbit_speed(p_neptune), get_initial_angle(304.88, p_neptune), (0.0, 0.0, 0.8), Some(0), Mesh::sphere, Some("assets/textures/2k_neptune.jpg"), 0.67, 28.3, 1.77));
+
+        let background_texture = renderer.create_texture("assets/textures/2k_stars_milky_way.jpg").ok();
+        let background_mesh = Mesh::sphere(1.0, 40, 40, 1.0, 1.0, 1.0);
 
         SolarSystem {
             renderer,
@@ -157,6 +151,8 @@ impl SolarSystem {
             last_mouse_pos: (0, 0),
             time_scale: 1.0,
             current_time: now_ms,
+            background_mesh,
+            background_texture,
         }
     }
 
@@ -189,14 +185,19 @@ impl SolarSystem {
             
             // Update rotation
             if body.rotation_period != 0.0 {
-                let rotation_speed = (2.0 * std::f32::consts::PI) / (body.rotation_period * 24.0 * 3600.0); // rad/s
-                body.current_rotation += rotation_speed * dt as f32 * self.time_scale * 1000.0; // Speed up rotation for visibility
+                // Calculate angular velocity in radians per second (simulation time)
+                // Period is in days. 1 day = 86400 seconds.
+                // Omega = 2 * PI / (Period * 86400)
+                let period_seconds = body.rotation_period.abs() * 24.0 * 3600.0;
+                let rotation_speed = (2.0 * std::f32::consts::PI) / period_seconds;
+                
+                // Apply rotation scaled by time_scale
+                body.current_rotation += rotation_speed * dt as f32 * self.time_scale;
             }
 
             let x = body.orbit_radius * body.orbit_angle.cos();
             let z = body.orbit_radius * body.orbit_angle.sin();
             
-            // Apply inclination (rotate around X axis for simplicity)
             let y = z * body.orbit_inclination.sin();
             let z = z * body.orbit_inclination.cos();
             
@@ -219,7 +220,7 @@ impl SolarSystem {
                     let dz = pos.z - last_z;
                     
                     let dist_sq = dx*dx + dy*dy + dz*dz;
-                    dist_sq > 0.05 // Only add point if moved enough
+                    dist_sq > 0.05
                 } else {
                     true
                 };
@@ -229,8 +230,6 @@ impl SolarSystem {
                     body.trail.push(pos.y);
                     body.trail.push(pos.z);
                     
-                    // Keep trail long enough for a full orbit (approx)
-                    // 5000 points is plenty for smooth circles
                     if body.trail.len() > 5000 {
                         body.trail.drain(0..3);
                     }
@@ -257,6 +256,19 @@ impl SolarSystem {
             &Vector3::y(),
         );
 
+        self.renderer.gl.disable(web_sys::WebGlRenderingContext::DEPTH_TEST);
+        
+        self.renderer.draw_mesh(
+            &self.background_mesh,
+            0.0, 0.0, 0.0,
+            500.0, 500.0, 500.0,
+            0.0, 0.0, 0.0,
+            &projection,
+            &view,
+            self.background_texture.as_ref()
+        );
+        self.renderer.enable_depth_test();
+
         let mut positions = vec![Vector3::new(0.0, 0.0, 0.0); self.bodies.len()];
 
         for i in 0..self.bodies.len() {
@@ -264,7 +276,6 @@ impl SolarSystem {
             let x = body.orbit_radius * body.orbit_angle.cos();
             let z = body.orbit_radius * body.orbit_angle.sin();
             
-            // Apply inclination
             let y = z * body.orbit_inclination.sin();
             let z = z * body.orbit_inclination.cos();
 
@@ -352,7 +363,6 @@ impl SolarSystem {
             self.camera_rotation.1 += dx as f32 * 0.01;
             self.camera_rotation.0 += dy as f32 * 0.01;
             
-            // Clamp elevation to avoid flipping
             self.camera_rotation.0 = self.camera_rotation.0.max(-1.5).min(1.5);
             
             self.last_mouse_pos = (x, y);
