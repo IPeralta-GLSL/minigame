@@ -198,10 +198,35 @@ pub async fn start_crossy_road() -> Result<(), JsValue> {
 }
 
 #[wasm_bindgen]
-pub fn start_solar_system() -> Result<(), JsValue> {
+pub async fn start_solar_system() -> Result<(), JsValue> {
     let gl = get_gl()?;
     let renderer = Renderer::new(gl)?;
-    let game = SolarSystem::new(renderer);
+
+    // Load Voyager 1 model
+    let mut voyager_mesh = None;
+    let window = web_sys::window().unwrap();
+    let opts = RequestInit::new();
+    opts.set_method("GET");
+    opts.set_mode(RequestMode::Cors);
+    
+    let request = Request::new_with_str_and_init("/assets/models/voyager_1.glb", &opts)?;
+    let resp_value = JsFuture::from(window.fetch_with_request(&request)).await;
+    
+    if let Ok(resp_value) = resp_value {
+        let resp: Response = resp_value.dyn_into().unwrap();
+        if resp.ok() {
+            let buffer_promise = resp.array_buffer()?;
+            let buffer = JsFuture::from(buffer_promise).await?;
+            let array = js_sys::Uint8Array::new(&buffer);
+            let bytes = array.to_vec();
+            
+            if let Ok(mesh) = Mesh::from_gltf(&bytes) {
+                voyager_mesh = Some(mesh);
+            }
+        }
+    }
+
+    let game = SolarSystem::new(renderer, voyager_mesh);
     
     CURRENT_GAME.with(|g| *g.borrow_mut() = Some(ActiveGame::Solar(game)));
     

@@ -40,11 +40,13 @@ pub struct SolarSystem {
     background_mesh: Mesh,
     background_texture: Option<WebGlTexture>,
     focused_body_index: Option<usize>,
+    sphere_mesh: Mesh,
 }
 
 impl SolarSystem {
-    pub fn new(renderer: Renderer) -> Self {
+    pub fn new(renderer: Renderer, voyager_mesh: Option<Mesh>) -> Self {
         let mut bodies = Vec::new();
+        let sphere_mesh = Mesh::sphere(1.0, 20, 20, 1.0, 1.0, 1.0);
         
         let now_ms = Date::now();
         let j2000_ms = 946728000000.0;
@@ -202,6 +204,41 @@ impl SolarSystem {
         let p_eris = 203443.0;
         bodies.push(create_body("Eris", 0.00075, 6767.0, get_orbit_speed(p_eris), get_initial_angle(0.0, p_eris), (0.9, 0.9, 0.9), Some(0), Mesh::sphere, Some("assets/textures/2k_eris_fictional.jpg"), None, None, 1.08, 78.0, 44.0));
 
+        if let Some(mesh) = voyager_mesh {
+            let mut label_element = None;
+            if let Some(container) = &labels_container {
+                let el = document.create_element("div").unwrap();
+                el.set_class_name("solar-label");
+                el.set_text_content(Some("Voyager 1"));
+                container.append_child(&el).unwrap();
+                if let Ok(html_el) = el.dyn_into::<HtmlElement>() {
+                    label_element = Some(html_el);
+                }
+            }
+
+            bodies.push(Body {
+                mesh,
+                radius: 0.0001, // Tiny
+                orbit_radius: 16200.0, // ~162 AU
+                orbit_speed: 0.0, 
+                orbit_angle: 0.0, 
+                color: (0.8, 0.8, 0.8),
+                parent: Some(0),
+                name: "Voyager 1".to_string(),
+                trail: Vec::new(),
+                label_element,
+                texture: None,
+                night_texture: None,
+                cloud_texture: None,
+                cloud_rotation: 0.0,
+                rotation_period: 0.0,
+                axial_tilt: 0.0,
+                current_rotation: 0.0,
+                orbit_inclination: 35.0f32.to_radians(),
+                last_trail_angle: 0.0,
+            });
+        }
+
         let background_texture = renderer.create_texture("assets/textures/8k_stars.jpg").ok();
         let background_mesh = Mesh::sphere(1.0, 40, 40, 1.0, 1.0, 1.0);
 
@@ -265,7 +302,8 @@ impl SolarSystem {
             current_time: now_ms,
             background_mesh,
             background_texture,
-            focused_body_index: None,
+            focused_body_index: Some(3),
+            sphere_mesh,
         }
     }
 
@@ -445,24 +483,36 @@ impl SolarSystem {
         let aspect = width as f32 / height as f32;
         let projection = Matrix4::new_perspective(aspect, 45.0 * std::f32::consts::PI / 180.0, 0.0001, 50000.0); // Reduced near plane for close zoom
         
-        let cam_x = target.x + self.camera_distance * self.camera_rotation.0.cos() * self.camera_rotation.1.sin();
-        let cam_y = target.y + self.camera_distance * self.camera_rotation.0.sin();
-        let cam_z = target.z + self.camera_distance * self.camera_rotation.0.cos() * self.camera_rotation.1.cos();
+        // Camera Relative Rendering:
+        // We calculate the camera position relative to the target (focus point).
+        // The view matrix will be constructed as if the target is at (0,0,0).
+        // When drawing objects, we subtract the target position from their world position.
+        
+        let rel_cam_x = self.camera_distance * self.camera_rotation.0.cos() * self.camera_rotation.1.sin();
+        let rel_cam_y = self.camera_distance * self.camera_rotation.0.sin();
+        let rel_cam_z = self.camera_distance * self.camera_rotation.0.cos() * self.camera_rotation.1.cos();
 
         let view = Matrix4::look_at_rh(
-            &Point3::new(cam_x, cam_y, cam_z),
-            &Point3::new(target.x, target.y, target.z),
+            &Point3::new(rel_cam_x, rel_cam_y, rel_cam_z),
+            &Point3::new(0.0, 0.0, 0.0),
             &Vector3::y(),
         );
+
+        // Update light position (Sun is at 0,0,0 absolute)
+        // Relative light position = SunPos - TargetPos
+        // SunPos is (0,0,0)
+        let rel_light_pos = Vector3::new(0.0, 0.0, 0.0) - target;
+        self.renderer.set_light_position(rel_light_pos.x, rel_light_pos.y, rel_light_pos.z);
 
         self.renderer.gl.disable(web_sys::WebGlRenderingContext::DEPTH_TEST);
         
         // Disable lighting for background stars
         self.renderer.gl.uniform1i(Some(&self.renderer.u_use_lighting_location), 0);
 
+            // Background is drawn relative to camera, so it stays centered
             self.renderer.draw_mesh(
                 &self.background_mesh,
-                cam_x, cam_y, cam_z,
+                rel_cam_x, rel_cam_y, rel_cam_z,
                 5000.0, 5000.0, 5000.0,
                 0.0, 0.0, 0.0,
                 &projection,
@@ -480,11 +530,18 @@ impl SolarSystem {
         // ... loop removed ...
 
         for (i, body) in self.bodies.iter().enumerate() {
-            let pos = positions[i];
+            let abs_pos = positions[i];
+            // Calculate position relative to the focused target
+            let pos = abs_pos - target;
             
             if !body.trail.is_empty() {
+                // Trail points are absolute, need to be made relative
+                let relative_trail: Vec<f32> = body.trail.chunks(3).flat_map(|p| {
+                    vec![p[0] - target.x, p[1] - target.y, p[2] - target.z]
+                }).collect();
+
                 self.renderer.draw_lines(
-                    &body.trail,
+                    &relative_trail,
                     body.color.0 * 0.5,
                     body.color.1 * 0.5,
                     body.color.2 * 0.5,
@@ -494,10 +551,10 @@ impl SolarSystem {
             }
 
             // LOD Logic:
-            // Calculate distance from camera to body
-            let dx = cam_x - pos.x;
-            let dy = cam_y - pos.y;
-            let dz = cam_z - pos.z;
+            // Calculate distance from camera to body (using relative coordinates)
+            let dx = rel_cam_x - pos.x;
+            let dy = rel_cam_y - pos.y;
+            let dz = rel_cam_z - pos.z;
             let dist = (dx*dx + dy*dy + dz*dz).sqrt();
             
             // Minimum visible size (fixed angular size)
@@ -528,8 +585,15 @@ impl SolarSystem {
                 None
             };
             
+            // Use sphere mesh for LOD if far away (use_texture is false), otherwise use body mesh
+            let mesh_to_use = if !use_texture {
+                &self.sphere_mesh
+            } else {
+                &body.mesh
+            };
+
             self.renderer.draw_mesh(
-                &body.mesh,
+                mesh_to_use,
                 pos.x, pos.y, pos.z,
                 render_radius, render_radius, render_radius,
                 body.axial_tilt, body.current_rotation, 0.0,
@@ -563,6 +627,12 @@ impl SolarSystem {
             }
             
             if let Some(element) = &body.label_element {
+                // Label position calculation needs to be relative to camera too?
+                // No, projection * view * pos works if pos is in the same space as view.
+                // View is relative to target (0,0,0).
+                // pos is relative to target.
+                // So it should work correctly.
+                
                 let center_world = Vector4::new(pos.x, pos.y, pos.z, 1.0);
                 let view_pos = view * center_world;
                 // Calculate position of the top of the sphere in view space (screen up)

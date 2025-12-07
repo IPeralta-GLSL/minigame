@@ -48,8 +48,8 @@ const FRAGMENT_SHADER: &str = r#"
     uniform bool uUseUniformColor;
     uniform vec3 uTimeColor;
     
-    // Light properties (Sun at 0,0,0)
-    const vec3 lightPos = vec3(0.0, 0.0, 0.0);
+    // Light properties
+    uniform vec3 uLightPos;
     const vec3 lightColor = vec3(1.0, 1.0, 1.0);
     const float ambientStrength = 0.15;
 
@@ -77,14 +77,13 @@ const FRAGMENT_SHADER: &str = r#"
             
             // Diffuse
             vec3 norm = normalize(vNormal);
-            vec3 lightDir = normalize(lightPos - vFragPos);
+            vec3 lightDir = normalize(uLightPos - vFragPos);
             
             // If the object is the sun (at 0,0,0), it should be fully lit
             float diff = max(dot(norm, lightDir), 0.0);
             
-            // Special case for Sun (or objects very close to 0,0,0)
-            // If distance to light source is very small, it's the light source itself
-            float dist = length(vFragPos);
+            // Special case for Sun (or objects very close to light source)
+            float dist = length(vFragPos - uLightPos);
             if (dist < 1.0) {
                 diff = 1.0;
                 ambient = vec3(1.0); // Full brightness for sun
@@ -140,6 +139,7 @@ pub struct Renderer {
     u_use_night_texture_location: WebGlUniformLocation,
     u_night_texture_location: WebGlUniformLocation,
     pub u_use_lighting_location: WebGlUniformLocation,
+    pub u_light_pos_location: WebGlUniformLocation,
     unit_cube_vertex_buffer: WebGlBuffer,
     unit_cube_index_buffer: WebGlBuffer,
     unit_cube_index_count: i32,
@@ -177,6 +177,8 @@ impl Renderer {
             .ok_or("Failed to get uNightTexture location")?;
         let u_use_lighting_location = gl.get_uniform_location(&program, "uUseLighting")
             .ok_or("Failed to get uUseLighting location")?;
+        let u_light_pos_location = gl.get_uniform_location(&program, "uLightPos")
+            .ok_or("Failed to get uLightPos location")?;
 
         // Create unit cube buffers
         let unit_cube_vertex_buffer = gl.create_buffer().ok_or("Failed to create unit cube buffer")?;
@@ -207,6 +209,8 @@ impl Renderer {
 
         // Initialize time color to white (no filter)
         gl.uniform3f(Some(&u_time_color_location), 1.0, 1.0, 1.0);
+        // Initialize light pos to 0,0,0
+        gl.uniform3f(Some(&u_light_pos_location), 0.0, 0.0, 0.0);
 
         Ok(Renderer {
             gl,
@@ -227,7 +231,12 @@ impl Renderer {
             dynamic_vertex_buffer,
             dynamic_index_buffer,
             u_use_lighting_location,
+            u_light_pos_location,
         })
+    }
+
+    pub fn set_light_position(&self, x: f32, y: f32, z: f32) {
+        self.gl.uniform3f(Some(&self.u_light_pos_location), x, y, z);
     }
 
     pub fn clear(&self, r: f32, g: f32, b: f32) {
