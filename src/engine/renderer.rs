@@ -47,6 +47,7 @@ const FRAGMENT_SHADER: &str = r#"
     uniform vec3 uUniformColor;
     uniform bool uUseUniformColor;
     uniform vec3 uTimeColor;
+    uniform bool uIsRing;
     
     // Light properties
     uniform vec3 uLightPos;
@@ -57,15 +58,29 @@ const FRAGMENT_SHADER: &str = r#"
 
     void main() {
         vec3 color;
+        float alpha = 1.0;
+
         if (uUseUniformColor) {
             color = uUniformColor;
         } else {
             color = vColor;
         }
 
+        vec2 texCoord = vTexCoord;
+        if (uIsRing) {
+            float dist = distance(vTexCoord, vec2(0.5));
+            if (dist > 0.5 || dist < 0.15) {
+                discard;
+            }
+            // Radial mapping: map distance 0.15..0.5 to u 0.0..1.0
+            // (dist - 0.15) / (0.5 - 0.15) = (dist - 0.15) / 0.35
+            texCoord = vec2((dist - 0.15) / 0.35, 0.5);
+        }
+
         if (uUseTexture == 1) {
-            vec4 texColor = texture2D(uTexture, vTexCoord);
+            vec4 texColor = texture2D(uTexture, texCoord);
             color *= texColor.rgb;
+            alpha = texColor.a;
         }
         
         vec3 result;
@@ -81,6 +96,13 @@ const FRAGMENT_SHADER: &str = r#"
             
             // If the object is the sun (at 0,0,0), it should be fully lit
             float diff = max(dot(norm, lightDir), 0.0);
+
+            if (uIsRing) {
+                // Rings are translucent and scatter light, so we make them brighter
+                // and less dependent on the normal (which might be perpendicular to light)
+                diff = 0.8;
+                ambient = vec3(0.4);
+            }
             
             // Special case for Sun (or objects very close to light source)
             float dist = length(vFragPos - uLightPos);
@@ -121,7 +143,7 @@ const FRAGMENT_SHADER: &str = r#"
         // Slight contrast
         result = pow(result, vec3(1.1));
 
-        gl_FragColor = vec4(result, 1.0);
+        gl_FragColor = vec4(result, alpha);
     }
 "#;
 
@@ -140,6 +162,7 @@ pub struct Renderer {
     u_night_texture_location: WebGlUniformLocation,
     pub u_use_lighting_location: WebGlUniformLocation,
     pub u_light_pos_location: WebGlUniformLocation,
+    pub u_is_ring_location: WebGlUniformLocation,
     unit_cube_vertex_buffer: WebGlBuffer,
     unit_cube_index_buffer: WebGlBuffer,
     unit_cube_index_count: i32,
@@ -179,6 +202,8 @@ impl Renderer {
             .ok_or("Failed to get uUseLighting location")?;
         let u_light_pos_location = gl.get_uniform_location(&program, "uLightPos")
             .ok_or("Failed to get uLightPos location")?;
+        let u_is_ring_location = gl.get_uniform_location(&program, "uIsRing")
+            .ok_or("Failed to get uIsRing location")?;
 
         // Create unit cube buffers
         let unit_cube_vertex_buffer = gl.create_buffer().ok_or("Failed to create unit cube buffer")?;
@@ -232,6 +257,7 @@ impl Renderer {
             dynamic_index_buffer,
             u_use_lighting_location,
             u_light_pos_location,
+            u_is_ring_location,
         })
     }
 
@@ -306,9 +332,10 @@ impl Renderer {
         );
     }
 
-    pub fn draw_mesh(&self, mesh: &Mesh, x: f32, y: f32, z: f32, w: f32, h: f32, d: f32, rotation_x: f32, rotation_y: f32, rotation_z: f32, projection: &Matrix4<f32>, view: &Matrix4<f32>, texture: Option<&WebGlTexture>, night_texture: Option<&WebGlTexture>, color_override: Option<(f32, f32, f32)>) {
+    pub fn draw_mesh(&self, mesh: &Mesh, x: f32, y: f32, z: f32, w: f32, h: f32, d: f32, rotation_x: f32, rotation_y: f32, rotation_z: f32, projection: &Matrix4<f32>, view: &Matrix4<f32>, texture: Option<&WebGlTexture>, night_texture: Option<&WebGlTexture>, color_override: Option<(f32, f32, f32)>, is_ring: bool) {
         // Enable lighting by default for meshes
         self.gl.uniform1i(Some(&self.u_use_lighting_location), 1);
+        self.gl.uniform1i(Some(&self.u_is_ring_location), if is_ring { 1 } else { 0 });
 
         if let Some(tex) = texture {
             self.gl.active_texture(WebGlRenderingContext::TEXTURE0);
