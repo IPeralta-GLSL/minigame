@@ -44,7 +44,7 @@ pub struct SolarSystem {
 }
 
 impl SolarSystem {
-    pub fn new(renderer: Renderer, voyager_mesh: Option<Mesh>) -> Self {
+    pub fn new(renderer: Renderer) -> Self {
         let mut bodies = Vec::new();
         let sphere_mesh = Mesh::sphere(1.0, 20, 20, 1.0, 1.0, 1.0);
         
@@ -144,157 +144,70 @@ impl SolarSystem {
             }
         };
 
-        // Realistic Scale: 1 AU = 100.0 units
-        // Sun Radius = 0.465
+
+
         bodies.push(create_body("Sun", 0.465, 0.0, 0.0, 0.0, (1.0, 1.0, 0.0), None, Mesh::sphere, Some("assets/textures/2k_sun.jpg"), None, None, 25.0, 7.25, 0.0));
 
         let p_mercury = 87.969;
-        // Mercury: 0.39 AU = 39.0 units. Radius = 0.0016
+
         bodies.push(create_body("Mercury", 0.0016, 39.0, get_orbit_speed(p_mercury), get_initial_angle(252.25, p_mercury), (0.5, 0.5, 0.5), Some(0), Mesh::sphere, Some("https://upload.wikimedia.org/wikipedia/commons/3/30/Mercury_in_color_-_Prockter07-edit1.jpg"), None, None, 58.6, 0.03, 7.0));
 
         let p_venus = 224.701;
-        // Venus: 0.72 AU = 72.0 units. Radius = 0.004
+
         bodies.push(create_body("Venus", 0.004, 72.0, get_orbit_speed(p_venus), get_initial_angle(181.98, p_venus), (0.9, 0.7, 0.2), Some(0), Mesh::sphere, Some("assets/textures/2k_venus_surface.jpg"), None, Some("assets/textures/2k_venus_atmosphere.jpg"), -243.0, 177.3, 3.4));
 
         let p_earth = 365.256;
-        // Earth: 1.00 AU = 100.0 units. Radius = 0.0042
+
         bodies.push(create_body("Earth", 0.0042, 100.0, get_orbit_speed(p_earth), get_initial_angle(100.46, p_earth), (0.0, 0.0, 1.0), Some(0), Mesh::sphere, Some("assets/textures/2k_earth_daymap.jpg"), Some("assets/textures/2k_earth_nightmap.jpg"), Some("assets/textures/2k_earth_clouds.jpg"), 1.0, 23.4, 0.0));
 
         let p_moon = 27.322;
-        // Moon: 0.00257 AU from Earth = 0.257 units. Radius = 0.0011
+
         bodies.push(create_body("Moon", 0.0011, 0.257, get_orbit_speed(p_moon), get_initial_angle(0.0, p_moon), (0.6, 0.6, 0.6), Some(3), Mesh::sphere, Some("assets/textures/2k_moon.jpg"), None, None, 27.3, 6.7, 5.1));
 
         let p_mars = 686.980;
-        // Mars: 1.52 AU = 152.0 units. Radius = 0.0022
+
         bodies.push(create_body("Mars", 0.0022, 152.0, get_orbit_speed(p_mars), get_initial_angle(355.45, p_mars), (1.0, 0.0, 0.0), Some(0), Mesh::sphere, Some("assets/textures/2k_mars.jpg"), None, None, 1.03, 25.2, 1.85));
 
-        // Ceres: 2.77 AU = 277.0 units. Radius = 0.00029
+
         let p_ceres = 1681.6;
         bodies.push(create_body("Ceres", 0.00029, 277.0, get_orbit_speed(p_ceres), get_initial_angle(0.0, p_ceres), (0.4, 0.4, 0.4), Some(0), Mesh::sphere, Some("assets/textures/2k_ceres_fictional.jpg"), None, None, 0.375, 4.0, 10.6));
 
         let p_jupiter = 4332.589;
-        // Jupiter: 5.20 AU = 520.0 units. Radius = 0.047
+
         bodies.push(create_body("Jupiter", 0.047, 520.0, get_orbit_speed(p_jupiter), get_initial_angle(34.40, p_jupiter), (0.8, 0.6, 0.4), Some(0), Mesh::sphere, Some("assets/textures/2k_jupiter.jpg"), None, None, 0.41, 3.1, 1.3));
 
         let p_saturn = 10759.22;
-        // Saturn: 9.58 AU = 958.0 units. Radius = 0.039
+
         bodies.push(create_body("Saturn", 0.039, 958.0, get_orbit_speed(p_saturn), get_initial_angle(49.94, p_saturn), (0.9, 0.8, 0.5), Some(0), Mesh::sphere, Some("assets/textures/2k_saturn.jpg"), None, None, 0.45, 26.7, 2.48));
 
         let p_uranus = 30685.4;
-        // Uranus: 19.2 AU = 1920.0 units. Radius = 0.017
+
         bodies.push(create_body("Uranus", 0.017, 1920.0, get_orbit_speed(p_uranus), get_initial_angle(313.23, p_uranus), (0.0, 0.8, 0.8), Some(0), Mesh::sphere, Some("assets/textures/2k_uranus.jpg"), None, None, -0.72, 97.8, 0.77));
 
         let p_neptune = 60189.0;
-        // Neptune: 30.05 AU = 3005.0 units. Radius = 0.016
+
         bodies.push(create_body("Neptune", 0.016, 3005.0, get_orbit_speed(p_neptune), get_initial_angle(304.88, p_neptune), (0.0, 0.0, 0.8), Some(0), Mesh::sphere, Some("assets/textures/2k_neptune.jpg"), None, None, 0.67, 28.3, 1.77));
 
-        // Pluto: 39.48 AU = 3948.0 units. Radius = 0.00075
+
         let p_pluto = 90560.0;
         bodies.push(create_body("Pluto", 0.00075, 3948.0, get_orbit_speed(p_pluto), get_initial_angle(0.0, p_pluto), (0.6, 0.5, 0.4), Some(0), Mesh::sphere, Some("https://upload.wikimedia.org/wikipedia/commons/e/ef/Pluto_in_True_Color_-_High-Res.jpg"), None, None, -6.39, 122.5, 17.16));
 
-        // Haumea: 43.13 AU = 4313.0 units. Radius = 0.00055
+
         let p_haumea = 103368.0;
         bodies.push(create_body("Haumea", 0.00055, 4313.0, get_orbit_speed(p_haumea), get_initial_angle(0.0, p_haumea), (0.7, 0.7, 0.7), Some(0), Mesh::sphere, Some("assets/textures/2k_haumea_fictional.jpg"), None, None, 0.16, 0.0, 28.2));
 
-        // Makemake: 45.79 AU = 4579.0 units. Radius = 0.00046
+
         let p_makemake = 112862.0;
         bodies.push(create_body("Makemake", 0.00046, 4579.0, get_orbit_speed(p_makemake), get_initial_angle(0.0, p_makemake), (0.8, 0.6, 0.5), Some(0), Mesh::sphere, Some("assets/textures/2k_makemake_fictional.jpg"), None, None, 0.95, 0.0, 29.0));
 
-        // Eris: 67.67 AU = 6767.0 units. Radius = 0.00075
+
         let p_eris = 203443.0;
         bodies.push(create_body("Eris", 0.00075, 6767.0, get_orbit_speed(p_eris), get_initial_angle(0.0, p_eris), (0.9, 0.9, 0.9), Some(0), Mesh::sphere, Some("assets/textures/2k_eris_fictional.jpg"), None, None, 1.08, 78.0, 44.0));
-
-        if let Some(mesh) = voyager_mesh {
-            let mut label_element = None;
-            if let Some(container) = &labels_container {
-                let el = document.create_element("div").unwrap();
-                el.set_class_name("solar-label");
-                el.set_text_content(Some("Voyager 1"));
-                container.append_child(&el).unwrap();
-                if let Ok(html_el) = el.dyn_into::<HtmlElement>() {
-                    label_element = Some(html_el);
-                }
-            }
-
-            // Generate Voyager 1 trajectory
-            // Approximate path: Earth -> Jupiter -> Saturn -> Out
-            let mut trail = Vec::new();
-            
-            // Earth (100.0) to Jupiter (520.0)
-            // Angle 0 to 2.0
-            for i in 0..100 {
-                let t = i as f32 / 100.0;
-                let r = 100.0 + (520.0 - 100.0) * t;
-                let a = 0.0 + (2.0 - 0.0) * t;
-                let x = r * a.cos();
-                let z = r * a.sin();
-                trail.push(x); trail.push(0.0); trail.push(z);
-            }
-            
-            // Jupiter (520.0) to Saturn (958.0)
-            // Angle 2.0 to 3.5
-            for i in 0..100 {
-                let t = i as f32 / 100.0;
-                let r = 520.0 + (958.0 - 520.0) * t;
-                let a = 2.0 + (3.5 - 2.0) * t;
-                let x = r * a.cos();
-                let z = r * a.sin();
-                trail.push(x); trail.push(0.0); trail.push(z);
-            }
-            
-            // Saturn (958.0) to Current (16200.0)
-            // Angle 3.5 to 4.5 (approx 258 deg)
-            // Inclination starts ramping up
-            for i in 0..500 {
-                let t = i as f32 / 500.0;
-                let r = 958.0 + (16200.0 - 958.0) * t;
-                let a = 3.5 + (4.5 - 3.5) * t;
-                let inc = 35.0f32.to_radians() * t; // Ramp up inclination
-                
-                let x = r * a.cos();
-                let z = r * a.sin();
-                let y = z * inc.sin(); // Simple approximation
-                let z = z * inc.cos();
-                
-                trail.push(x); trail.push(y); trail.push(z);
-            }
-
-            // Load Voyager texture
-            let voyager_texture = match renderer.create_texture("assets/models/voyager/textures/gltf_embedded_0.png") {
-                Ok(t) => Some(t),
-                Err(e) => {
-                    web_sys::console::error_1(&format!("Failed to create voyager texture: {:?}", e).into());
-                    None
-                }
-            };
-
-            bodies.push(Body {
-                mesh,
-                radius: 0.0001, // Tiny
-                orbit_radius: 16200.0, // ~162 AU
-                orbit_speed: 0.0, 
-                orbit_angle: 4.5, 
-                color: (0.8, 0.8, 0.8),
-                parent: Some(0),
-                name: "Voyager 1".to_string(),
-                trail,
-                label_element,
-                texture: voyager_texture,
-                night_texture: None,
-                cloud_texture: None,
-                cloud_rotation: 0.0,
-                rotation_period: 0.0,
-                axial_tilt: 0.0,
-                current_rotation: 0.0,
-                orbit_inclination: 35.0f32.to_radians(),
-                last_trail_angle: 0.0,
-            });
-        }
 
         let background_texture = renderer.create_texture("assets/textures/8k_stars.jpg").ok();
         let background_mesh = Mesh::sphere(1.0, 40, 40, 1.0, 1.0, 1.0);
 
-        // Pre-calculate trails for all bodies
+
         let trail_points = 1000;
         for i in 0..bodies.len() {
             let body = &mut bodies[i];
@@ -302,9 +215,9 @@ impl SolarSystem {
                 let full_circle = 2.0 * std::f32::consts::PI;
                 let angle_step = full_circle / trail_points as f32;
                 
-                // We want to generate the TRAIL behind the planet.
-                // So we go from current_angle - 2PI to current_angle.
-                // But we push them in order so the last point is the current position.
+
+
+
                 
                 for j in 0..trail_points {
                     let angle_offset = -full_circle + (j as f32 * angle_step);
@@ -326,14 +239,14 @@ impl SolarSystem {
             }
         }
 
-        // Populate UI list
+
         if let Some(list) = document.query_selector(".body-list").unwrap() {
             list.set_inner_html(""); // Clear existing
             
             for (i, body) in bodies.iter().enumerate() {
                 let li = document.create_element("li").unwrap();
                 li.set_text_content(Some(&body.name));
-                // We use a global function that we'll expose from JS/Wasm
+
                 li.set_attribute("onclick", &format!("window.selectSolarBody({})", i)).unwrap();
                 li.set_attribute("style", "cursor: pointer; padding: 5px; transition: background 0.2s;").unwrap();
                 li.set_class_name("solar-list-item");
@@ -362,15 +275,15 @@ impl SolarSystem {
     pub fn select_body(&mut self, index: usize) {
         if index < self.bodies.len() {
             self.focused_body_index = Some(index);
-            // Zoom in to the body
-            // Use a distance relative to the body's radius, but clamped
+
+
             let radius = self.bodies[index].radius;
-            // For Sun (radius ~0.465), distance ~2.0 is good.
-            // For Earth (radius ~0.0042), distance ~0.02 is good.
-            // So roughly 5x radius.
+
+
+
             self.camera_distance = radius * 5.0;
             
-            // Clamp to reasonable limits so we don't clip inside
+
             self.camera_distance = self.camera_distance.max(radius * 1.5);
         } else {
             self.focused_body_index = None;
@@ -399,70 +312,25 @@ impl SolarSystem {
         let mut positions = vec![Vector3::new(0.0, 0.0, 0.0); self.bodies.len()];
 
         for i in 0..self.bodies.len() {
-            // Special handling for Voyager 1
-            if self.bodies[i].name == "Voyager 1" {
-                let body = &mut self.bodies[i];
-                // Move outwards linearly
-                // Speed: ~3.6 AU/year = 360 units / year
-                // 1 year = 365.25 days
-                // Speed per day = 360 / 365.25 ~= 0.98 units/day
-                // time_scale is roughly days/second (if 1.0 = 1 day/sec)
-                // Actually time_scale is just a multiplier.
-                // In update logic: orbit_angle += orbit_speed * dt * time_scale
-                // orbit_speed is rad/sec.
-                
-                // Let's just add a small amount to radius
-                body.orbit_radius += 0.98 * dt as f32 * self.time_scale;
-                
-                let x = body.orbit_radius * body.orbit_angle.cos();
-                let z = body.orbit_radius * body.orbit_angle.sin();
-                let y = z * body.orbit_inclination.sin();
-                let z = z * body.orbit_inclination.cos();
-                
-                positions[i] = Vector3::new(x, y, z);
-                
-                // Update trail to connect to current position
-                // Only add point if we moved enough
-                if body.trail.len() >= 3 {
-                    let last_x = body.trail[body.trail.len()-3];
-                    let last_y = body.trail[body.trail.len()-2];
-                    let last_z = body.trail[body.trail.len()-1];
-                    
-                    let dx = x - last_x;
-                    let dy = y - last_y;
-                    let dz = z - last_z;
-                    let dist_sq = dx*dx + dy*dy + dz*dz;
-                    
-                    // Add point every ~10 units
-                    if dist_sq > 100.0 {
-                        body.trail.push(x);
-                        body.trail.push(y);
-                        body.trail.push(z);
-                    }
-                }
-
-                // Don't update trail using orbital logic
-                continue;
-            }
 
             let body = &mut self.bodies[i];
             if body.parent.is_some() {
                 body.orbit_angle += body.orbit_speed * dt as f32 * self.time_scale; 
             }
             
-            // Update rotation
+
             if body.rotation_period != 0.0 {
-                // Calculate angular velocity in radians per second (simulation time)
-                // Period is in days. 1 day = 86400 seconds.
-                // Omega = 2 * PI / (Period * 86400)
+
+
+
                 let period_seconds = body.rotation_period.abs() * 24.0 * 3600.0;
                 let rotation_speed = (2.0 * std::f32::consts::PI) / period_seconds;
                 
-                // Apply rotation scaled by time_scale
+
                 body.current_rotation += rotation_speed * dt as f32 * self.time_scale;
 
                 if body.cloud_texture.is_some() {
-                    // Clouds move slightly faster/different than surface
+
                     body.cloud_rotation += rotation_speed * 0.2 * dt as f32 * self.time_scale;
                 }
             }
@@ -482,11 +350,11 @@ impl SolarSystem {
             positions[i] = pos;
             
             if body.orbit_radius > 0.0 {
-                // Angular-based trail update to handle high speeds correctly
+
                 let two_pi = 2.0 * std::f32::consts::PI;
                 let angle_step = two_pi / 1000.0; // 1000 points per orbit
                 
-                // Normalize angles to [0, 2PI) for comparison
+
                 let current_angle = body.orbit_angle % two_pi;
                 let last_angle = body.last_trail_angle % two_pi;
                 
@@ -495,12 +363,12 @@ impl SolarSystem {
                     diff += two_pi;
                 }
                 
-                // If we moved more than one step, fill in the gaps
+
                 if diff >= angle_step {
                     let steps = (diff / angle_step).floor() as usize;
                     
-                    // Limit steps to avoid freezing if something goes wrong (e.g. huge time jump)
-                    // 1000 steps = 1 full orbit.
+
+
                     let steps_to_add = steps.min(1000);
                     
                     for k in 1..=steps_to_add {
@@ -513,22 +381,22 @@ impl SolarSystem {
                         
                         let mut p = Vector3::new(x, y, z);
                         
-                        // Note: For moons, this is still relative to 0,0,0 (parent not added)
-                        // But trail rendering adds parent position? No, trail rendering uses absolute coords?
-                        // Wait, in render(): renderer.draw_lines(&body.trail...)
-                        // And in update(): body.trail.push(pos.x).
-                        // pos includes parent position: pos += positions[parent_idx].
-                        // So trail stores ABSOLUTE positions.
-                        // But here we are calculating relative position based on angle.
-                        // We need to add parent position!
-                        // But parent position also changes over time.
-                        // If we interpolate 100 points for the planet, we should interpolate 100 points for the parent too?
-                        // That's complicated.
-                        // For now, let's just use the current parent position for all interpolated points.
-                        // It's an approximation, but better than straight lines.
-                        // Or better: Only do this interpolation for planets (parent == None or 0).
-                        // Moons are small and fast, maybe they don't need this as much?
-                        // Or we accept the approximation.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                         
                         if let Some(parent_idx) = body.parent {
                              p += positions[parent_idx];
@@ -541,7 +409,7 @@ impl SolarSystem {
                     
                     body.last_trail_angle += steps as f32 * angle_step;
                     
-                    // Trim trail to exactly 1000 points
+
                     while body.trail.len() > 3000 {
                         body.trail.drain(0..3);
                     }
@@ -555,7 +423,7 @@ impl SolarSystem {
         self.renderer.resize(width, height);
         self.renderer.enable_depth_test();
 
-        // Calculate positions first
+
         let mut positions = vec![Vector3::new(0.0, 0.0, 0.0); self.bodies.len()];
         for i in 0..self.bodies.len() {
             let body = &self.bodies[i];
@@ -581,10 +449,10 @@ impl SolarSystem {
         let aspect = width as f32 / height as f32;
         let projection = Matrix4::new_perspective(aspect, 45.0 * std::f32::consts::PI / 180.0, 0.0001, 50000.0); // Reduced near plane for close zoom
         
-        // Camera Relative Rendering:
-        // We calculate the camera position relative to the target (focus point).
-        // The view matrix will be constructed as if the target is at (0,0,0).
-        // When drawing objects, we subtract the target position from their world position.
+
+
+
+
         
         let rel_cam_x = self.camera_distance * self.camera_rotation.0.cos() * self.camera_rotation.1.sin();
         let rel_cam_y = self.camera_distance * self.camera_rotation.0.sin();
@@ -596,18 +464,18 @@ impl SolarSystem {
             &Vector3::y(),
         );
 
-        // Update light position (Sun is at 0,0,0 absolute)
-        // Relative light position = SunPos - TargetPos
-        // SunPos is (0,0,0)
+
+
+
         let rel_light_pos = Vector3::new(0.0, 0.0, 0.0) - target;
         self.renderer.set_light_position(rel_light_pos.x, rel_light_pos.y, rel_light_pos.z);
 
         self.renderer.gl.disable(web_sys::WebGlRenderingContext::DEPTH_TEST);
         
-        // Disable lighting for background stars
+
         self.renderer.gl.uniform1i(Some(&self.renderer.u_use_lighting_location), 0);
 
-            // Background is drawn relative to camera, so it stays centered
+
             self.renderer.draw_mesh(
                 &self.background_mesh,
                 rel_cam_x, rel_cam_y, rel_cam_z,
@@ -623,17 +491,17 @@ impl SolarSystem {
         
         self.renderer.enable_depth_test();
 
-        // Positions already calculated above
-        // let mut positions = vec![Vector3::new(0.0, 0.0, 0.0); self.bodies.len()];
-        // ... loop removed ...
+
+
+
 
         for (i, body) in self.bodies.iter().enumerate() {
             let abs_pos = positions[i];
-            // Calculate position relative to the focused target
+
             let pos = abs_pos - target;
             
             if !body.trail.is_empty() {
-                // Trail points are absolute, need to be made relative
+
                 let relative_trail: Vec<f32> = body.trail.chunks(3).flat_map(|p| {
                     vec![p[0] - target.x, p[1] - target.y, p[2] - target.z]
                 }).collect();
@@ -648,15 +516,15 @@ impl SolarSystem {
                 );
             }
 
-            // LOD Logic:
-            // Calculate distance from camera to body (using relative coordinates)
+
+
             let dx = rel_cam_x - pos.x;
             let dy = rel_cam_y - pos.y;
             let dz = rel_cam_z - pos.z;
             let dist = (dx*dx + dy*dy + dz*dz).sqrt();
             
-            // Minimum visible size (fixed angular size)
-            // 0.002 radians ~= 0.1 degrees.
+
+
             let min_size = dist * 0.002; 
             
             let (render_radius, use_texture) = if min_size > body.radius {
@@ -683,7 +551,7 @@ impl SolarSystem {
                 None
             };
             
-            // Use sphere mesh for LOD if far away (use_texture is false), otherwise use body mesh
+
             let mesh_to_use = if !use_texture {
                 &self.sphere_mesh
             } else {
@@ -705,7 +573,7 @@ impl SolarSystem {
             if use_texture {
                 if let Some(cloud_tex) = &body.cloud_texture {
                     self.renderer.gl.enable(web_sys::WebGlRenderingContext::BLEND);
-                    // Use additive blending which works well for JPEG cloud maps (black background, white clouds)
+
                     self.renderer.gl.blend_func(web_sys::WebGlRenderingContext::ONE, web_sys::WebGlRenderingContext::ONE);
                     
                     self.renderer.draw_mesh(
@@ -725,15 +593,15 @@ impl SolarSystem {
             }
             
             if let Some(element) = &body.label_element {
-                // Label position calculation needs to be relative to camera too?
-                // No, projection * view * pos works if pos is in the same space as view.
-                // View is relative to target (0,0,0).
-                // pos is relative to target.
-                // So it should work correctly.
+
+
+
+
+
                 
                 let center_world = Vector4::new(pos.x, pos.y, pos.z, 1.0);
                 let view_pos = view * center_world;
-                // Calculate position of the top of the sphere in view space (screen up)
+
                 let top_view = view_pos + Vector4::new(0.0, render_radius, 0.0, 0.0);
                 
                 let clip_center = projection * view_pos;
@@ -749,7 +617,7 @@ impl SolarSystem {
                         let screen_cy = (1.0 - ndc_center_y) * height as f32 / 2.0;
                         let screen_ty = (1.0 - ndc_top_y) * height as f32 / 2.0;
                         
-                        // Calculate screen radius and apply padding
+
                         let radius_px = (screen_cy - screen_ty).abs();
                         let label_y = screen_cy - radius_px - 20.0;
                         

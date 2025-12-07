@@ -36,7 +36,6 @@ fn get_gl() -> Result<WebGlRenderingContext, JsValue> {
 }
 
 fn start_game_loop() -> Result<(), JsValue> {
-    // Input handling
     let closure = Closure::wrap(Box::new(move |event: KeyboardEvent| {
         CURRENT_GAME.with(|g| {
             if let Some(active_game) = g.borrow_mut().as_mut() {
@@ -64,7 +63,6 @@ fn start_game_loop() -> Result<(), JsValue> {
     web_sys::window().unwrap().add_event_listener_with_callback("keydown", closure.as_ref().unchecked_ref())?;
     closure.forget();
 
-    // Mouse Down
     let closure_down = Closure::wrap(Box::new(move |event: MouseEvent| {
         CURRENT_GAME.with(|g| {
             if let Some(ActiveGame::Solar(game)) = g.borrow_mut().as_mut() {
@@ -76,7 +74,6 @@ fn start_game_loop() -> Result<(), JsValue> {
         .add_event_listener_with_callback("mousedown", closure_down.as_ref().unchecked_ref())?;
     closure_down.forget();
 
-    // Mouse Up
     let closure_up = Closure::wrap(Box::new(move |_event: MouseEvent| {
         CURRENT_GAME.with(|g| {
             if let Some(ActiveGame::Solar(game)) = g.borrow_mut().as_mut() {
@@ -87,7 +84,6 @@ fn start_game_loop() -> Result<(), JsValue> {
     web_sys::window().unwrap().add_event_listener_with_callback("mouseup", closure_up.as_ref().unchecked_ref())?;
     closure_up.forget();
 
-    // Mouse Move
     let closure_move = Closure::wrap(Box::new(move |event: MouseEvent| {
         CURRENT_GAME.with(|g| {
             if let Some(ActiveGame::Solar(game)) = g.borrow_mut().as_mut() {
@@ -98,7 +94,6 @@ fn start_game_loop() -> Result<(), JsValue> {
     web_sys::window().unwrap().add_event_listener_with_callback("mousemove", closure_move.as_ref().unchecked_ref())?;
     closure_move.forget();
 
-    // Wheel
     let closure_wheel = Closure::wrap(Box::new(move |event: WheelEvent| {
         CURRENT_GAME.with(|g| {
             if let Some(ActiveGame::Solar(game)) = g.borrow_mut().as_mut() {
@@ -111,7 +106,6 @@ fn start_game_loop() -> Result<(), JsValue> {
         .add_event_listener_with_callback("wheel", closure_wheel.as_ref().unchecked_ref())?;
     closure_wheel.forget();
 
-    // Loop
     let f = Rc::new(RefCell::new(None));
     let g = f.clone();
 
@@ -202,31 +196,7 @@ pub async fn start_solar_system() -> Result<(), JsValue> {
     let gl = get_gl()?;
     let renderer = Renderer::new(gl)?;
 
-    // Load Voyager 1 model
-    let mut voyager_mesh = None;
-    let window = web_sys::window().unwrap();
-    let opts = RequestInit::new();
-    opts.set_method("GET");
-    opts.set_mode(RequestMode::Cors);
-    
-    let request = Request::new_with_str_and_init("/assets/models/voyager/Voyager.glb", &opts)?;
-    let resp_value = JsFuture::from(window.fetch_with_request(&request)).await;
-    
-    if let Ok(resp_value) = resp_value {
-        let resp: Response = resp_value.dyn_into().unwrap();
-        if resp.ok() {
-            let buffer_promise = resp.array_buffer()?;
-            let buffer = JsFuture::from(buffer_promise).await?;
-            let array = js_sys::Uint8Array::new(&buffer);
-            let bytes = array.to_vec();
-            
-            if let Ok(mesh) = Mesh::from_gltf(&bytes) {
-                voyager_mesh = Some(mesh);
-            }
-        }
-    }
-
-    let game = SolarSystem::new(renderer, voyager_mesh);
+    let game = SolarSystem::new(renderer);
     
     CURRENT_GAME.with(|g| *g.borrow_mut() = Some(ActiveGame::Solar(game)));
     
