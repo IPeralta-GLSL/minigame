@@ -2,7 +2,7 @@ use crate::engine::renderer::Renderer;
 use crate::engine::mesh::Mesh;
 use nalgebra::{Matrix4, Point3, Vector3, Vector4};
 use js_sys::Date;
-use web_sys::{HtmlElement, WebGlTexture};
+use web_sys::{HtmlElement, WebGlTexture, WebGlRenderingContext};
 use wasm_bindgen::JsCast;
 
 pub struct Body {
@@ -447,7 +447,7 @@ impl SolarSystem {
         };
 
         let aspect = width as f32 / height as f32;
-        let projection = Matrix4::new_perspective(aspect, 45.0 * std::f32::consts::PI / 180.0, 0.0001, 50000.0); // Reduced near plane for close zoom
+        let projection = Matrix4::new_perspective(aspect, 45.0 * std::f32::consts::PI / 180.0, 0.001, 50000.0); // Reduced near plane for close zoom
         
 
 
