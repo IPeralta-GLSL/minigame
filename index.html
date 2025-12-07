@@ -128,6 +128,24 @@
                 border: 1px solid #555;
             }
         }
+        
+        /* Full screen mode for Solar System */
+        body.solar-mode .game-container {
+            width: 100vw;
+            height: 100vh;
+        }
+        body.solar-mode canvas {
+            width: 100% !important;
+            height: 100% !important;
+            border: none !important;
+            border-radius: 0 !important;
+        }
+        body.solar-mode .controls {
+            display: none !important;
+        }
+        body.solar-mode #score {
+            display: none !important;
+        }
     </style>
 </head>
 <body>
@@ -166,15 +184,21 @@
         window.startGame = function(type) {
             document.getElementById('menu').style.display = 'none';
             if (type === 'road') {
+                document.body.classList.remove('solar-mode');
                 start_crossy_road();
             } else {
+                document.body.classList.add('solar-mode');
                 start_solar_system();
             }
+            resizeCanvas();
         };
         
         function resizeCanvas() {
             const canvas = document.getElementById('canvas');
-            if (window.innerWidth < 768) {
+            if (document.body.classList.contains('solar-mode')) {
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+            } else if (window.innerWidth < 768) {
                 canvas.width = window.innerWidth;
                 canvas.height = window.innerHeight;
             } else {
