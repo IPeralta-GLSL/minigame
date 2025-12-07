@@ -18,7 +18,7 @@ impl Mesh {
             x4: f32, y4: f32, z4: f32,
             brightness: f32
         | {
-            let base = (vertices.len() / 8) as u16;
+            let base = (vertices.len() / 11) as u16;
             let br = r * brightness;
             let bg = g * brightness;
             let bb = b * brightness;
@@ -77,16 +77,31 @@ impl Mesh {
                     vec![[1.0, 1.0, 1.0]; positions.len()]
                 };
                 
-                let base_index = (vertices.len() / 8) as u16;
+                let tex_coords: Vec<[f32; 2]> = if let Some(iter) = reader.read_tex_coords(0) {
+                    iter.into_f32().collect()
+                } else {
+                    vec![[0.0, 0.0]; positions.len()]
+                };
+
+                let normals: Vec<[f32; 3]> = if let Some(iter) = reader.read_normals() {
+                    iter.collect()
+                } else {
+                    vec![[0.0, 1.0, 0.0]; positions.len()]
+                };
+
+                let base_index = (vertices.len() / 11) as u16; // 3 pos + 3 col + 2 tex + 3 norm = 11 floats
                 
-                for (pos, color) in positions.iter().zip(colors.iter()) {
-                    // Default normal pointing up if not present
-                    // Ideally we should read normals from GLTF
+                for i in 0..positions.len() {
+                    let pos = positions[i];
+                    let color = colors[i];
+                    let uv = tex_coords[i];
+                    let norm = normals[i];
+
                     vertices.extend_from_slice(&[
                         pos[0], pos[1], pos[2],
                         color[0], color[1], color[2],
-                        0.0, 0.0,
-                        0.0, 1.0, 0.0 
+                        uv[0], uv[1],
+                        norm[0], norm[1], norm[2]
                     ]);
                 }
                 

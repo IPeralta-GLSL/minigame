@@ -259,6 +259,15 @@ impl SolarSystem {
                 trail.push(x); trail.push(y); trail.push(z);
             }
 
+            // Load Voyager texture
+            let voyager_texture = match renderer.create_texture("assets/models/voyager/textures/gltf_embedded_0.png") {
+                Ok(t) => Some(t),
+                Err(e) => {
+                    web_sys::console::error_1(&format!("Failed to create voyager texture: {:?}", e).into());
+                    None
+                }
+            };
+
             bodies.push(Body {
                 mesh,
                 radius: 0.0001, // Tiny
@@ -270,7 +279,7 @@ impl SolarSystem {
                 name: "Voyager 1".to_string(),
                 trail,
                 label_element,
-                texture: None,
+                texture: voyager_texture,
                 night_texture: None,
                 cloud_texture: None,
                 cloud_rotation: 0.0,
@@ -412,6 +421,26 @@ impl SolarSystem {
                 
                 positions[i] = Vector3::new(x, y, z);
                 
+                // Update trail to connect to current position
+                // Only add point if we moved enough
+                if body.trail.len() >= 3 {
+                    let last_x = body.trail[body.trail.len()-3];
+                    let last_y = body.trail[body.trail.len()-2];
+                    let last_z = body.trail[body.trail.len()-1];
+                    
+                    let dx = x - last_x;
+                    let dy = y - last_y;
+                    let dz = z - last_z;
+                    let dist_sq = dx*dx + dy*dy + dz*dz;
+                    
+                    // Add point every ~10 units
+                    if dist_sq > 100.0 {
+                        body.trail.push(x);
+                        body.trail.push(y);
+                        body.trail.push(z);
+                    }
+                }
+
                 // Don't update trail using orbital logic
                 continue;
             }
