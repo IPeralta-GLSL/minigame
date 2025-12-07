@@ -269,7 +269,7 @@ impl Renderer {
         self.gl.uniform_matrix4fv_with_f32_array(Some(&self.mvp_location), false, &mvp_array);
 
         self.gl.draw_arrays(
-            WebGlRenderingContext::LINE_LOOP,
+            WebGlRenderingContext::LINE_STRIP,
             0,
             (vertices.len() / 3) as i32
         );

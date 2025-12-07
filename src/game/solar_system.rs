@@ -1,7 +1,9 @@
 use crate::engine::renderer::Renderer;
 use crate::engine::mesh::Mesh;
-use nalgebra::{Matrix4, Point3, Vector3};
+use nalgebra::{Matrix4, Point3, Vector3, Vector4};
 use js_sys::Date;
+use web_sys::{Element, HtmlElement};
+use wasm_bindgen::JsCast;
 
 pub struct Body {
     pub mesh: Mesh,
@@ -12,6 +14,8 @@ pub struct Body {
     pub color: (f32, f32, f32),
     pub parent: Option<usize>,
     pub name: String,
+    pub trail: Vec<f32>,
+    pub label_element: Option<HtmlElement>,
 }
 
 pub struct SolarSystem {
@@ -30,167 +34,79 @@ impl SolarSystem {
     pub fn new(renderer: Renderer) -> Self {
         let mut bodies = Vec::new();
         
-        // Calculate days since J2000 (Jan 1, 2000 12:00 UTC)
         let now_ms = Date::now();
         let j2000_ms = 946728000000.0;
         let days_since_j2000 = (now_ms - j2000_ms) / (1000.0 * 60.0 * 60.0 * 24.0);
         
-        // Helper to calculate initial angle (Mean Longitude)
-        // L = L0 + n * d
-        // L0: Mean Longitude at J2000 (degrees)
-        // P: Orbital Period (days)
-        // n: Daily motion = 360 / P (degrees/day)
         let get_initial_angle = |l0: f32, p: f32| -> f32 {
             let n = 360.0 / p;
             let angle_deg = (l0 + n * days_since_j2000 as f32) % 360.0;
             angle_deg.to_radians()
         };
         
-        // Helper to calculate orbital speed (radians per second)
-        // P: Orbital Period (days)
         let get_orbit_speed = |p: f32| -> f32 {
             let p_seconds = p * 24.0 * 3600.0;
             (2.0 * std::f32::consts::PI) / p_seconds
         };
 
-        // Sun
-        bodies.push(Body {
-            mesh: Mesh::sphere(1.0, 20, 20, 1.0, 1.0, 0.0),
-            radius: 2.0,
-            orbit_radius: 0.0,
-            orbit_speed: 0.0,
-            orbit_angle: 0.0,
-            color: (1.0, 1.0, 0.0),
-            parent: None,
-            name: "Sun".to_string(),
-        });
+        let window = web_sys::window().unwrap();
+        let document = window.document().unwrap();
+        let labels_container = document.get_element_by_id("solar-labels");
 
-        // Mercury
-        // P = 87.969 days, L0 = 252.25 deg
+        let create_body = |name: &str, radius: f32, orbit_radius: f32, orbit_speed: f32, orbit_angle: f32, color: (f32, f32, f32), parent: Option<usize>, mesh_fn: fn(f32, u16, u16, f32, f32, f32) -> Mesh| {
+            let mut label_element = None;
+            if let Some(container) = &labels_container {
+                let el = document.create_element("div").unwrap();
+                el.set_class_name("solar-label");
+                el.set_text_content(Some(name));
+                container.append_child(&el).unwrap();
+                if let Ok(html_el) = el.dyn_into::<HtmlElement>() {
+                    label_element = Some(html_el);
+                }
+            }
+
+            Body {
+                mesh: mesh_fn(1.0, 20, 20, color.0, color.1, color.2),
+                radius,
+                orbit_radius,
+                orbit_speed,
+                orbit_angle,
+                color,
+                parent,
+                name: name.to_string(),
+                trail: Vec::new(),
+                label_element,
+            }
+        };
+
+        bodies.push(create_body("Sun", 2.0, 0.0, 0.0, 0.0, (1.0, 1.0, 0.0), None, Mesh::sphere));
+
         let p_mercury = 87.969;
-        bodies.push(Body {
-            mesh: Mesh::sphere(1.0, 10, 10, 0.5, 0.5, 0.5),
-            radius: 0.38,
-            orbit_radius: 5.0,
-            orbit_speed: get_orbit_speed(p_mercury),
-            orbit_angle: get_initial_angle(252.25, p_mercury),
-            color: (0.5, 0.5, 0.5),
-            parent: Some(0),
-            name: "Mercury".to_string(),
-        });
+        bodies.push(create_body("Mercury", 0.38, 5.0, get_orbit_speed(p_mercury), get_initial_angle(252.25, p_mercury), (0.5, 0.5, 0.5), Some(0), Mesh::sphere));
 
-        // Venus
-        // P = 224.701 days, L0 = 181.98 deg
         let p_venus = 224.701;
-        bodies.push(Body {
-            mesh: Mesh::sphere(1.0, 15, 15, 0.9, 0.7, 0.2),
-            radius: 0.95,
-            orbit_radius: 8.0,
-            orbit_speed: get_orbit_speed(p_venus),
-            orbit_angle: get_initial_angle(181.98, p_venus),
-            color: (0.9, 0.7, 0.2),
-            parent: Some(0),
-            name: "Venus".to_string(),
-        });
+        bodies.push(create_body("Venus", 0.95, 8.0, get_orbit_speed(p_venus), get_initial_angle(181.98, p_venus), (0.9, 0.7, 0.2), Some(0), Mesh::sphere));
 
-        // Earth
-        // P = 365.256 days, L0 = 100.46 deg
         let p_earth = 365.256;
-        bodies.push(Body {
-            mesh: Mesh::sphere(1.0, 15, 15, 0.0, 0.0, 1.0),
-            radius: 1.0,
-            orbit_radius: 11.0,
-            orbit_speed: get_orbit_speed(p_earth),
-            orbit_angle: get_initial_angle(100.46, p_earth),
-            color: (0.0, 0.0, 1.0),
-            parent: Some(0),
-            name: "Earth".to_string(),
-        });
+        bodies.push(create_body("Earth", 1.0, 11.0, get_orbit_speed(p_earth), get_initial_angle(100.46, p_earth), (0.0, 0.0, 1.0), Some(0), Mesh::sphere));
 
-        // Moon
-        // P = 27.322 days, L0 = 0.0 (Simplified relative to Earth)
-        // Note: Moon orbit is complex, using simplified relative orbit
         let p_moon = 27.322;
-        bodies.push(Body {
-            mesh: Mesh::sphere(1.0, 8, 8, 0.6, 0.6, 0.6),
-            radius: 0.27,
-            orbit_radius: 2.0,
-            orbit_speed: get_orbit_speed(p_moon),
-            orbit_angle: get_initial_angle(0.0, p_moon), // Simplified
-            color: (0.6, 0.6, 0.6),
-            parent: Some(3),
-            name: "Moon".to_string(),
-        });
+        bodies.push(create_body("Moon", 0.27, 2.0, get_orbit_speed(p_moon), get_initial_angle(0.0, p_moon), (0.6, 0.6, 0.6), Some(3), Mesh::sphere));
 
-        // Mars
-        // P = 686.980 days, L0 = 355.45 deg
         let p_mars = 686.980;
-        bodies.push(Body {
-            mesh: Mesh::sphere(1.0, 12, 12, 1.0, 0.0, 0.0),
-            radius: 0.53,
-            orbit_radius: 15.0,
-            orbit_speed: get_orbit_speed(p_mars),
-            orbit_angle: get_initial_angle(355.45, p_mars),
-            color: (1.0, 0.0, 0.0),
-            parent: Some(0),
-            name: "Mars".to_string(),
-        });
+        bodies.push(create_body("Mars", 0.53, 15.0, get_orbit_speed(p_mars), get_initial_angle(355.45, p_mars), (1.0, 0.0, 0.0), Some(0), Mesh::sphere));
 
-        // Jupiter
-        // P = 4332.589 days, L0 = 34.40 deg
         let p_jupiter = 4332.589;
-        bodies.push(Body {
-            mesh: Mesh::sphere(1.0, 20, 20, 0.8, 0.6, 0.4),
-            radius: 3.0,
-            orbit_radius: 25.0,
-            orbit_speed: get_orbit_speed(p_jupiter),
-            orbit_angle: get_initial_angle(34.40, p_jupiter),
-            color: (0.8, 0.6, 0.4),
-            parent: Some(0),
-            name: "Jupiter".to_string(),
-        });
+        bodies.push(create_body("Jupiter", 3.0, 25.0, get_orbit_speed(p_jupiter), get_initial_angle(34.40, p_jupiter), (0.8, 0.6, 0.4), Some(0), Mesh::sphere));
 
-        // Saturn
-        // P = 10759.22 days, L0 = 49.94 deg
         let p_saturn = 10759.22;
-        bodies.push(Body {
-            mesh: Mesh::sphere(1.0, 18, 18, 0.9, 0.8, 0.5),
-            radius: 2.5,
-            orbit_radius: 35.0,
-            orbit_speed: get_orbit_speed(p_saturn),
-            orbit_angle: get_initial_angle(49.94, p_saturn),
-            color: (0.9, 0.8, 0.5),
-            parent: Some(0),
-            name: "Saturn".to_string(),
-        });
+        bodies.push(create_body("Saturn", 2.5, 35.0, get_orbit_speed(p_saturn), get_initial_angle(49.94, p_saturn), (0.9, 0.8, 0.5), Some(0), Mesh::sphere));
 
-        // Uranus
-        // P = 30685.4 days, L0 = 313.23 deg
         let p_uranus = 30685.4;
-        bodies.push(Body {
-            mesh: Mesh::sphere(1.0, 15, 15, 0.0, 0.8, 0.8),
-            radius: 1.8,
-            orbit_radius: 45.0,
-            orbit_speed: get_orbit_speed(p_uranus),
-            orbit_angle: get_initial_angle(313.23, p_uranus),
-            color: (0.0, 0.8, 0.8),
-            parent: Some(0),
-            name: "Uranus".to_string(),
-        });
+        bodies.push(create_body("Uranus", 1.8, 45.0, get_orbit_speed(p_uranus), get_initial_angle(313.23, p_uranus), (0.0, 0.8, 0.8), Some(0), Mesh::sphere));
 
-        // Neptune
-        // P = 60189.0 days, L0 = 304.88 deg
         let p_neptune = 60189.0;
-        bodies.push(Body {
-            mesh: Mesh::sphere(1.0, 15, 15, 0.0, 0.0, 0.8),
-            radius: 1.7,
-            orbit_radius: 55.0,
-            orbit_speed: get_orbit_speed(p_neptune),
-            orbit_angle: get_initial_angle(304.88, p_neptune),
-            color: (0.0, 0.0, 0.8),
-            parent: Some(0),
-            name: "Neptune".to_string(),
-        });
+        bodies.push(create_body("Neptune", 1.7, 55.0, get_orbit_speed(p_neptune), get_initial_angle(304.88, p_neptune), (0.0, 0.0, 0.8), Some(0), Mesh::sphere));
 
         SolarSystem {
             renderer,
@@ -214,12 +130,8 @@ impl SolarSystem {
         let dt = (now - self.last_time) / 1000.0;
         self.last_time = now;
         
-        // Update simulation time
-        // dt is in seconds, time_scale is multiplier
-        // current_time is in ms
         self.current_time += dt * 1000.0 * self.time_scale as f64;
         
-        // Update UI with current date
         let date = Date::new(&wasm_bindgen::JsValue::from_f64(self.current_time));
         let window = web_sys::window().unwrap();
         let document = window.document().unwrap();
@@ -228,9 +140,33 @@ impl SolarSystem {
             element.set_text_content(Some(&date_str));
         }
 
-        for body in &mut self.bodies {
+        let mut positions = vec![Vector3::new(0.0, 0.0, 0.0); self.bodies.len()];
+
+        for i in 0..self.bodies.len() {
+            let body = &mut self.bodies[i];
             if body.parent.is_some() {
                 body.orbit_angle += body.orbit_speed * dt as f32 * self.time_scale; 
+            }
+            
+            let x = body.orbit_radius * body.orbit_angle.cos();
+            let z = body.orbit_radius * body.orbit_angle.sin();
+            
+            let mut pos = Vector3::new(x, 0.0, z);
+            
+            if let Some(parent_idx) = body.parent {
+                pos += positions[parent_idx];
+            }
+            
+            positions[i] = pos;
+            
+            if body.orbit_radius > 0.0 {
+                body.trail.push(pos.x);
+                body.trail.push(pos.y);
+                body.trail.push(pos.z);
+                
+                if body.trail.len() > 1500 {
+                    body.trail.drain(0..3);
+                }
             }
         }
     }
@@ -255,46 +191,63 @@ impl SolarSystem {
 
         let mut positions = vec![Vector3::new(0.0, 0.0, 0.0); self.bodies.len()];
 
-        // Calculate positions
-        for (i, body) in self.bodies.iter().enumerate() {
+        for i in 0..self.bodies.len() {
+            let body = &self.bodies[i];
+            let x = body.orbit_radius * body.orbit_angle.cos();
+            let z = body.orbit_radius * body.orbit_angle.sin();
+            let mut pos = Vector3::new(x, 0.0, z);
             if let Some(parent_idx) = body.parent {
-                let parent_pos = positions[parent_idx];
-                let x = parent_pos.x + body.orbit_radius * body.orbit_angle.cos();
-                let z = parent_pos.z + body.orbit_radius * body.orbit_angle.sin();
-                positions[i] = Vector3::new(x, 0.0, z);
-            } else {
-                positions[i] = Vector3::new(0.0, 0.0, 0.0);
+                pos += positions[parent_idx];
             }
+            positions[i] = pos;
         }
 
-        // Draw orbits
-        for (_i, body) in self.bodies.iter().enumerate() {
-            if let Some(parent_idx) = body.parent {
-                let parent_pos = positions[parent_idx];
-                let mut orbit_points = Vec::new();
-                let segments = 64;
-                for j in 0..segments {
-                    let angle = j as f32 * 2.0 * std::f32::consts::PI / segments as f32;
-                    let x = parent_pos.x + body.orbit_radius * angle.cos();
-                    let z = parent_pos.z + body.orbit_radius * angle.sin();
-                    orbit_points.push(x);
-                    orbit_points.push(0.0);
-                    orbit_points.push(z);
-                }
-                self.renderer.draw_lines(&orbit_points, 0.3, 0.3, 0.3, &projection, &view);
-            }
-        }
-
-        // Draw bodies
         for (i, body) in self.bodies.iter().enumerate() {
             let pos = positions[i];
+            
+            if !body.trail.is_empty() {
+                self.renderer.draw_lines(
+                    &body.trail,
+                    body.color.0 * 0.5,
+                    body.color.1 * 0.5,
+                    body.color.2 * 0.5,
+                    &projection,
+                    &view
+                );
+            }
+
             self.renderer.draw_mesh(
                 &body.mesh,
                 pos.x, pos.y, pos.z,
                 body.radius, body.radius, body.radius,
                 0.0, 0.0, 0.0,
-                &projection, &view
+                &projection,
+                &view
             );
+            
+            if let Some(element) = &body.label_element {
+                let pos_vec4 = Vector4::new(pos.x, pos.y + body.radius + 0.5, pos.z, 1.0);
+                let clip_space = projection * view * pos_vec4;
+                
+                if clip_space.w > 0.0 {
+                    let ndc_x = clip_space.x / clip_space.w;
+                    let ndc_y = clip_space.y / clip_space.w;
+                    
+                    if ndc_x >= -1.0 && ndc_x <= 1.0 && ndc_y >= -1.0 && ndc_y <= 1.0 {
+                        let screen_x = (ndc_x + 1.0) * width as f32 / 2.0;
+                        let screen_y = (1.0 - ndc_y) * height as f32 / 2.0;
+                        
+                        let style = element.style();
+                        style.set_property("display", "block").unwrap();
+                        style.set_property("left", &format!("{}px", screen_x)).unwrap();
+                        style.set_property("top", &format!("{}px", screen_y)).unwrap();
+                    } else {
+                        element.style().set_property("display", "none").unwrap();
+                    }
+                } else {
+                    element.style().set_property("display", "none").unwrap();
+                }
+            }
         }
     }
 

@@ -41,7 +41,7 @@ features = [
     "HtmlImageElement",
     "EventTarget",
     "MouseEvent",
-    "WheelEvent", "Element", "HtmlElement", "Node", "Element", "HtmlElement", "Node",
+    "WheelEvent", "Element", "HtmlElement", "Node", "CssStyleDeclaration",
 ]
 
 [profile.release]

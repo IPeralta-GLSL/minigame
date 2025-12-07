@@ -242,6 +242,25 @@
         .time-slider-container input {
             width: 100%;
         }
+        .solar-labels {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            overflow: hidden;
+        }
+        .solar-label {
+            position: absolute;
+            color: white;
+            font-family: Arial, sans-serif;
+            font-size: 12px;
+            text-shadow: 1px 1px 2px black;
+            white-space: nowrap;
+            transform: translate(-50%, -100%);
+            pointer-events: none;
+        }
     </style>
 </head>
 <body>
@@ -275,6 +294,7 @@
         </div>
         
         <div id="solar-ui">
+            <div id="solar-labels" class="solar-labels"></div>
             <div class="solar-info">
                 <span id="solar-date">Loading...</span>
             </div>
@@ -298,8 +318,8 @@
                 <button id="time-pause">⏸️</button>
                 <button id="time-play">▶️</button>
                 <div class="time-slider-container">
-                    <label for="time-speed">Speed: <span id="speed-val">1.0</span>x</label>
-                    <input type="range" id="time-speed" min="0" max="100" step="0.1" value="1">
+                    <label for="time-speed">Speed: <span id="speed-val">1.0</span></label>
+                    <input type="range" id="time-speed" min="0" max="10" step="1" value="0">
                 </div>
                 <button id="time-reset">Reset</button>
             </div>
@@ -378,43 +398,46 @@
             let currentSpeed = 1.0;
             let isPaused = false;
             
+            // Discrete speed steps
+            const speedSteps = [
+                { val: 1, label: "1 sec/sec" },
+                { val: 60, label: "1 min/sec" },
+                { val: 3600, label: "1 hour/sec" },
+                { val: 86400, label: "1 day/sec" },
+                { val: 604800, label: "1 week/sec" },
+                { val: 2592000, label: "1 month/sec" },
+                { val: 31536000, label: "1 year/sec" },
+                { val: 31536000 * 5, label: "5 years/sec" },
+                { val: 31536000 * 10, label: "10 years/sec" },
+                { val: 31536000 * 50, label: "50 years/sec" },
+                { val: 31536000 * 100, label: "100 years/sec" }
+            ];
+            
+            // Set max of slider to match steps
+            timeSpeedInput.max = speedSteps.length - 1;
+            
             function updateTimeScale() {
                 const scale = isPaused ? 0 : currentSpeed;
                 set_solar_time_scale(scale);
                 
-                let displaySpeed = currentSpeed;
-                let unit = "x";
-                
-                if (currentSpeed >= 31536000) {
-                    displaySpeed = (currentSpeed / 31536000).toFixed(2);
-                    unit = " years/sec";
-                } else if (currentSpeed >= 86400) {
-                    displaySpeed = (currentSpeed / 86400).toFixed(2);
-                    unit = " days/sec";
-                } else if (currentSpeed >= 3600) {
-                    displaySpeed = (currentSpeed / 3600).toFixed(2);
-                    unit = " hours/sec";
+                // Find label
+                const step = speedSteps.find(s => Math.abs(s.val - currentSpeed) < 0.1);
+                if (step) {
+                    speedVal.textContent = step.label;
                 } else {
-                    displaySpeed = currentSpeed.toFixed(1);
+                    // Fallback if custom speed
+                    if (currentSpeed === 1) speedVal.textContent = "Real Time";
+                    else speedVal.textContent = currentSpeed.toFixed(1) + "x";
                 }
-                
-                speedVal.textContent = `${displaySpeed}${unit}`;
             }
             
             timeSpeedInput.addEventListener('input', (e) => {
-                // Exponential slider: 0-100 maps to 1x - 100,000,000x
-                const val = parseFloat(e.target.value);
-                if (val <= 1) {
-                    currentSpeed = val;
-                } else {
-                    // Logarithmic scale
-                    // val 0 -> 1
-                    // val 100 -> 100,000,000 (approx 3 years/sec)
-                    // 10^(val/12.5)
-                    currentSpeed = Math.pow(10, val / 12.5);
+                const index = parseInt(e.target.value);
+                if (index >= 0 && index < speedSteps.length) {
+                    currentSpeed = speedSteps[index].val;
+                    isPaused = false;
+                    updateTimeScale();
                 }
-                isPaused = false;
-                updateTimeScale();
             });
             
             pauseBtn.addEventListener('click', () => {
@@ -430,7 +453,7 @@
             resetBtn.addEventListener('click', () => {
                 currentSpeed = 1.0;
                 isPaused = false;
-                timeSpeedInput.value = 1.0;
+                timeSpeedInput.value = 0;
                 updateTimeScale();
             });
 
