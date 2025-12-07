@@ -244,11 +244,9 @@ impl SolarSystem {
                     
                     let pos = Vector3::new(x_orb, y, z);
                     
-                    if body.parent.is_some() && body.parent.unwrap() == 0 {
-                         body.trail.push(pos.x);
-                         body.trail.push(pos.y);
-                         body.trail.push(pos.z);
-                    }
+                    body.trail.push(pos.x);
+                    body.trail.push(pos.y);
+                    body.trail.push(pos.z);
                 }
             }
         }
@@ -436,28 +434,7 @@ impl SolarSystem {
                         let y = z_t * body.orbit_inclination.sin();
                         let z = z_t * body.orbit_inclination.cos();
                         
-                        let mut p = Vector3::new(x_t, y, z);
-                        
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-                        
-                        if let Some(parent_idx) = body.parent {
-                             p += positions[parent_idx];
-                        }
+                        let p = Vector3::new(x_t, y, z);
                         
                         body.trail.push(p.x);
                         body.trail.push(p.y);
@@ -484,13 +461,18 @@ impl SolarSystem {
         let mut positions = vec![Vector3::new(0.0, 0.0, 0.0); self.bodies.len()];
         for i in 0..self.bodies.len() {
             let body = &self.bodies[i];
-            let x = body.orbit_radius * body.orbit_angle.cos();
-            let z = body.orbit_radius * body.orbit_angle.sin();
             
-            let y = z * body.orbit_inclination.sin();
-            let z = z * body.orbit_inclination.cos();
+            let m = body.orbit_angle;
+            let e = body.eccentricity;
+            let big_e = m + e * m.sin();
+            
+            let x_orb = body.orbit_radius * (big_e.cos() - e);
+            let z_orb = body.orbit_radius * (1.0 - e*e).sqrt() * big_e.sin();
+            
+            let y = z_orb * body.orbit_inclination.sin();
+            let z = z_orb * body.orbit_inclination.cos();
 
-            let mut pos = Vector3::new(x, y, z);
+            let mut pos = Vector3::new(x_orb, y, z);
             if let Some(parent_idx) = body.parent {
                 pos += positions[parent_idx];
             }
@@ -558,9 +540,14 @@ impl SolarSystem {
             let pos = abs_pos - target;
             
             if !body.trail.is_empty() {
+                let parent_pos = if let Some(pidx) = body.parent {
+                    positions[pidx]
+                } else {
+                    Vector3::new(0.0, 0.0, 0.0)
+                };
 
                 let relative_trail: Vec<f32> = body.trail.chunks(3).flat_map(|p| {
-                    vec![p[0] - target.x, p[1] - target.y, p[2] - target.z]
+                    vec![p[0] + parent_pos.x - target.x, p[1] + parent_pos.y - target.y, p[2] + parent_pos.z - target.z]
                 }).collect();
 
                 self.renderer.draw_lines(
