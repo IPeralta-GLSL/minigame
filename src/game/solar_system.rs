@@ -21,6 +21,7 @@ pub struct Body {
     pub axial_tilt: f32,
     pub current_rotation: f32,
     pub orbit_inclination: f32,
+    pub last_trail_angle: f32,
 }
 
 pub struct SolarSystem {
@@ -106,6 +107,7 @@ impl SolarSystem {
                 axial_tilt: axial_tilt.to_radians(),
                 current_rotation: 0.0,
                 orbit_inclination: orbit_inclination.to_radians(),
+                last_trail_angle: orbit_angle,
             }
         };
 
@@ -253,35 +255,67 @@ impl SolarSystem {
             positions[i] = pos;
             
             if body.orbit_radius > 0.0 {
-                // Adaptive trail density based on orbit size
-                // We want exactly the same density as the pre-calculation to avoid overlap
-                let points_per_orbit = 1000.0;
-                let circumference = 2.0 * std::f32::consts::PI * body.orbit_radius;
-                let threshold = circumference / points_per_orbit;
-                let threshold_sq = threshold * threshold;
+                // Angular-based trail update to handle high speeds correctly
+                let two_pi = 2.0 * std::f32::consts::PI;
+                let angle_step = two_pi / 1000.0; // 1000 points per orbit
                 
-                let should_add_point = if body.trail.len() >= 3 {
-                    let last_x = body.trail[body.trail.len() - 3];
-                    let last_y = body.trail[body.trail.len() - 2];
-                    let last_z = body.trail[body.trail.len() - 1];
+                // Normalize angles to [0, 2PI) for comparison
+                let current_angle = body.orbit_angle % two_pi;
+                let last_angle = body.last_trail_angle % two_pi;
+                
+                let mut diff = current_angle - last_angle;
+                if diff < 0.0 {
+                    diff += two_pi;
+                }
+                
+                // If we moved more than one step, fill in the gaps
+                if diff >= angle_step {
+                    let steps = (diff / angle_step).floor() as usize;
                     
-                    let dx = pos.x - last_x;
-                    let dy = pos.y - last_y;
-                    let dz = pos.z - last_z;
+                    // Limit steps to avoid freezing if something goes wrong (e.g. huge time jump)
+                    // 1000 steps = 1 full orbit.
+                    let steps_to_add = steps.min(1000);
                     
-                    let dist_sq = dx*dx + dy*dy + dz*dz;
-                    dist_sq > threshold_sq
-                } else {
-                    true
-                };
-
-                if should_add_point {
-                    body.trail.push(pos.x);
-                    body.trail.push(pos.y);
-                    body.trail.push(pos.z);
+                    for k in 1..=steps_to_add {
+                        let a = body.last_trail_angle + (k as f32 * angle_step);
+                        
+                        let x = body.orbit_radius * a.cos();
+                        let z = body.orbit_radius * a.sin();
+                        let y = z * body.orbit_inclination.sin();
+                        let z = z * body.orbit_inclination.cos();
+                        
+                        let mut p = Vector3::new(x, y, z);
+                        
+                        // Note: For moons, this is still relative to 0,0,0 (parent not added)
+                        // But trail rendering adds parent position? No, trail rendering uses absolute coords?
+                        // Wait, in render(): renderer.draw_lines(&body.trail...)
+                        // And in update(): body.trail.push(pos.x).
+                        // pos includes parent position: pos += positions[parent_idx].
+                        // So trail stores ABSOLUTE positions.
+                        // But here we are calculating relative position based on angle.
+                        // We need to add parent position!
+                        // But parent position also changes over time.
+                        // If we interpolate 100 points for the planet, we should interpolate 100 points for the parent too?
+                        // That's complicated.
+                        // For now, let's just use the current parent position for all interpolated points.
+                        // It's an approximation, but better than straight lines.
+                        // Or better: Only do this interpolation for planets (parent == None or 0).
+                        // Moons are small and fast, maybe they don't need this as much?
+                        // Or we accept the approximation.
+                        
+                        if let Some(parent_idx) = body.parent {
+                             p += positions[parent_idx];
+                        }
+                        
+                        body.trail.push(p.x);
+                        body.trail.push(p.y);
+                        body.trail.push(p.z);
+                    }
                     
-                    // Keep trail length exactly one orbit
-                    if body.trail.len() > 3000 { // 1000 points * 3 coords
+                    body.last_trail_angle += steps as f32 * angle_step;
+                    
+                    // Trim trail to exactly 1000 points
+                    while body.trail.len() > 3000 {
                         body.trail.drain(0..3);
                     }
                 }
