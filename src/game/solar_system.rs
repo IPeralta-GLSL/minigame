@@ -75,7 +75,7 @@ impl SolarSystem {
         let create_body = |name: &str, radius: f32, orbit_radius: f32, orbit_speed: f32, orbit_angle: f32, color: (f32, f32, f32), parent: Option<usize>, mesh_fn: fn(f32, u16, u16, f32, f32, f32) -> Mesh, texture_url: Option<&str>, night_texture_url: Option<&str>, cloud_texture_url: Option<&str>, rotation_period: f32, axial_tilt: f32, orbit_inclination: f32, eccentricity: f32, mass: &str, temperature: f32, description: &str| {
             let mut label_element = None;
             if let Some(container) = &labels_container {
-                if !name.starts_with("Asteroid") {
+                if !name.starts_with("Asteroid") && !name.starts_with("Kuiper") {
                     let el = document.create_element("div").unwrap();
                     el.set_class_name("solar-label");
                     el.set_text_content(Some(name));
@@ -244,6 +244,34 @@ impl SolarSystem {
         let p_eris = 203443.0;
         bodies.push(create_body("Eris", 0.00075, 6767.0, get_orbit_speed(p_eris), get_initial_angle(0.0, p_eris), (0.9, 0.9, 0.9), Some(0), Mesh::sphere, Some("assets/textures/2k_eris_fictional.jpg"), None, None, 1.08, 78.0, 44.0, 0.441, "1.66 × 10^22 kg", 30.0, "The most massive and second-largest known dwarf planet."));
 
+        for i in 0..300 {
+            let angle: f32 = rng.gen_range(0.0..360.0);
+            let dist: f32 = rng.gen_range(3000.0..5500.0);
+            let size: f32 = rng.gen_range(0.0002..0.0006);
+            let period = (dist / 100.0).powf(1.5) * 365.256;
+            
+            bodies.push(create_body(
+                &format!("Kuiper Object {}", i),
+                size,
+                dist,
+                get_orbit_speed(period),
+                angle.to_radians(),
+                (0.6, 0.6, 0.7),
+                Some(0),
+                Mesh::sphere,
+                None,
+                None,
+                None,
+                rng.gen_range(5.0..20.0),
+                rng.gen_range(0.0..30.0),
+                rng.gen_range(-20.0..20.0),
+                rng.gen_range(0.0..0.3),
+                "Unknown",
+                40.0,
+                "Kuiper Belt Object"
+            ));
+        }
+
         let background_texture = renderer.create_texture("assets/textures/8k_stars.jpg").ok();
         let background_mesh = Mesh::sphere(1.0, 40, 40, 1.0, 1.0, 1.0);
 
@@ -251,7 +279,7 @@ impl SolarSystem {
         let trail_points = 1000;
         for i in 0..bodies.len() {
             let body = &mut bodies[i];
-            if body.name.starts_with("Asteroid") { continue; }
+            if body.name.starts_with("Asteroid") || body.name.starts_with("Kuiper") { continue; }
             if body.orbit_radius > 0.0 && body.orbit_speed != 0.0 {
                 let full_circle = 2.0 * std::f32::consts::PI;
                 let angle_step = full_circle / trail_points as f32;
@@ -289,7 +317,7 @@ impl SolarSystem {
             list.set_inner_html(""); // Clear existing
             
             for (i, body) in bodies.iter().enumerate() {
-                if body.name.starts_with("Asteroid") { continue; }
+                if body.name.starts_with("Asteroid") || body.name.starts_with("Kuiper") { continue; }
                 let li = document.create_element("li").unwrap();
                 li.set_text_content(Some(&body.name));
 
@@ -469,7 +497,7 @@ impl SolarSystem {
             positions[i] = pos;
             
             if body.orbit_radius > 0.0 {
-                if body.name.starts_with("Asteroid") { continue; }
+                if body.name.starts_with("Asteroid") || body.name.starts_with("Kuiper") { continue; }
 
                 let two_pi = 2.0 * std::f32::consts::PI;
                 let angle_step = two_pi / 1000.0; // 1000 points per orbit
@@ -608,7 +636,7 @@ impl SolarSystem {
             let abs_pos = positions[i];
             let pos = abs_pos - target;
             
-            if !body.trail.is_empty() && !body.name.starts_with("Asteroid") {
+            if !body.trail.is_empty() && !body.name.starts_with("Asteroid") && !body.name.starts_with("Kuiper") {
                 let parent_pos = if let Some(pidx) = body.parent {
                     positions[pidx]
                 } else {
