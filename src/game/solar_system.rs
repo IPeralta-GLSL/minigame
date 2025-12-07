@@ -338,14 +338,49 @@ impl SolarSystem {
         let date = Date::new(&wasm_bindgen::JsValue::from_f64(self.current_time));
         let window = web_sys::window().unwrap();
         let document = window.document().unwrap();
-        if let Some(element) = document.get_element_by_id("solar-date") {
+            if let Some(element) = document.get_element_by_id("solar-date") {
             let date_str: String = date.to_locale_string("en-US", &wasm_bindgen::JsValue::UNDEFINED).into();
             element.set_text_content(Some(&date_str));
         }
 
-        let mut positions = vec![Vector3::new(0.0, 0.0, 0.0); self.bodies.len()];
+        // Update speed info if a body is selected
+        if let Some(idx) = self.focused_body_index {
+            if idx < self.bodies.len() {
+                let body = &self.bodies[idx];
+                if let Some(el) = document.get_element_by_id("info-speed") {
+                    let speed_kmh = if body.orbit_radius > 0.0 {
+                        // Calculate current distance r
+                        let m = body.orbit_angle;
+                        let e = body.eccentricity;
+                        let big_e = m + e * m.sin();
+                        let x_orb = body.orbit_radius * (big_e.cos() - e);
+                        let z_orb = body.orbit_radius * (1.0 - e*e).sqrt() * big_e.sin();
+                        let r = (x_orb*x_orb + z_orb*z_orb).sqrt();
 
-        for i in 0..self.bodies.len() {
+                        // Vis-viva equation: v = sqrt(mu * (2/r - 1/a))
+                        // mu = n^2 * a^3
+                        // v = n * a * sqrt(2a/r - 1)
+                        let n = body.orbit_speed.abs();
+                        let a = body.orbit_radius;
+                        
+                        if r > 0.0 {
+                            let v_sim = n * a * ((2.0 * a / r) - 1.0).abs().sqrt();
+                            // Convert to km/h
+                            // Scale: 1 unit = 6371.0 / 0.0042 km
+                            let scale = 6371.0 / 0.0042;
+                            v_sim * scale * 3600.0
+                        } else {
+                            0.0
+                        }
+                    } else {
+                        0.0
+                    };
+                    el.set_text_content(Some(&format!("{:.0} km/h", speed_kmh)));
+                }
+            }
+        }
+
+        let mut positions = vec![Vector3::new(0.0, 0.0, 0.0); self.bodies.len()];        for i in 0..self.bodies.len() {
 
             let body = &mut self.bodies[i];
             if body.parent.is_some() {
