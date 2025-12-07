@@ -40,6 +40,8 @@ features = [
     "WebGlTexture",
     "HtmlImageElement",
     "EventTarget",
+    "MouseEvent",
+    "WheelEvent",
 ]
 
 [profile.release]

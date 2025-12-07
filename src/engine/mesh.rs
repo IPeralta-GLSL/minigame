@@ -82,4 +82,44 @@ impl Mesh {
         
         Ok(Mesh { vertices, indices })
     }
+
+    pub fn sphere(radius: f32, lat_segments: u16, long_segments: u16, r: f32, g: f32, b: f32) -> Self {
+        let mut vertices = Vec::new();
+        let mut indices = Vec::new();
+
+        for i in 0..=lat_segments {
+            let theta = i as f32 * std::f32::consts::PI / lat_segments as f32;
+            let sin_theta = theta.sin();
+            let cos_theta = theta.cos();
+
+            for j in 0..=long_segments {
+                let phi = j as f32 * 2.0 * std::f32::consts::PI / long_segments as f32;
+                let sin_phi = phi.sin();
+                let cos_phi = phi.cos();
+
+                let x = cos_phi * sin_theta;
+                let y = cos_theta;
+                let z = sin_phi * sin_theta;
+
+                vertices.extend_from_slice(&[
+                    x * radius, y * radius, z * radius,
+                    r, g, b
+                ]);
+            }
+        }
+
+        for i in 0..lat_segments {
+            for j in 0..long_segments {
+                let first = (i * (long_segments + 1)) + j;
+                let second = first + long_segments + 1;
+
+                indices.extend_from_slice(&[
+                    first, second, first + 1,
+                    second, second + 1, first + 1
+                ]);
+            }
+        }
+
+        Mesh { vertices, indices }
+    }
 }

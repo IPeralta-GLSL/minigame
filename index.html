@@ -52,6 +52,48 @@
             border: 3px solid #ff4a4a;
             z-index: 10;
         }
+        #menu {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+        }
+        .menu-title {
+            font-size: 48px;
+            color: white;
+            margin-bottom: 40px;
+            text-transform: uppercase;
+            letter-spacing: 4px;
+        }
+        .menu-btn {
+            padding: 15px 40px;
+            margin: 10px;
+            font-size: 24px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: transform 0.2s, background 0.2s;
+            width: 300px;
+        }
+        .menu-btn:hover {
+            transform: scale(1.05);
+            background: #45a049;
+        }
+        .menu-btn.solar {
+            background: #2196F3;
+        }
+        .menu-btn.solar:hover {
+            background: #1976D2;
+        }
         #gameover h2 { color: #ff4a4a; font-size: 36px; margin-bottom: 15px; }
         #gameover p { color: #fff; font-size: 18px; }
         .controls { 
@@ -98,6 +140,11 @@
         </div>
         <button id="god-mode-btn" style="pointer-events: auto; padding: 10px; background: #ffcc00; border: none; border-radius: 5px; font-weight: bold; cursor: pointer;">GOD MODE</button>
     </div>
+    <div id="menu">
+        <h1 class="menu-title">Select Game</h1>
+        <button class="menu-btn" onclick="startGame('road')">Crossy Road</button>
+        <button class="menu-btn solar" onclick="startGame('solar')">Solar System</button>
+    </div>
     <div class="game-container">
         <canvas id="canvas"></canvas>
         <div id="score">Score: 0</div>
@@ -114,7 +161,16 @@
         </div>
     </div>
     <script type="module">
-        import init, { init_game, touch_left, touch_right, touch_forward, touch_restart, activate_god_mode } from './pkg/crossy_road_clone.js';
+        import init, { start_crossy_road, start_solar_system, touch_left, touch_right, touch_forward, touch_restart, activate_god_mode } from './pkg/crossy_road_clone.js';
+
+        window.startGame = function(type) {
+            document.getElementById('menu').style.display = 'none';
+            if (type === 'road') {
+                start_crossy_road();
+            } else {
+                start_solar_system();
+            }
+        };
         
         function resizeCanvas() {
             const canvas = document.getElementById('canvas');
@@ -131,7 +187,6 @@
         resizeCanvas();
 
         init().then(() => {
-            init_game();
             
             const gameover = document.getElementById('gameover');
             const canvas = document.getElementById('canvas');

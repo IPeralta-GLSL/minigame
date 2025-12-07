@@ -4,19 +4,24 @@ mod game;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::JsFuture;
-use web_sys::{WebGlRenderingContext, HtmlCanvasElement, KeyboardEvent, Request, RequestInit, RequestMode, Response};
+use web_sys::{WebGlRenderingContext, HtmlCanvasElement, KeyboardEvent, MouseEvent, WheelEvent, Request, RequestInit, RequestMode, Response};
 use std::cell::RefCell;
 use std::rc::Rc;
 use crate::engine::renderer::Renderer;
 use crate::engine::mesh::Mesh;
 use crate::game::{Game, AppConfig};
+use crate::game::solar_system::SolarSystem;
 
-thread_local! {
-    static GAME: RefCell<Option<Game>> = RefCell::new(None);
+enum ActiveGame {
+    Crossy(Game),
+    Solar(SolarSystem),
 }
 
-#[wasm_bindgen]
-pub async fn init_game() -> Result<(), JsValue> {
+thread_local! {
+    static CURRENT_GAME: RefCell<Option<ActiveGame>> = RefCell::new(None);
+}
+
+fn get_gl() -> Result<WebGlRenderingContext, JsValue> {
     let window = web_sys::window().ok_or("No window")?;
     let document = window.document().ok_or("No document")?;
     let canvas = document.get_element_by_id("canvas")
@@ -27,9 +32,121 @@ pub async fn init_game() -> Result<(), JsValue> {
         .get_context("webgl")?
         .ok_or("No WebGL")?
         .dyn_into::<WebGlRenderingContext>()?;
+    Ok(gl)
+}
 
+fn start_game_loop() -> Result<(), JsValue> {
+    // Input handling
+    let closure = Closure::wrap(Box::new(move |event: KeyboardEvent| {
+        CURRENT_GAME.with(|g| {
+            if let Some(active_game) = g.borrow_mut().as_mut() {
+                match active_game {
+                    ActiveGame::Crossy(game) => {
+                        let handled = match event.key().as_str() {
+                            " " => { game.move_forward(); true },
+                            "ArrowLeft" | "d" | "D" => { game.move_left(); true },
+                            "ArrowRight" | "a" | "A" => { game.move_right(); true },
+                            "r" | "R" => { game.restart(); true },
+                            _ => false,
+                        };
+                        if handled {
+                            event.prevent_default();
+                        }
+                    },
+                    ActiveGame::Solar(game) => {
+                        game.handle_input(&event.key());
+                    }
+                }
+            }
+        });
+    }) as Box<dyn FnMut(_)>);
+
+    web_sys::window().unwrap().add_event_listener_with_callback("keydown", closure.as_ref().unchecked_ref())?;
+    closure.forget();
+
+    // Mouse Down
+    let closure_down = Closure::wrap(Box::new(move |event: MouseEvent| {
+        CURRENT_GAME.with(|g| {
+            if let Some(ActiveGame::Solar(game)) = g.borrow_mut().as_mut() {
+                game.handle_mouse_down(event.client_x(), event.client_y());
+            }
+        });
+    }) as Box<dyn FnMut(_)>);
+    web_sys::window().unwrap().document().unwrap().get_element_by_id("canvas").unwrap()
+        .add_event_listener_with_callback("mousedown", closure_down.as_ref().unchecked_ref())?;
+    closure_down.forget();
+
+    // Mouse Up
+    let closure_up = Closure::wrap(Box::new(move |_event: MouseEvent| {
+        CURRENT_GAME.with(|g| {
+            if let Some(ActiveGame::Solar(game)) = g.borrow_mut().as_mut() {
+                game.handle_mouse_up();
+            }
+        });
+    }) as Box<dyn FnMut(_)>);
+    web_sys::window().unwrap().add_event_listener_with_callback("mouseup", closure_up.as_ref().unchecked_ref())?;
+    closure_up.forget();
+
+    // Mouse Move
+    let closure_move = Closure::wrap(Box::new(move |event: MouseEvent| {
+        CURRENT_GAME.with(|g| {
+            if let Some(ActiveGame::Solar(game)) = g.borrow_mut().as_mut() {
+                game.handle_mouse_move(event.client_x(), event.client_y());
+            }
+        });
+    }) as Box<dyn FnMut(_)>);
+    web_sys::window().unwrap().add_event_listener_with_callback("mousemove", closure_move.as_ref().unchecked_ref())?;
+    closure_move.forget();
+
+    // Wheel
+    let closure_wheel = Closure::wrap(Box::new(move |event: WheelEvent| {
+        CURRENT_GAME.with(|g| {
+            if let Some(ActiveGame::Solar(game)) = g.borrow_mut().as_mut() {
+                game.handle_wheel(event.delta_y() as f32);
+                event.prevent_default();
+            }
+        });
+    }) as Box<dyn FnMut(_)>);
+    web_sys::window().unwrap().document().unwrap().get_element_by_id("canvas").unwrap()
+        .add_event_listener_with_callback("wheel", closure_wheel.as_ref().unchecked_ref())?;
+    closure_wheel.forget();
+
+    // Loop
+    let f = Rc::new(RefCell::new(None));
+    let g = f.clone();
+
+    *g.borrow_mut() = Some(Closure::wrap(Box::new(move || {
+        CURRENT_GAME.with(|game| {
+            if let Some(active_game) = game.borrow_mut().as_mut() {
+                match active_game {
+                    ActiveGame::Crossy(game) => {
+                        game.update();
+                        game.render();
+                        update_ui(game.score, game.coins, game.game_over);
+                    },
+                    ActiveGame::Solar(game) => {
+                        game.update();
+                        let window = web_sys::window().unwrap();
+                        let width = window.inner_width().unwrap().as_f64().unwrap() as i32;
+                        let height = window.inner_height().unwrap().as_f64().unwrap() as i32;
+                        game.render(width, height);
+                    }
+                }
+            }
+        });
+        request_animation_frame(f.borrow().as_ref().unwrap());
+    }) as Box<dyn FnMut()>));
+
+    request_animation_frame(g.borrow().as_ref().unwrap());
+    Ok(())
+}
+
+#[wasm_bindgen]
+pub async fn start_crossy_road() -> Result<(), JsValue> {
+    let gl = get_gl()?;
     let renderer = Renderer::new(gl)?;
 
+    let window = web_sys::window().unwrap();
     let mut config: Option<AppConfig> = None;
     let opts = RequestInit::new();
     opts.set_method("GET");
@@ -49,9 +166,7 @@ pub async fn init_game() -> Result<(), JsValue> {
         }
     }
 
-    // Load assets
     let mut car_mesh = None;
-    
     let model_path = if let Some(ref c) = config {
         c.car_model.path.clone()
     } else {
@@ -76,48 +191,21 @@ pub async fn init_game() -> Result<(), JsValue> {
     }
 
     let game = Game::new(renderer, car_mesh, config);
-    GAME.with(|g| *g.borrow_mut() = Some(game));
+    CURRENT_GAME.with(|g| *g.borrow_mut() = Some(ActiveGame::Crossy(game)));
+    
+    start_game_loop()?;
+    Ok(())
+}
 
-    // Input handling
-    let closure = Closure::wrap(Box::new(move |event: KeyboardEvent| {
-        GAME.with(|g| {
-            if let Some(game) = g.borrow_mut().as_mut() {
-                let handled = match event.key().as_str() {
-                    " " => { game.move_forward(); true },
-                    "ArrowLeft" | "d" | "D" => { game.move_left(); true },
-                    "ArrowRight" | "a" | "A" => { game.move_right(); true },
-                    "r" | "R" => { game.restart(); true },
-                    _ => false,
-                };
-                if handled {
-                    event.prevent_default();
-                }
-            }
-        });
-    }) as Box<dyn FnMut(_)>);
-
-    window.add_event_listener_with_callback("keydown", closure.as_ref().unchecked_ref())?;
-    closure.forget();
-
-    // Game loop
-    let f = Rc::new(RefCell::new(None));
-    let g = f.clone();
-
-    *g.borrow_mut() = Some(Closure::wrap(Box::new(move || {
-        GAME.with(|game| {
-            if let Some(game) = game.borrow_mut().as_mut() {
-                game.update();
-                game.render();
-                
-                // Update UI
-                update_ui(game.score, game.coins, game.game_over);
-            }
-        });
-        request_animation_frame(f.borrow().as_ref().unwrap());
-    }) as Box<dyn FnMut()>));
-
-    request_animation_frame(g.borrow().as_ref().unwrap());
-
+#[wasm_bindgen]
+pub fn start_solar_system() -> Result<(), JsValue> {
+    let gl = get_gl()?;
+    let renderer = Renderer::new(gl)?;
+    let game = SolarSystem::new(renderer);
+    
+    CURRENT_GAME.with(|g| *g.borrow_mut() = Some(ActiveGame::Solar(game)));
+    
+    start_game_loop()?;
     Ok(())
 }
 
@@ -147,45 +235,59 @@ fn update_ui(score: i32, coins: i32, game_over: bool) {
 
 #[wasm_bindgen]
 pub fn touch_left() {
-    GAME.with(|g| {
-        if let Some(game) = g.borrow_mut().as_mut() {
-            game.move_left();
+    CURRENT_GAME.with(|g| {
+        if let Some(active_game) = g.borrow_mut().as_mut() {
+            match active_game {
+                ActiveGame::Crossy(game) => game.move_left(),
+                ActiveGame::Solar(game) => game.handle_input("ArrowLeft"),
+            }
         }
     });
 }
 
 #[wasm_bindgen]
 pub fn touch_right() {
-    GAME.with(|g| {
-        if let Some(game) = g.borrow_mut().as_mut() {
-            game.move_right();
+    CURRENT_GAME.with(|g| {
+        if let Some(active_game) = g.borrow_mut().as_mut() {
+            match active_game {
+                ActiveGame::Crossy(game) => game.move_right(),
+                ActiveGame::Solar(game) => game.handle_input("ArrowRight"),
+            }
         }
     });
 }
 
 #[wasm_bindgen]
 pub fn touch_forward() {
-    GAME.with(|g| {
-        if let Some(game) = g.borrow_mut().as_mut() {
-            game.move_forward();
+    CURRENT_GAME.with(|g| {
+        if let Some(active_game) = g.borrow_mut().as_mut() {
+            match active_game {
+                ActiveGame::Crossy(game) => game.move_forward(),
+                ActiveGame::Solar(game) => game.handle_input("ArrowUp"),
+            }
         }
     });
 }
 
 #[wasm_bindgen]
 pub fn touch_restart() {
-    GAME.with(|g| {
-        if let Some(game) = g.borrow_mut().as_mut() {
-            game.restart();
+    CURRENT_GAME.with(|g| {
+        if let Some(active_game) = g.borrow_mut().as_mut() {
+            match active_game {
+                ActiveGame::Crossy(game) => game.restart(),
+                ActiveGame::Solar(game) => game.handle_input("ArrowDown"),
+            }
         }
     });
 }
 
 #[wasm_bindgen]
 pub fn activate_god_mode() {
-    GAME.with(|g| {
-        if let Some(game) = g.borrow_mut().as_mut() {
-            game.debug_advance();
+    CURRENT_GAME.with(|g| {
+        if let Some(active_game) = g.borrow_mut().as_mut() {
+            if let ActiveGame::Crossy(game) = active_game {
+                game.debug_advance();
+            }
         }
     });
 }

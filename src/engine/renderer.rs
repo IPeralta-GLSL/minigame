@@ -122,6 +122,9 @@ impl Renderer {
         }
         let unit_cube_index_count = unit_cube.indices.len() as i32;
 
+        // Initialize time color to white (no filter)
+        gl.uniform3f(Some(&u_time_color_location), 1.0, 1.0, 1.0);
+
         Ok(Renderer {
             gl,
             program,
@@ -240,6 +243,35 @@ impl Renderer {
             mesh.indices.len() as i32,
             WebGlRenderingContext::UNSIGNED_SHORT,
             0
+        );
+    }
+
+    pub fn draw_lines(&self, vertices: &[f32], r: f32, g: f32, b: f32, projection: &Matrix4<f32>, view: &Matrix4<f32>) {
+        self.gl.bind_buffer(WebGlRenderingContext::ARRAY_BUFFER, Some(&self.dynamic_vertex_buffer));
+        unsafe {
+            let vert_array = js_sys::Float32Array::view(vertices);
+            self.gl.buffer_data_with_array_buffer_view(
+                WebGlRenderingContext::ARRAY_BUFFER,
+                &vert_array,
+                WebGlRenderingContext::DYNAMIC_DRAW
+            );
+        }
+
+        let pos_loc = self.gl.get_attrib_location(&self.program, "aPosition") as u32;
+        self.gl.vertex_attrib_pointer_with_i32(pos_loc, 3, WebGlRenderingContext::FLOAT, false, 0, 0);
+        self.gl.enable_vertex_attrib_array(pos_loc);
+
+        self.gl.uniform1i(Some(&self.u_use_uniform_color_location), 1);
+        self.gl.uniform3f(Some(&self.u_uniform_color_location), r, g, b);
+
+        let mvp = projection * view;
+        let mvp_array: [f32; 16] = mvp.as_slice().try_into().unwrap();
+        self.gl.uniform_matrix4fv_with_f32_array(Some(&self.mvp_location), false, &mvp_array);
+
+        self.gl.draw_arrays(
+            WebGlRenderingContext::LINE_LOOP,
+            0,
+            (vertices.len() / 3) as i32
         );
     }
 }
