@@ -109,34 +109,45 @@ impl SolarSystem {
             }
         };
 
-        bodies.push(create_body("Sun", 2.0, 0.0, 0.0, 0.0, (1.0, 1.0, 0.0), None, Mesh::sphere, Some("assets/textures/2k_sun.jpg"), 25.0, 7.25, 0.0));
+        // Realistic Scale: 1 AU = 100.0 units
+        // Sun Radius = 0.465
+        bodies.push(create_body("Sun", 0.465, 0.0, 0.0, 0.0, (1.0, 1.0, 0.0), None, Mesh::sphere, Some("assets/textures/2k_sun.jpg"), 25.0, 7.25, 0.0));
 
         let p_mercury = 87.969;
-        bodies.push(create_body("Mercury", 0.38, 5.0, get_orbit_speed(p_mercury), get_initial_angle(252.25, p_mercury), (0.5, 0.5, 0.5), Some(0), Mesh::sphere, Some("https://upload.wikimedia.org/wikipedia/commons/3/30/Mercury_in_color_-_Prockter07-edit1.jpg"), 58.6, 0.03, 7.0));
+        // Mercury: 0.39 AU = 39.0 units. Radius = 0.0016
+        bodies.push(create_body("Mercury", 0.0016, 39.0, get_orbit_speed(p_mercury), get_initial_angle(252.25, p_mercury), (0.5, 0.5, 0.5), Some(0), Mesh::sphere, Some("https://upload.wikimedia.org/wikipedia/commons/3/30/Mercury_in_color_-_Prockter07-edit1.jpg"), 58.6, 0.03, 7.0));
 
         let p_venus = 224.701;
-        bodies.push(create_body("Venus", 0.95, 8.0, get_orbit_speed(p_venus), get_initial_angle(181.98, p_venus), (0.9, 0.7, 0.2), Some(0), Mesh::sphere, Some("assets/textures/2k_venus_surface.jpg"), -243.0, 177.3, 3.4));
+        // Venus: 0.72 AU = 72.0 units. Radius = 0.004
+        bodies.push(create_body("Venus", 0.004, 72.0, get_orbit_speed(p_venus), get_initial_angle(181.98, p_venus), (0.9, 0.7, 0.2), Some(0), Mesh::sphere, Some("assets/textures/2k_venus_surface.jpg"), -243.0, 177.3, 3.4));
 
         let p_earth = 365.256;
-        bodies.push(create_body("Earth", 1.0, 11.0, get_orbit_speed(p_earth), get_initial_angle(100.46, p_earth), (0.0, 0.0, 1.0), Some(0), Mesh::sphere, Some("assets/textures/2k_earth_daymap.jpg"), 1.0, 23.4, 0.0));
+        // Earth: 1.00 AU = 100.0 units. Radius = 0.0042
+        bodies.push(create_body("Earth", 0.0042, 100.0, get_orbit_speed(p_earth), get_initial_angle(100.46, p_earth), (0.0, 0.0, 1.0), Some(0), Mesh::sphere, Some("assets/textures/2k_earth_daymap.jpg"), 1.0, 23.4, 0.0));
 
         let p_moon = 27.322;
-        bodies.push(create_body("Moon", 0.27, 2.0, get_orbit_speed(p_moon), get_initial_angle(0.0, p_moon), (0.6, 0.6, 0.6), Some(3), Mesh::sphere, Some("assets/textures/2k_moon.jpg"), 27.3, 6.7, 5.1));
+        // Moon: 0.00257 AU from Earth = 0.257 units. Radius = 0.0011
+        bodies.push(create_body("Moon", 0.0011, 0.257, get_orbit_speed(p_moon), get_initial_angle(0.0, p_moon), (0.6, 0.6, 0.6), Some(3), Mesh::sphere, Some("assets/textures/2k_moon.jpg"), 27.3, 6.7, 5.1));
 
         let p_mars = 686.980;
-        bodies.push(create_body("Mars", 0.53, 15.0, get_orbit_speed(p_mars), get_initial_angle(355.45, p_mars), (1.0, 0.0, 0.0), Some(0), Mesh::sphere, Some("assets/textures/2k_mars.jpg"), 1.03, 25.2, 1.85));
+        // Mars: 1.52 AU = 152.0 units. Radius = 0.0022
+        bodies.push(create_body("Mars", 0.0022, 152.0, get_orbit_speed(p_mars), get_initial_angle(355.45, p_mars), (1.0, 0.0, 0.0), Some(0), Mesh::sphere, Some("assets/textures/2k_mars.jpg"), 1.03, 25.2, 1.85));
 
         let p_jupiter = 4332.589;
-        bodies.push(create_body("Jupiter", 3.0, 25.0, get_orbit_speed(p_jupiter), get_initial_angle(34.40, p_jupiter), (0.8, 0.6, 0.4), Some(0), Mesh::sphere, Some("assets/textures/2k_jupiter.jpg"), 0.41, 3.1, 1.3));
+        // Jupiter: 5.20 AU = 520.0 units. Radius = 0.047
+        bodies.push(create_body("Jupiter", 0.047, 520.0, get_orbit_speed(p_jupiter), get_initial_angle(34.40, p_jupiter), (0.8, 0.6, 0.4), Some(0), Mesh::sphere, Some("assets/textures/2k_jupiter.jpg"), 0.41, 3.1, 1.3));
 
         let p_saturn = 10759.22;
-        bodies.push(create_body("Saturn", 2.5, 35.0, get_orbit_speed(p_saturn), get_initial_angle(49.94, p_saturn), (0.9, 0.8, 0.5), Some(0), Mesh::sphere, Some("assets/textures/2k_saturn.jpg"), 0.45, 26.7, 2.48));
+        // Saturn: 9.58 AU = 958.0 units. Radius = 0.039
+        bodies.push(create_body("Saturn", 0.039, 958.0, get_orbit_speed(p_saturn), get_initial_angle(49.94, p_saturn), (0.9, 0.8, 0.5), Some(0), Mesh::sphere, Some("assets/textures/2k_saturn.jpg"), 0.45, 26.7, 2.48));
 
         let p_uranus = 30685.4;
-        bodies.push(create_body("Uranus", 1.8, 45.0, get_orbit_speed(p_uranus), get_initial_angle(313.23, p_uranus), (0.0, 0.8, 0.8), Some(0), Mesh::sphere, Some("assets/textures/2k_uranus.jpg"), -0.72, 97.8, 0.77));
+        // Uranus: 19.2 AU = 1920.0 units. Radius = 0.017
+        bodies.push(create_body("Uranus", 0.017, 1920.0, get_orbit_speed(p_uranus), get_initial_angle(313.23, p_uranus), (0.0, 0.8, 0.8), Some(0), Mesh::sphere, Some("assets/textures/2k_uranus.jpg"), -0.72, 97.8, 0.77));
 
         let p_neptune = 60189.0;
-        bodies.push(create_body("Neptune", 1.7, 55.0, get_orbit_speed(p_neptune), get_initial_angle(304.88, p_neptune), (0.0, 0.0, 0.8), Some(0), Mesh::sphere, Some("assets/textures/2k_neptune.jpg"), 0.67, 28.3, 1.77));
+        // Neptune: 30.05 AU = 3005.0 units. Radius = 0.016
+        bodies.push(create_body("Neptune", 0.016, 3005.0, get_orbit_speed(p_neptune), get_initial_angle(304.88, p_neptune), (0.0, 0.0, 0.8), Some(0), Mesh::sphere, Some("assets/textures/2k_neptune.jpg"), 0.67, 28.3, 1.77));
 
         let background_texture = renderer.create_texture("assets/textures/8k_stars.jpg").ok();
         let background_mesh = Mesh::sphere(1.0, 40, 40, 1.0, 1.0, 1.0);
@@ -244,7 +255,7 @@ impl SolarSystem {
         self.renderer.enable_depth_test();
 
         let aspect = width as f32 / height as f32;
-        let projection = Matrix4::new_perspective(aspect, 45.0 * std::f32::consts::PI / 180.0, 0.1, 1000.0);
+        let projection = Matrix4::new_perspective(aspect, 45.0 * std::f32::consts::PI / 180.0, 0.1, 10000.0);
         
         let cam_x = self.camera_distance * self.camera_rotation.0.cos() * self.camera_rotation.1.sin();
         let cam_y = self.camera_distance * self.camera_rotation.0.sin();
@@ -261,7 +272,7 @@ impl SolarSystem {
         self.renderer.draw_mesh(
             &self.background_mesh,
             cam_x, cam_y, cam_z,
-            500.0, 500.0, 500.0,
+            5000.0, 5000.0, 5000.0,
             0.0, 0.0, 0.0,
             &projection,
             &view,
@@ -300,10 +311,25 @@ impl SolarSystem {
                 );
             }
 
+            // LOD Logic:
+            // Calculate distance from camera to body
+            let dx = cam_x - pos.x;
+            let dy = cam_y - pos.y;
+            let dz = cam_z - pos.z;
+            let dist = (dx*dx + dy*dy + dz*dz).sqrt();
+            
+            // Minimum visible size (e.g. 0.5% of distance)
+            let min_size = dist * 0.005;
+            let render_radius = body.radius.max(min_size);
+            
+            // Only use texture if we are close enough (real size is significant)
+            // If we are rendering an "icon" (scaled up), maybe we should use a flat color or the texture?
+            // Using the texture on a tiny sphere scaled up looks okay, it acts like an icon.
+            
             self.renderer.draw_mesh(
                 &body.mesh,
                 pos.x, pos.y, pos.z,
-                body.radius, body.radius, body.radius,
+                render_radius, render_radius, render_radius,
                 body.axial_tilt, body.current_rotation, 0.0,
                 &projection,
                 &view,
@@ -370,7 +396,7 @@ impl SolarSystem {
     }
 
     pub fn handle_wheel(&mut self, delta: f32) {
-        self.camera_distance += delta * 0.05;
-        self.camera_distance = self.camera_distance.max(5.0).min(200.0);
+        self.camera_distance += delta * 0.05 * (self.camera_distance / 50.0).max(0.1); // Logarithmic zoom speed
+        self.camera_distance = self.camera_distance.max(1.0).min(5000.0);
     }
 }
