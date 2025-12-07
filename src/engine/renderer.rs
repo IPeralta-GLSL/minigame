@@ -73,6 +73,7 @@ pub struct Renderer {
     u_use_uniform_color_location: WebGlUniformLocation,
     u_time_color_location: WebGlUniformLocation,
     u_use_texture_location: WebGlUniformLocation,
+    u_texture_location: WebGlUniformLocation,
     unit_cube_vertex_buffer: WebGlBuffer,
     unit_cube_index_buffer: WebGlBuffer,
     unit_cube_index_count: i32,
@@ -98,6 +99,8 @@ impl Renderer {
             .ok_or("Failed to get uTimeColor location")?;
         let u_use_texture_location = gl.get_uniform_location(&program, "uUseTexture")
             .ok_or("Failed to get uUseTexture location")?;
+        let u_texture_location = gl.get_uniform_location(&program, "uTexture")
+            .ok_or("Failed to get uTexture location")?;
 
         // Create unit cube buffers
         let unit_cube_vertex_buffer = gl.create_buffer().ok_or("Failed to create unit cube buffer")?;
@@ -137,6 +140,7 @@ impl Renderer {
             u_use_uniform_color_location,
             u_time_color_location,
             u_use_texture_location,
+            u_texture_location,
             unit_cube_vertex_buffer,
             unit_cube_index_buffer,
             unit_cube_index_count,
@@ -217,6 +221,7 @@ impl Renderer {
             self.gl.active_texture(WebGlRenderingContext::TEXTURE0);
             self.gl.bind_texture(WebGlRenderingContext::TEXTURE_2D, Some(tex));
             self.gl.uniform1i(Some(&self.u_use_texture_location), 1);
+            self.gl.uniform1i(Some(&self.u_texture_location), 0);
             self.gl.uniform1i(Some(&self.u_use_uniform_color_location), 0);
         } else {
             self.gl.uniform1i(Some(&self.u_use_texture_location), 0);
@@ -320,9 +325,11 @@ impl Renderer {
         let src_format = WebGlRenderingContext::RGBA;
         let src_type = WebGlRenderingContext::UNSIGNED_BYTE;
         let pixel = [0u8, 0, 255, 255]; // Blue
-        self.gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_opt_u8_array(
+        // We ignore the result of the initial pixel upload to ensure we return the texture object
+        // even if this step fails (though it shouldn't).
+        let _ = self.gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_opt_u8_array(
             WebGlRenderingContext::TEXTURE_2D, level, internal_format, width, height, border, src_format, src_type, Some(&pixel)
-        )?;
+        );
 
         let img = HtmlImageElement::new().unwrap();
         img.set_cross_origin(Some("anonymous"));
@@ -330,8 +337,10 @@ impl Renderer {
         let gl = self.gl.clone();
         let texture_clone = texture.clone();
         let img_clone = img.clone();
+        let url_string = url.to_string();
         
         let onload = Closure::wrap(Box::new(move || {
+            web_sys::console::log_1(&format!("Texture loaded: {}", url_string).into());
             gl.bind_texture(WebGlRenderingContext::TEXTURE_2D, Some(&texture_clone));
             gl.tex_image_2d_with_u32_and_u32_and_image(
                 WebGlRenderingContext::TEXTURE_2D, 0, WebGlRenderingContext::RGBA as i32, WebGlRenderingContext::RGBA, WebGlRenderingContext::UNSIGNED_BYTE, &img_clone
@@ -347,8 +356,14 @@ impl Renderer {
             }
         }) as Box<dyn FnMut()>);
 
+        let onerror = Closure::wrap(Box::new(move || {
+            web_sys::console::error_1(&"Failed to load texture".into());
+        }) as Box<dyn FnMut()>);
+
         img.set_onload(Some(onload.as_ref().unchecked_ref()));
+        img.set_onerror(Some(onerror.as_ref().unchecked_ref()));
         onload.forget();
+        onerror.forget();
         
         img.set_src(url);
 

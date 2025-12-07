@@ -67,13 +67,25 @@ impl SolarSystem {
             }
 
             let texture = if let Some(url) = texture_url {
-                renderer.create_texture(url).ok()
+                match renderer.create_texture(url) {
+                    Ok(t) => Some(t),
+                    Err(e) => {
+                        web_sys::console::error_1(&format!("Failed to create texture for {}: {:?}", name, e).into());
+                        None
+                    }
+                }
             } else {
                 None
             };
 
+            let (mesh_r, mesh_g, mesh_b) = if texture.is_some() {
+                (1.0, 1.0, 1.0)
+            } else {
+                color
+            };
+
             Body {
-                mesh: mesh_fn(1.0, 40, 40, color.0, color.1, color.2),
+                mesh: mesh_fn(1.0, 40, 40, mesh_r, mesh_g, mesh_b),
                 radius,
                 orbit_radius,
                 orbit_speed,
@@ -87,36 +99,36 @@ impl SolarSystem {
             }
         };
 
-        // Textures from Solar System Scope (Creative Commons Attribution 4.0 International)
-        // Using low res versions for performance/bandwidth
-        bodies.push(create_body("Sun", 2.0, 0.0, 0.0, 0.0, (1.0, 1.0, 0.0), None, Mesh::sphere, Some("https://upload.wikimedia.org/wikipedia/commons/c/c0/Sun_texture.jpg")));
+        // Textures from local assets
+        bodies.push(create_body("Sun", 2.0, 0.0, 0.0, 0.0, (1.0, 1.0, 0.0), None, Mesh::sphere, Some("assets/textures/2k_sun.jpg")));
 
         let p_mercury = 87.969;
+        // Mercury texture not found in assets, keeping external or using fallback
         bodies.push(create_body("Mercury", 0.38, 5.0, get_orbit_speed(p_mercury), get_initial_angle(252.25, p_mercury), (0.5, 0.5, 0.5), Some(0), Mesh::sphere, Some("https://upload.wikimedia.org/wikipedia/commons/3/30/Mercury_in_color_-_Prockter07-edit1.jpg")));
 
         let p_venus = 224.701;
-        bodies.push(create_body("Venus", 0.95, 8.0, get_orbit_speed(p_venus), get_initial_angle(181.98, p_venus), (0.9, 0.7, 0.2), Some(0), Mesh::sphere, Some("https://upload.wikimedia.org/wikipedia/commons/0/02/Venus_globe_-_Magellan_image.jpg")));
+        bodies.push(create_body("Venus", 0.95, 8.0, get_orbit_speed(p_venus), get_initial_angle(181.98, p_venus), (0.9, 0.7, 0.2), Some(0), Mesh::sphere, Some("assets/textures/2k_venus_surface.jpg")));
 
         let p_earth = 365.256;
-        bodies.push(create_body("Earth", 1.0, 11.0, get_orbit_speed(p_earth), get_initial_angle(100.46, p_earth), (0.0, 0.0, 1.0), Some(0), Mesh::sphere, Some("https://upload.wikimedia.org/wikipedia/commons/thumb/c/c3/Solarsystemscope_texture_2k_earth_daymap.jpg/1024px-Solarsystemscope_texture_2k_earth_daymap.jpg")));
+        bodies.push(create_body("Earth", 1.0, 11.0, get_orbit_speed(p_earth), get_initial_angle(100.46, p_earth), (0.0, 0.0, 1.0), Some(0), Mesh::sphere, Some("assets/textures/2k_earth_daymap.jpg")));
 
         let p_moon = 27.322;
-        bodies.push(create_body("Moon", 0.27, 2.0, get_orbit_speed(p_moon), get_initial_angle(0.0, p_moon), (0.6, 0.6, 0.6), Some(3), Mesh::sphere, Some("https://upload.wikimedia.org/wikipedia/commons/thumb/e/e1/FullMoon2010.jpg/1024px-FullMoon2010.jpg")));
+        bodies.push(create_body("Moon", 0.27, 2.0, get_orbit_speed(p_moon), get_initial_angle(0.0, p_moon), (0.6, 0.6, 0.6), Some(3), Mesh::sphere, Some("assets/textures/2k_moon.jpg")));
 
         let p_mars = 686.980;
-        bodies.push(create_body("Mars", 0.53, 15.0, get_orbit_speed(p_mars), get_initial_angle(355.45, p_mars), (1.0, 0.0, 0.0), Some(0), Mesh::sphere, Some("https://upload.wikimedia.org/wikipedia/commons/thumb/0/02/OSIRIS_Mars_true_color.jpg/1024px-OSIRIS_Mars_true_color.jpg")));
+        bodies.push(create_body("Mars", 0.53, 15.0, get_orbit_speed(p_mars), get_initial_angle(355.45, p_mars), (1.0, 0.0, 0.0), Some(0), Mesh::sphere, Some("assets/textures/2k_mars.jpg")));
 
         let p_jupiter = 4332.589;
-        bodies.push(create_body("Jupiter", 3.0, 25.0, get_orbit_speed(p_jupiter), get_initial_angle(34.40, p_jupiter), (0.8, 0.6, 0.4), Some(0), Mesh::sphere, Some("https://upload.wikimedia.org/wikipedia/commons/e/e2/Jupiter.jpg")));
+        bodies.push(create_body("Jupiter", 3.0, 25.0, get_orbit_speed(p_jupiter), get_initial_angle(34.40, p_jupiter), (0.8, 0.6, 0.4), Some(0), Mesh::sphere, Some("assets/textures/2k_jupiter.jpg")));
 
         let p_saturn = 10759.22;
-        bodies.push(create_body("Saturn", 2.5, 35.0, get_orbit_speed(p_saturn), get_initial_angle(49.94, p_saturn), (0.9, 0.8, 0.5), Some(0), Mesh::sphere, Some("https://upload.wikimedia.org/wikipedia/commons/c/c7/Saturn_during_Equinox.jpg")));
+        bodies.push(create_body("Saturn", 2.5, 35.0, get_orbit_speed(p_saturn), get_initial_angle(49.94, p_saturn), (0.9, 0.8, 0.5), Some(0), Mesh::sphere, Some("assets/textures/2k_saturn.jpg")));
 
         let p_uranus = 30685.4;
-        bodies.push(create_body("Uranus", 1.8, 45.0, get_orbit_speed(p_uranus), get_initial_angle(313.23, p_uranus), (0.0, 0.8, 0.8), Some(0), Mesh::sphere, Some("https://upload.wikimedia.org/wikipedia/commons/3/3d/Uranus2.jpg")));
+        bodies.push(create_body("Uranus", 1.8, 45.0, get_orbit_speed(p_uranus), get_initial_angle(313.23, p_uranus), (0.0, 0.8, 0.8), Some(0), Mesh::sphere, Some("assets/textures/2k_uranus.jpg")));
 
         let p_neptune = 60189.0;
-        bodies.push(create_body("Neptune", 1.7, 55.0, get_orbit_speed(p_neptune), get_initial_angle(304.88, p_neptune), (0.0, 0.0, 0.8), Some(0), Mesh::sphere, Some("https://upload.wikimedia.org/wikipedia/commons/5/56/Neptune_Full.jpg")));
+        bodies.push(create_body("Neptune", 1.7, 55.0, get_orbit_speed(p_neptune), get_initial_angle(304.88, p_neptune), (0.0, 0.0, 0.8), Some(0), Mesh::sphere, Some("assets/textures/2k_neptune.jpg")));
 
         SolarSystem {
             renderer,
