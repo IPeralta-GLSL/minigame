@@ -18,16 +18,16 @@ impl Mesh {
             x4: f32, y4: f32, z4: f32,
             brightness: f32
         | {
-            let base = (vertices.len() / 6) as u16;
+            let base = (vertices.len() / 8) as u16;
             let br = r * brightness;
             let bg = g * brightness;
             let bb = b * brightness;
             
             vertices.extend_from_slice(&[
-                x1, y1, z1, br, bg, bb,
-                x2, y2, z2, br, bg, bb,
-                x3, y3, z3, br, bg, bb,
-                x4, y4, z4, br, bg, bb,
+                x1, y1, z1, br, bg, bb, 0.0, 0.0,
+                x2, y2, z2, br, bg, bb, 1.0, 0.0,
+                x3, y3, z3, br, bg, bb, 1.0, 1.0,
+                x4, y4, z4, br, bg, bb, 0.0, 1.0,
             ]);
             
             indices.extend_from_slice(&[
@@ -63,12 +63,13 @@ impl Mesh {
                     vec![[1.0, 1.0, 1.0]; positions.len()]
                 };
                 
-                let base_index = (vertices.len() / 6) as u16;
+                let base_index = (vertices.len() / 8) as u16;
                 
                 for (pos, color) in positions.iter().zip(colors.iter()) {
                     vertices.extend_from_slice(&[
                         pos[0], pos[1], pos[2],
-                        color[0], color[1], color[2]
+                        color[0], color[1], color[2],
+                        0.0, 0.0
                     ]);
                 }
                 
@@ -100,10 +101,14 @@ impl Mesh {
                 let x = cos_phi * sin_theta;
                 let y = cos_theta;
                 let z = sin_phi * sin_theta;
+                
+                let u = 1.0 - (j as f32 / long_segments as f32);
+                let v = 1.0 - (i as f32 / lat_segments as f32);
 
                 vertices.extend_from_slice(&[
                     x * radius, y * radius, z * radius,
-                    r, g, b
+                    r, g, b,
+                    u, v
                 ]);
             }
         }

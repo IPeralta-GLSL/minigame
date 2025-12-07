@@ -778,12 +778,13 @@ impl Game {
                 rot_offset_x,
                 rotation + rot_offset_y, 
                 rot_offset_z,
-                projection, view
+                projection, view,
+                None
             );
         } else {
             // Fallback to procedural car
             let mesh = create_car_mesh(r, g, b);
-            self.renderer.draw_mesh(&mesh, x, y, z, w, h, d, 0.0, rotation, 0.0, projection, view);
+            self.renderer.draw_mesh(&mesh, x, y, z, w, h, d, 0.0, rotation, 0.0, projection, view, None);
         }
     }
 
@@ -1036,16 +1037,16 @@ fn create_car_mesh(body_r: f32, body_g: f32, body_b: f32) -> Mesh {
             x4: f32, y4: f32, z4: f32,
             brightness: f32
         | {
-            let base = (verts.len() / 6) as u16;
+            let base = (verts.len() / 8) as u16;
             let br = r * brightness;
             let bg = g * brightness;
             let bb = b * brightness;
             
             verts.extend_from_slice(&[
-                ox + x1, oy + y1, oz + z1, br, bg, bb,
-                ox + x2, oy + y2, oz + z2, br, bg, bb,
-                ox + x3, oy + y3, oz + z3, br, bg, bb,
-                ox + x4, oy + y4, oz + z4, br, bg, bb,
+                ox + x1, oy + y1, oz + z1, br, bg, bb, 0.0, 0.0,
+                ox + x2, oy + y2, oz + z2, br, bg, bb, 1.0, 0.0,
+                ox + x3, oy + y3, oz + z3, br, bg, bb, 1.0, 1.0,
+                ox + x4, oy + y4, oz + z4, br, bg, bb, 0.0, 1.0,
             ]);
             
             idxs.extend_from_slice(&[

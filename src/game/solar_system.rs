@@ -2,7 +2,7 @@ use crate::engine::renderer::Renderer;
 use crate::engine::mesh::Mesh;
 use nalgebra::{Matrix4, Point3, Vector3, Vector4};
 use js_sys::Date;
-use web_sys::{Element, HtmlElement};
+use web_sys::{HtmlElement, WebGlTexture};
 use wasm_bindgen::JsCast;
 
 pub struct Body {
@@ -16,6 +16,7 @@ pub struct Body {
     pub name: String,
     pub trail: Vec<f32>,
     pub label_element: Option<HtmlElement>,
+    pub texture: Option<WebGlTexture>,
 }
 
 pub struct SolarSystem {
@@ -53,7 +54,7 @@ impl SolarSystem {
         let document = window.document().unwrap();
         let labels_container = document.get_element_by_id("solar-labels");
 
-        let create_body = |name: &str, radius: f32, orbit_radius: f32, orbit_speed: f32, orbit_angle: f32, color: (f32, f32, f32), parent: Option<usize>, mesh_fn: fn(f32, u16, u16, f32, f32, f32) -> Mesh| {
+        let create_body = |name: &str, radius: f32, orbit_radius: f32, orbit_speed: f32, orbit_angle: f32, color: (f32, f32, f32), parent: Option<usize>, mesh_fn: fn(f32, u16, u16, f32, f32, f32) -> Mesh, texture_url: Option<&str>| {
             let mut label_element = None;
             if let Some(container) = &labels_container {
                 let el = document.create_element("div").unwrap();
@@ -65,8 +66,14 @@ impl SolarSystem {
                 }
             }
 
+            let texture = if let Some(url) = texture_url {
+                renderer.create_texture(url).ok()
+            } else {
+                None
+            };
+
             Body {
-                mesh: mesh_fn(1.0, 20, 20, color.0, color.1, color.2),
+                mesh: mesh_fn(1.0, 40, 40, color.0, color.1, color.2),
                 radius,
                 orbit_radius,
                 orbit_speed,
@@ -76,37 +83,40 @@ impl SolarSystem {
                 name: name.to_string(),
                 trail: Vec::new(),
                 label_element,
+                texture,
             }
         };
 
-        bodies.push(create_body("Sun", 2.0, 0.0, 0.0, 0.0, (1.0, 1.0, 0.0), None, Mesh::sphere));
+        // Textures from Solar System Scope (Creative Commons Attribution 4.0 International)
+        // Using low res versions for performance/bandwidth
+        bodies.push(create_body("Sun", 2.0, 0.0, 0.0, 0.0, (1.0, 1.0, 0.0), None, Mesh::sphere, Some("https://upload.wikimedia.org/wikipedia/commons/c/c0/Sun_texture.jpg")));
 
         let p_mercury = 87.969;
-        bodies.push(create_body("Mercury", 0.38, 5.0, get_orbit_speed(p_mercury), get_initial_angle(252.25, p_mercury), (0.5, 0.5, 0.5), Some(0), Mesh::sphere));
+        bodies.push(create_body("Mercury", 0.38, 5.0, get_orbit_speed(p_mercury), get_initial_angle(252.25, p_mercury), (0.5, 0.5, 0.5), Some(0), Mesh::sphere, Some("https://upload.wikimedia.org/wikipedia/commons/3/30/Mercury_in_color_-_Prockter07-edit1.jpg")));
 
         let p_venus = 224.701;
-        bodies.push(create_body("Venus", 0.95, 8.0, get_orbit_speed(p_venus), get_initial_angle(181.98, p_venus), (0.9, 0.7, 0.2), Some(0), Mesh::sphere));
+        bodies.push(create_body("Venus", 0.95, 8.0, get_orbit_speed(p_venus), get_initial_angle(181.98, p_venus), (0.9, 0.7, 0.2), Some(0), Mesh::sphere, Some("https://upload.wikimedia.org/wikipedia/commons/0/02/Venus_globe_-_Magellan_image.jpg")));
 
         let p_earth = 365.256;
-        bodies.push(create_body("Earth", 1.0, 11.0, get_orbit_speed(p_earth), get_initial_angle(100.46, p_earth), (0.0, 0.0, 1.0), Some(0), Mesh::sphere));
+        bodies.push(create_body("Earth", 1.0, 11.0, get_orbit_speed(p_earth), get_initial_angle(100.46, p_earth), (0.0, 0.0, 1.0), Some(0), Mesh::sphere, Some("https://upload.wikimedia.org/wikipedia/commons/thumb/c/c3/Solarsystemscope_texture_2k_earth_daymap.jpg/1024px-Solarsystemscope_texture_2k_earth_daymap.jpg")));
 
         let p_moon = 27.322;
-        bodies.push(create_body("Moon", 0.27, 2.0, get_orbit_speed(p_moon), get_initial_angle(0.0, p_moon), (0.6, 0.6, 0.6), Some(3), Mesh::sphere));
+        bodies.push(create_body("Moon", 0.27, 2.0, get_orbit_speed(p_moon), get_initial_angle(0.0, p_moon), (0.6, 0.6, 0.6), Some(3), Mesh::sphere, Some("https://upload.wikimedia.org/wikipedia/commons/thumb/e/e1/FullMoon2010.jpg/1024px-FullMoon2010.jpg")));
 
         let p_mars = 686.980;
-        bodies.push(create_body("Mars", 0.53, 15.0, get_orbit_speed(p_mars), get_initial_angle(355.45, p_mars), (1.0, 0.0, 0.0), Some(0), Mesh::sphere));
+        bodies.push(create_body("Mars", 0.53, 15.0, get_orbit_speed(p_mars), get_initial_angle(355.45, p_mars), (1.0, 0.0, 0.0), Some(0), Mesh::sphere, Some("https://upload.wikimedia.org/wikipedia/commons/thumb/0/02/OSIRIS_Mars_true_color.jpg/1024px-OSIRIS_Mars_true_color.jpg")));
 
         let p_jupiter = 4332.589;
-        bodies.push(create_body("Jupiter", 3.0, 25.0, get_orbit_speed(p_jupiter), get_initial_angle(34.40, p_jupiter), (0.8, 0.6, 0.4), Some(0), Mesh::sphere));
+        bodies.push(create_body("Jupiter", 3.0, 25.0, get_orbit_speed(p_jupiter), get_initial_angle(34.40, p_jupiter), (0.8, 0.6, 0.4), Some(0), Mesh::sphere, Some("https://upload.wikimedia.org/wikipedia/commons/e/e2/Jupiter.jpg")));
 
         let p_saturn = 10759.22;
-        bodies.push(create_body("Saturn", 2.5, 35.0, get_orbit_speed(p_saturn), get_initial_angle(49.94, p_saturn), (0.9, 0.8, 0.5), Some(0), Mesh::sphere));
+        bodies.push(create_body("Saturn", 2.5, 35.0, get_orbit_speed(p_saturn), get_initial_angle(49.94, p_saturn), (0.9, 0.8, 0.5), Some(0), Mesh::sphere, Some("https://upload.wikimedia.org/wikipedia/commons/c/c7/Saturn_during_Equinox.jpg")));
 
         let p_uranus = 30685.4;
-        bodies.push(create_body("Uranus", 1.8, 45.0, get_orbit_speed(p_uranus), get_initial_angle(313.23, p_uranus), (0.0, 0.8, 0.8), Some(0), Mesh::sphere));
+        bodies.push(create_body("Uranus", 1.8, 45.0, get_orbit_speed(p_uranus), get_initial_angle(313.23, p_uranus), (0.0, 0.8, 0.8), Some(0), Mesh::sphere, Some("https://upload.wikimedia.org/wikipedia/commons/3/3d/Uranus2.jpg")));
 
         let p_neptune = 60189.0;
-        bodies.push(create_body("Neptune", 1.7, 55.0, get_orbit_speed(p_neptune), get_initial_angle(304.88, p_neptune), (0.0, 0.0, 0.8), Some(0), Mesh::sphere));
+        bodies.push(create_body("Neptune", 1.7, 55.0, get_orbit_speed(p_neptune), get_initial_angle(304.88, p_neptune), (0.0, 0.0, 0.8), Some(0), Mesh::sphere, Some("https://upload.wikimedia.org/wikipedia/commons/5/56/Neptune_Full.jpg")));
 
         SolarSystem {
             renderer,
@@ -160,12 +170,31 @@ impl SolarSystem {
             positions[i] = pos;
             
             if body.orbit_radius > 0.0 {
-                body.trail.push(pos.x);
-                body.trail.push(pos.y);
-                body.trail.push(pos.z);
-                
-                if body.trail.len() > 1500 {
-                    body.trail.drain(0..3);
+                let should_add_point = if body.trail.len() >= 3 {
+                    let last_x = body.trail[body.trail.len() - 3];
+                    let last_y = body.trail[body.trail.len() - 2];
+                    let last_z = body.trail[body.trail.len() - 1];
+                    
+                    let dx = pos.x - last_x;
+                    let dy = pos.y - last_y;
+                    let dz = pos.z - last_z;
+                    
+                    let dist_sq = dx*dx + dy*dy + dz*dz;
+                    dist_sq > 0.05 // Only add point if moved enough
+                } else {
+                    true
+                };
+
+                if should_add_point {
+                    body.trail.push(pos.x);
+                    body.trail.push(pos.y);
+                    body.trail.push(pos.z);
+                    
+                    // Keep trail long enough for a full orbit (approx)
+                    // 5000 points is plenty for smooth circles
+                    if body.trail.len() > 5000 {
+                        body.trail.drain(0..3);
+                    }
                 }
             }
         }
@@ -222,7 +251,8 @@ impl SolarSystem {
                 body.radius, body.radius, body.radius,
                 0.0, 0.0, 0.0,
                 &projection,
-                &view
+                &view,
+                body.texture.as_ref()
             );
             
             if let Some(element) = &body.label_element {
