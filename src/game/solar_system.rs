@@ -17,6 +17,7 @@ pub struct Body {
     pub trail: Vec<f32>,
     pub label_element: Option<HtmlElement>,
     pub texture: Option<WebGlTexture>,
+    pub night_texture: Option<WebGlTexture>,
     pub cloud_texture: Option<WebGlTexture>,
     pub cloud_rotation: f32,
     pub rotation_period: f32,
@@ -64,7 +65,7 @@ impl SolarSystem {
         let document = window.document().unwrap();
         let labels_container = document.get_element_by_id("solar-labels");
 
-        let create_body = |name: &str, radius: f32, orbit_radius: f32, orbit_speed: f32, orbit_angle: f32, color: (f32, f32, f32), parent: Option<usize>, mesh_fn: fn(f32, u16, u16, f32, f32, f32) -> Mesh, texture_url: Option<&str>, cloud_texture_url: Option<&str>, rotation_period: f32, axial_tilt: f32, orbit_inclination: f32| {
+        let create_body = |name: &str, radius: f32, orbit_radius: f32, orbit_speed: f32, orbit_angle: f32, color: (f32, f32, f32), parent: Option<usize>, mesh_fn: fn(f32, u16, u16, f32, f32, f32) -> Mesh, texture_url: Option<&str>, night_texture_url: Option<&str>, cloud_texture_url: Option<&str>, rotation_period: f32, axial_tilt: f32, orbit_inclination: f32| {
             let mut label_element = None;
             if let Some(container) = &labels_container {
                 let el = document.create_element("div").unwrap();
@@ -81,6 +82,18 @@ impl SolarSystem {
                     Ok(t) => Some(t),
                     Err(e) => {
                         web_sys::console::error_1(&format!("Failed to create texture for {}: {:?}", name, e).into());
+                        None
+                    }
+                }
+            } else {
+                None
+            };
+
+            let night_texture = if let Some(url) = night_texture_url {
+                match renderer.create_texture(url) {
+                    Ok(t) => Some(t),
+                    Err(e) => {
+                        web_sys::console::error_1(&format!("Failed to create night texture for {}: {:?}", name, e).into());
                         None
                     }
                 }
@@ -118,6 +131,7 @@ impl SolarSystem {
                 trail: Vec::new(),
                 label_element,
                 texture,
+                night_texture,
                 cloud_texture,
                 cloud_rotation: 0.0,
                 rotation_period,
@@ -130,63 +144,63 @@ impl SolarSystem {
 
         // Realistic Scale: 1 AU = 100.0 units
         // Sun Radius = 0.465
-        bodies.push(create_body("Sun", 0.465, 0.0, 0.0, 0.0, (1.0, 1.0, 0.0), None, Mesh::sphere, Some("assets/textures/2k_sun.jpg"), None, 25.0, 7.25, 0.0));
+        bodies.push(create_body("Sun", 0.465, 0.0, 0.0, 0.0, (1.0, 1.0, 0.0), None, Mesh::sphere, Some("assets/textures/2k_sun.jpg"), None, None, 25.0, 7.25, 0.0));
 
         let p_mercury = 87.969;
         // Mercury: 0.39 AU = 39.0 units. Radius = 0.0016
-        bodies.push(create_body("Mercury", 0.0016, 39.0, get_orbit_speed(p_mercury), get_initial_angle(252.25, p_mercury), (0.5, 0.5, 0.5), Some(0), Mesh::sphere, Some("https://upload.wikimedia.org/wikipedia/commons/3/30/Mercury_in_color_-_Prockter07-edit1.jpg"), None, 58.6, 0.03, 7.0));
+        bodies.push(create_body("Mercury", 0.0016, 39.0, get_orbit_speed(p_mercury), get_initial_angle(252.25, p_mercury), (0.5, 0.5, 0.5), Some(0), Mesh::sphere, Some("https://upload.wikimedia.org/wikipedia/commons/3/30/Mercury_in_color_-_Prockter07-edit1.jpg"), None, None, 58.6, 0.03, 7.0));
 
         let p_venus = 224.701;
         // Venus: 0.72 AU = 72.0 units. Radius = 0.004
-        bodies.push(create_body("Venus", 0.004, 72.0, get_orbit_speed(p_venus), get_initial_angle(181.98, p_venus), (0.9, 0.7, 0.2), Some(0), Mesh::sphere, Some("assets/textures/2k_venus_surface.jpg"), Some("assets/textures/2k_venus_atmosphere.jpg"), -243.0, 177.3, 3.4));
+        bodies.push(create_body("Venus", 0.004, 72.0, get_orbit_speed(p_venus), get_initial_angle(181.98, p_venus), (0.9, 0.7, 0.2), Some(0), Mesh::sphere, Some("assets/textures/2k_venus_surface.jpg"), None, Some("assets/textures/2k_venus_atmosphere.jpg"), -243.0, 177.3, 3.4));
 
         let p_earth = 365.256;
         // Earth: 1.00 AU = 100.0 units. Radius = 0.0042
-        bodies.push(create_body("Earth", 0.0042, 100.0, get_orbit_speed(p_earth), get_initial_angle(100.46, p_earth), (0.0, 0.0, 1.0), Some(0), Mesh::sphere, Some("assets/textures/2k_earth_daymap.jpg"), Some("assets/textures/2k_earth_clouds.jpg"), 1.0, 23.4, 0.0));
+        bodies.push(create_body("Earth", 0.0042, 100.0, get_orbit_speed(p_earth), get_initial_angle(100.46, p_earth), (0.0, 0.0, 1.0), Some(0), Mesh::sphere, Some("assets/textures/2k_earth_daymap.jpg"), Some("assets/textures/2k_earth_nightmap.jpg"), Some("assets/textures/2k_earth_clouds.jpg"), 1.0, 23.4, 0.0));
 
         let p_moon = 27.322;
         // Moon: 0.00257 AU from Earth = 0.257 units. Radius = 0.0011
-        bodies.push(create_body("Moon", 0.0011, 0.257, get_orbit_speed(p_moon), get_initial_angle(0.0, p_moon), (0.6, 0.6, 0.6), Some(3), Mesh::sphere, Some("assets/textures/2k_moon.jpg"), None, 27.3, 6.7, 5.1));
+        bodies.push(create_body("Moon", 0.0011, 0.257, get_orbit_speed(p_moon), get_initial_angle(0.0, p_moon), (0.6, 0.6, 0.6), Some(3), Mesh::sphere, Some("assets/textures/2k_moon.jpg"), None, None, 27.3, 6.7, 5.1));
 
         let p_mars = 686.980;
         // Mars: 1.52 AU = 152.0 units. Radius = 0.0022
-        bodies.push(create_body("Mars", 0.0022, 152.0, get_orbit_speed(p_mars), get_initial_angle(355.45, p_mars), (1.0, 0.0, 0.0), Some(0), Mesh::sphere, Some("assets/textures/2k_mars.jpg"), None, 1.03, 25.2, 1.85));
+        bodies.push(create_body("Mars", 0.0022, 152.0, get_orbit_speed(p_mars), get_initial_angle(355.45, p_mars), (1.0, 0.0, 0.0), Some(0), Mesh::sphere, Some("assets/textures/2k_mars.jpg"), None, None, 1.03, 25.2, 1.85));
 
         // Ceres: 2.77 AU = 277.0 units. Radius = 0.00029
         let p_ceres = 1681.6;
-        bodies.push(create_body("Ceres", 0.00029, 277.0, get_orbit_speed(p_ceres), get_initial_angle(0.0, p_ceres), (0.4, 0.4, 0.4), Some(0), Mesh::sphere, Some("assets/textures/2k_ceres_fictional.jpg"), None, 0.375, 4.0, 10.6));
+        bodies.push(create_body("Ceres", 0.00029, 277.0, get_orbit_speed(p_ceres), get_initial_angle(0.0, p_ceres), (0.4, 0.4, 0.4), Some(0), Mesh::sphere, Some("assets/textures/2k_ceres_fictional.jpg"), None, None, 0.375, 4.0, 10.6));
 
         let p_jupiter = 4332.589;
         // Jupiter: 5.20 AU = 520.0 units. Radius = 0.047
-        bodies.push(create_body("Jupiter", 0.047, 520.0, get_orbit_speed(p_jupiter), get_initial_angle(34.40, p_jupiter), (0.8, 0.6, 0.4), Some(0), Mesh::sphere, Some("assets/textures/2k_jupiter.jpg"), None, 0.41, 3.1, 1.3));
+        bodies.push(create_body("Jupiter", 0.047, 520.0, get_orbit_speed(p_jupiter), get_initial_angle(34.40, p_jupiter), (0.8, 0.6, 0.4), Some(0), Mesh::sphere, Some("assets/textures/2k_jupiter.jpg"), None, None, 0.41, 3.1, 1.3));
 
         let p_saturn = 10759.22;
         // Saturn: 9.58 AU = 958.0 units. Radius = 0.039
-        bodies.push(create_body("Saturn", 0.039, 958.0, get_orbit_speed(p_saturn), get_initial_angle(49.94, p_saturn), (0.9, 0.8, 0.5), Some(0), Mesh::sphere, Some("assets/textures/2k_saturn.jpg"), None, 0.45, 26.7, 2.48));
+        bodies.push(create_body("Saturn", 0.039, 958.0, get_orbit_speed(p_saturn), get_initial_angle(49.94, p_saturn), (0.9, 0.8, 0.5), Some(0), Mesh::sphere, Some("assets/textures/2k_saturn.jpg"), None, None, 0.45, 26.7, 2.48));
 
         let p_uranus = 30685.4;
         // Uranus: 19.2 AU = 1920.0 units. Radius = 0.017
-        bodies.push(create_body("Uranus", 0.017, 1920.0, get_orbit_speed(p_uranus), get_initial_angle(313.23, p_uranus), (0.0, 0.8, 0.8), Some(0), Mesh::sphere, Some("assets/textures/2k_uranus.jpg"), None, -0.72, 97.8, 0.77));
+        bodies.push(create_body("Uranus", 0.017, 1920.0, get_orbit_speed(p_uranus), get_initial_angle(313.23, p_uranus), (0.0, 0.8, 0.8), Some(0), Mesh::sphere, Some("assets/textures/2k_uranus.jpg"), None, None, -0.72, 97.8, 0.77));
 
         let p_neptune = 60189.0;
         // Neptune: 30.05 AU = 3005.0 units. Radius = 0.016
-        bodies.push(create_body("Neptune", 0.016, 3005.0, get_orbit_speed(p_neptune), get_initial_angle(304.88, p_neptune), (0.0, 0.0, 0.8), Some(0), Mesh::sphere, Some("assets/textures/2k_neptune.jpg"), None, 0.67, 28.3, 1.77));
+        bodies.push(create_body("Neptune", 0.016, 3005.0, get_orbit_speed(p_neptune), get_initial_angle(304.88, p_neptune), (0.0, 0.0, 0.8), Some(0), Mesh::sphere, Some("assets/textures/2k_neptune.jpg"), None, None, 0.67, 28.3, 1.77));
 
         // Pluto: 39.48 AU = 3948.0 units. Radius = 0.00075
         let p_pluto = 90560.0;
-        bodies.push(create_body("Pluto", 0.00075, 3948.0, get_orbit_speed(p_pluto), get_initial_angle(0.0, p_pluto), (0.6, 0.5, 0.4), Some(0), Mesh::sphere, Some("https://upload.wikimedia.org/wikipedia/commons/e/ef/Pluto_in_True_Color_-_High-Res.jpg"), None, -6.39, 122.5, 17.16));
+        bodies.push(create_body("Pluto", 0.00075, 3948.0, get_orbit_speed(p_pluto), get_initial_angle(0.0, p_pluto), (0.6, 0.5, 0.4), Some(0), Mesh::sphere, Some("https://upload.wikimedia.org/wikipedia/commons/e/ef/Pluto_in_True_Color_-_High-Res.jpg"), None, None, -6.39, 122.5, 17.16));
 
         // Haumea: 43.13 AU = 4313.0 units. Radius = 0.00055
         let p_haumea = 103368.0;
-        bodies.push(create_body("Haumea", 0.00055, 4313.0, get_orbit_speed(p_haumea), get_initial_angle(0.0, p_haumea), (0.7, 0.7, 0.7), Some(0), Mesh::sphere, Some("assets/textures/2k_haumea_fictional.jpg"), None, 0.16, 0.0, 28.2));
+        bodies.push(create_body("Haumea", 0.00055, 4313.0, get_orbit_speed(p_haumea), get_initial_angle(0.0, p_haumea), (0.7, 0.7, 0.7), Some(0), Mesh::sphere, Some("assets/textures/2k_haumea_fictional.jpg"), None, None, 0.16, 0.0, 28.2));
 
         // Makemake: 45.79 AU = 4579.0 units. Radius = 0.00046
         let p_makemake = 112862.0;
-        bodies.push(create_body("Makemake", 0.00046, 4579.0, get_orbit_speed(p_makemake), get_initial_angle(0.0, p_makemake), (0.8, 0.6, 0.5), Some(0), Mesh::sphere, Some("assets/textures/2k_makemake_fictional.jpg"), None, 0.95, 0.0, 29.0));
+        bodies.push(create_body("Makemake", 0.00046, 4579.0, get_orbit_speed(p_makemake), get_initial_angle(0.0, p_makemake), (0.8, 0.6, 0.5), Some(0), Mesh::sphere, Some("assets/textures/2k_makemake_fictional.jpg"), None, None, 0.95, 0.0, 29.0));
 
         // Eris: 67.67 AU = 6767.0 units. Radius = 0.00075
         let p_eris = 203443.0;
-        bodies.push(create_body("Eris", 0.00075, 6767.0, get_orbit_speed(p_eris), get_initial_angle(0.0, p_eris), (0.9, 0.9, 0.9), Some(0), Mesh::sphere, Some("assets/textures/2k_eris_fictional.jpg"), None, 1.08, 78.0, 44.0));
+        bodies.push(create_body("Eris", 0.00075, 6767.0, get_orbit_speed(p_eris), get_initial_angle(0.0, p_eris), (0.9, 0.9, 0.9), Some(0), Mesh::sphere, Some("assets/textures/2k_eris_fictional.jpg"), None, None, 1.08, 78.0, 44.0));
 
         let background_texture = renderer.create_texture("assets/textures/8k_stars.jpg").ok();
         let background_mesh = Mesh::sphere(1.0, 40, 40, 1.0, 1.0, 1.0);
@@ -446,18 +460,17 @@ impl SolarSystem {
         // Disable lighting for background stars
         self.renderer.gl.uniform1i(Some(&self.renderer.u_use_lighting_location), 0);
 
-        self.renderer.draw_mesh(
-            &self.background_mesh,
-            cam_x, cam_y, cam_z,
-            5000.0, 5000.0, 5000.0,
-            0.0, 0.0, 0.0,
-            &projection,
-            &view,
-            self.background_texture.as_ref(),
-            None
-        );
-        
-        // Re-enable lighting for planets
+            self.renderer.draw_mesh(
+                &self.background_mesh,
+                cam_x, cam_y, cam_z,
+                5000.0, 5000.0, 5000.0,
+                0.0, 0.0, 0.0,
+                &projection,
+                &view,
+                self.background_texture.as_ref(),
+                None,
+                None
+            );        // Re-enable lighting for planets
         self.renderer.gl.uniform1i(Some(&self.renderer.u_use_lighting_location), 1);
         
         self.renderer.enable_depth_test();
@@ -502,6 +515,12 @@ impl SolarSystem {
             } else {
                 None
             };
+
+            let night_texture_to_use = if use_texture {
+                body.night_texture.as_ref()
+            } else {
+                None
+            };
             
             let color_override = if !use_texture {
                 Some(body.color)
@@ -517,6 +536,7 @@ impl SolarSystem {
                 &projection,
                 &view,
                 texture_to_use,
+                night_texture_to_use,
                 color_override
             );
 
@@ -534,6 +554,7 @@ impl SolarSystem {
                         &projection,
                         &view,
                         Some(cloud_tex),
+                        None,
                         None
                     );
                     

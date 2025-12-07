@@ -41,7 +41,9 @@ const FRAGMENT_SHADER: &str = r#"
     varying vec3 vFragPos;
     
     uniform sampler2D uTexture;
+    uniform sampler2D uNightTexture;
     uniform int uUseTexture;
+    uniform int uUseNightTexture;
     uniform vec3 uUniformColor;
     uniform bool uUseUniformColor;
     uniform vec3 uTimeColor;
@@ -90,7 +92,19 @@ const FRAGMENT_SHADER: &str = r#"
             
             vec3 diffuse = diff * lightColor;
             
-            result = (ambient + diffuse) * color;
+            vec3 dayColor = (ambient + diffuse) * color;
+            
+            if (uUseNightTexture == 1) {
+                vec3 nightColor = texture2D(uNightTexture, vTexCoord).rgb;
+                // Mix based on diffuse factor
+                // When diff is high (day), use dayColor.
+                // When diff is low (night), use nightColor.
+                // Transition around terminator.
+                float mixFactor = smoothstep(0.0, 0.2, diff);
+                result = mix(nightColor, dayColor, mixFactor);
+            } else {
+                result = dayColor;
+            }
         } else {
             // No lighting (unlit)
             result = color;
@@ -123,6 +137,8 @@ pub struct Renderer {
     u_time_color_location: WebGlUniformLocation,
     u_use_texture_location: WebGlUniformLocation,
     u_texture_location: WebGlUniformLocation,
+    u_use_night_texture_location: WebGlUniformLocation,
+    u_night_texture_location: WebGlUniformLocation,
     pub u_use_lighting_location: WebGlUniformLocation,
     unit_cube_vertex_buffer: WebGlBuffer,
     unit_cube_index_buffer: WebGlBuffer,
@@ -155,6 +171,10 @@ impl Renderer {
             .ok_or("Failed to get uUseTexture location")?;
         let u_texture_location = gl.get_uniform_location(&program, "uTexture")
             .ok_or("Failed to get uTexture location")?;
+        let u_use_night_texture_location = gl.get_uniform_location(&program, "uUseNightTexture")
+            .ok_or("Failed to get uUseNightTexture location")?;
+        let u_night_texture_location = gl.get_uniform_location(&program, "uNightTexture")
+            .ok_or("Failed to get uNightTexture location")?;
         let u_use_lighting_location = gl.get_uniform_location(&program, "uUseLighting")
             .ok_or("Failed to get uUseLighting location")?;
 
@@ -199,6 +219,8 @@ impl Renderer {
             u_time_color_location,
             u_use_texture_location,
             u_texture_location,
+            u_use_night_texture_location,
+            u_night_texture_location,
             unit_cube_vertex_buffer,
             unit_cube_index_buffer,
             unit_cube_index_count,
@@ -275,7 +297,7 @@ impl Renderer {
         );
     }
 
-    pub fn draw_mesh(&self, mesh: &Mesh, x: f32, y: f32, z: f32, w: f32, h: f32, d: f32, rotation_x: f32, rotation_y: f32, rotation_z: f32, projection: &Matrix4<f32>, view: &Matrix4<f32>, texture: Option<&WebGlTexture>, color_override: Option<(f32, f32, f32)>) {
+    pub fn draw_mesh(&self, mesh: &Mesh, x: f32, y: f32, z: f32, w: f32, h: f32, d: f32, rotation_x: f32, rotation_y: f32, rotation_z: f32, projection: &Matrix4<f32>, view: &Matrix4<f32>, texture: Option<&WebGlTexture>, night_texture: Option<&WebGlTexture>, color_override: Option<(f32, f32, f32)>) {
         // Enable lighting by default for meshes
         self.gl.uniform1i(Some(&self.u_use_lighting_location), 1);
 
@@ -293,6 +315,15 @@ impl Renderer {
             } else {
                 self.gl.uniform1i(Some(&self.u_use_uniform_color_location), 0);
             }
+        }
+
+        if let Some(night_tex) = night_texture {
+            self.gl.active_texture(WebGlRenderingContext::TEXTURE1);
+            self.gl.bind_texture(WebGlRenderingContext::TEXTURE_2D, Some(night_tex));
+            self.gl.uniform1i(Some(&self.u_use_night_texture_location), 1);
+            self.gl.uniform1i(Some(&self.u_night_texture_location), 1);
+        } else {
+            self.gl.uniform1i(Some(&self.u_use_night_texture_location), 0);
         }
 
         self.gl.bind_buffer(WebGlRenderingContext::ARRAY_BUFFER, Some(&self.dynamic_vertex_buffer));
