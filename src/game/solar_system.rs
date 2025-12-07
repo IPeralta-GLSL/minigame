@@ -17,6 +17,10 @@ pub struct Body {
     pub trail: Vec<f32>,
     pub label_element: Option<HtmlElement>,
     pub texture: Option<WebGlTexture>,
+    pub rotation_period: f32, // days
+    pub axial_tilt: f32, // radians
+    pub current_rotation: f32, // radians
+    pub orbit_inclination: f32, // radians
 }
 
 pub struct SolarSystem {
@@ -54,7 +58,7 @@ impl SolarSystem {
         let document = window.document().unwrap();
         let labels_container = document.get_element_by_id("solar-labels");
 
-        let create_body = |name: &str, radius: f32, orbit_radius: f32, orbit_speed: f32, orbit_angle: f32, color: (f32, f32, f32), parent: Option<usize>, mesh_fn: fn(f32, u16, u16, f32, f32, f32) -> Mesh, texture_url: Option<&str>| {
+        let create_body = |name: &str, radius: f32, orbit_radius: f32, orbit_speed: f32, orbit_angle: f32, color: (f32, f32, f32), parent: Option<usize>, mesh_fn: fn(f32, u16, u16, f32, f32, f32) -> Mesh, texture_url: Option<&str>, rotation_period: f32, axial_tilt: f32, orbit_inclination: f32| {
             let mut label_element = None;
             if let Some(container) = &labels_container {
                 let el = document.create_element("div").unwrap();
@@ -96,39 +100,52 @@ impl SolarSystem {
                 trail: Vec::new(),
                 label_element,
                 texture,
+                rotation_period,
+                axial_tilt: axial_tilt.to_radians(),
+                current_rotation: 0.0,
+                orbit_inclination: orbit_inclination.to_radians(),
             }
         };
 
         // Textures from local assets
-        bodies.push(create_body("Sun", 2.0, 0.0, 0.0, 0.0, (1.0, 1.0, 0.0), None, Mesh::sphere, Some("assets/textures/2k_sun.jpg")));
+        // Sun: Tilt 7.25, Rot 25 days
+        bodies.push(create_body("Sun", 2.0, 0.0, 0.0, 0.0, (1.0, 1.0, 0.0), None, Mesh::sphere, Some("assets/textures/2k_sun.jpg"), 25.0, 7.25, 0.0));
 
         let p_mercury = 87.969;
-        // Mercury texture not found in assets, keeping external or using fallback
-        bodies.push(create_body("Mercury", 0.38, 5.0, get_orbit_speed(p_mercury), get_initial_angle(252.25, p_mercury), (0.5, 0.5, 0.5), Some(0), Mesh::sphere, Some("https://upload.wikimedia.org/wikipedia/commons/3/30/Mercury_in_color_-_Prockter07-edit1.jpg")));
+        // Mercury: Tilt 0.03, Rot 58.6 days, Inc 7.0
+        bodies.push(create_body("Mercury", 0.38, 5.0, get_orbit_speed(p_mercury), get_initial_angle(252.25, p_mercury), (0.5, 0.5, 0.5), Some(0), Mesh::sphere, Some("https://upload.wikimedia.org/wikipedia/commons/3/30/Mercury_in_color_-_Prockter07-edit1.jpg"), 58.6, 0.03, 7.0));
 
         let p_venus = 224.701;
-        bodies.push(create_body("Venus", 0.95, 8.0, get_orbit_speed(p_venus), get_initial_angle(181.98, p_venus), (0.9, 0.7, 0.2), Some(0), Mesh::sphere, Some("assets/textures/2k_venus_surface.jpg")));
+        // Venus: Tilt 177.3, Rot 243 days (retrograde), Inc 3.4
+        bodies.push(create_body("Venus", 0.95, 8.0, get_orbit_speed(p_venus), get_initial_angle(181.98, p_venus), (0.9, 0.7, 0.2), Some(0), Mesh::sphere, Some("assets/textures/2k_venus_surface.jpg"), -243.0, 177.3, 3.4));
 
         let p_earth = 365.256;
-        bodies.push(create_body("Earth", 1.0, 11.0, get_orbit_speed(p_earth), get_initial_angle(100.46, p_earth), (0.0, 0.0, 1.0), Some(0), Mesh::sphere, Some("assets/textures/2k_earth_daymap.jpg")));
+        // Earth: Tilt 23.4, Rot 1 day, Inc 0.0
+        bodies.push(create_body("Earth", 1.0, 11.0, get_orbit_speed(p_earth), get_initial_angle(100.46, p_earth), (0.0, 0.0, 1.0), Some(0), Mesh::sphere, Some("assets/textures/2k_earth_daymap.jpg"), 1.0, 23.4, 0.0));
 
         let p_moon = 27.322;
-        bodies.push(create_body("Moon", 0.27, 2.0, get_orbit_speed(p_moon), get_initial_angle(0.0, p_moon), (0.6, 0.6, 0.6), Some(3), Mesh::sphere, Some("assets/textures/2k_moon.jpg")));
+        // Moon: Tilt 6.7, Rot 27.3 days, Inc 5.1
+        bodies.push(create_body("Moon", 0.27, 2.0, get_orbit_speed(p_moon), get_initial_angle(0.0, p_moon), (0.6, 0.6, 0.6), Some(3), Mesh::sphere, Some("assets/textures/2k_moon.jpg"), 27.3, 6.7, 5.1));
 
         let p_mars = 686.980;
-        bodies.push(create_body("Mars", 0.53, 15.0, get_orbit_speed(p_mars), get_initial_angle(355.45, p_mars), (1.0, 0.0, 0.0), Some(0), Mesh::sphere, Some("assets/textures/2k_mars.jpg")));
+        // Mars: Tilt 25.2, Rot 1.03 days, Inc 1.85
+        bodies.push(create_body("Mars", 0.53, 15.0, get_orbit_speed(p_mars), get_initial_angle(355.45, p_mars), (1.0, 0.0, 0.0), Some(0), Mesh::sphere, Some("assets/textures/2k_mars.jpg"), 1.03, 25.2, 1.85));
 
         let p_jupiter = 4332.589;
-        bodies.push(create_body("Jupiter", 3.0, 25.0, get_orbit_speed(p_jupiter), get_initial_angle(34.40, p_jupiter), (0.8, 0.6, 0.4), Some(0), Mesh::sphere, Some("assets/textures/2k_jupiter.jpg")));
+        // Jupiter: Tilt 3.1, Rot 0.41 days, Inc 1.3
+        bodies.push(create_body("Jupiter", 3.0, 25.0, get_orbit_speed(p_jupiter), get_initial_angle(34.40, p_jupiter), (0.8, 0.6, 0.4), Some(0), Mesh::sphere, Some("assets/textures/2k_jupiter.jpg"), 0.41, 3.1, 1.3));
 
         let p_saturn = 10759.22;
-        bodies.push(create_body("Saturn", 2.5, 35.0, get_orbit_speed(p_saturn), get_initial_angle(49.94, p_saturn), (0.9, 0.8, 0.5), Some(0), Mesh::sphere, Some("assets/textures/2k_saturn.jpg")));
+        // Saturn: Tilt 26.7, Rot 0.45 days, Inc 2.48
+        bodies.push(create_body("Saturn", 2.5, 35.0, get_orbit_speed(p_saturn), get_initial_angle(49.94, p_saturn), (0.9, 0.8, 0.5), Some(0), Mesh::sphere, Some("assets/textures/2k_saturn.jpg"), 0.45, 26.7, 2.48));
 
         let p_uranus = 30685.4;
-        bodies.push(create_body("Uranus", 1.8, 45.0, get_orbit_speed(p_uranus), get_initial_angle(313.23, p_uranus), (0.0, 0.8, 0.8), Some(0), Mesh::sphere, Some("assets/textures/2k_uranus.jpg")));
+        // Uranus: Tilt 97.8, Rot 0.72 days (retrograde), Inc 0.77
+        bodies.push(create_body("Uranus", 1.8, 45.0, get_orbit_speed(p_uranus), get_initial_angle(313.23, p_uranus), (0.0, 0.8, 0.8), Some(0), Mesh::sphere, Some("assets/textures/2k_uranus.jpg"), -0.72, 97.8, 0.77));
 
         let p_neptune = 60189.0;
-        bodies.push(create_body("Neptune", 1.7, 55.0, get_orbit_speed(p_neptune), get_initial_angle(304.88, p_neptune), (0.0, 0.0, 0.8), Some(0), Mesh::sphere, Some("assets/textures/2k_neptune.jpg")));
+        // Neptune: Tilt 28.3, Rot 0.67 days, Inc 1.77
+        bodies.push(create_body("Neptune", 1.7, 55.0, get_orbit_speed(p_neptune), get_initial_angle(304.88, p_neptune), (0.0, 0.0, 0.8), Some(0), Mesh::sphere, Some("assets/textures/2k_neptune.jpg"), 0.67, 28.3, 1.77));
 
         SolarSystem {
             renderer,
@@ -170,10 +187,20 @@ impl SolarSystem {
                 body.orbit_angle += body.orbit_speed * dt as f32 * self.time_scale; 
             }
             
+            // Update rotation
+            if body.rotation_period != 0.0 {
+                let rotation_speed = (2.0 * std::f32::consts::PI) / (body.rotation_period * 24.0 * 3600.0); // rad/s
+                body.current_rotation += rotation_speed * dt as f32 * self.time_scale * 1000.0; // Speed up rotation for visibility
+            }
+
             let x = body.orbit_radius * body.orbit_angle.cos();
             let z = body.orbit_radius * body.orbit_angle.sin();
             
-            let mut pos = Vector3::new(x, 0.0, z);
+            // Apply inclination (rotate around X axis for simplicity)
+            let y = z * body.orbit_inclination.sin();
+            let z = z * body.orbit_inclination.cos();
+            
+            let mut pos = Vector3::new(x, y, z);
             
             if let Some(parent_idx) = body.parent {
                 pos += positions[parent_idx];
@@ -236,7 +263,12 @@ impl SolarSystem {
             let body = &self.bodies[i];
             let x = body.orbit_radius * body.orbit_angle.cos();
             let z = body.orbit_radius * body.orbit_angle.sin();
-            let mut pos = Vector3::new(x, 0.0, z);
+            
+            // Apply inclination
+            let y = z * body.orbit_inclination.sin();
+            let z = z * body.orbit_inclination.cos();
+
+            let mut pos = Vector3::new(x, y, z);
             if let Some(parent_idx) = body.parent {
                 pos += positions[parent_idx];
             }
@@ -261,7 +293,7 @@ impl SolarSystem {
                 &body.mesh,
                 pos.x, pos.y, pos.z,
                 body.radius, body.radius, body.radius,
-                0.0, 0.0, 0.0,
+                body.axial_tilt, body.current_rotation, 0.0,
                 &projection,
                 &view,
                 body.texture.as_ref()
