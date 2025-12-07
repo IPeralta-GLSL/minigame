@@ -326,7 +326,11 @@
         </div>
     </div>
     <script type="module">
-        import init, { start_crossy_road, start_solar_system, touch_left, touch_right, touch_forward, touch_restart, activate_god_mode, set_solar_time_scale } from './pkg/crossy_road_clone.js';
+        import init, { start_crossy_road, start_solar_system, touch_left, touch_right, touch_forward, touch_restart, activate_god_mode, set_solar_time_scale, select_solar_body } from './pkg/crossy_road_clone.js';
+
+        window.selectSolarBody = function(index) {
+            select_solar_body(index);
+        };
 
         window.startGame = function(type) {
             document.getElementById('menu').style.display = 'none';

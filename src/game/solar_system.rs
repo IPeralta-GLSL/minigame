@@ -36,6 +36,7 @@ pub struct SolarSystem {
     current_time: f64,
     background_mesh: Mesh,
     background_texture: Option<WebGlTexture>,
+    focused_body_index: Option<usize>,
 }
 
 impl SolarSystem {
@@ -206,6 +207,22 @@ impl SolarSystem {
             }
         }
 
+        // Populate UI list
+        if let Some(list) = document.query_selector(".body-list").unwrap() {
+            list.set_inner_html(""); // Clear existing
+            
+            for (i, body) in bodies.iter().enumerate() {
+                let li = document.create_element("li").unwrap();
+                li.set_text_content(Some(&body.name));
+                // We use a global function that we'll expose from JS/Wasm
+                li.set_attribute("onclick", &format!("window.selectSolarBody({})", i)).unwrap();
+                li.set_attribute("style", "cursor: pointer; padding: 5px; transition: background 0.2s;").unwrap();
+                li.set_class_name("solar-list-item");
+                
+                list.append_child(&li).unwrap();
+            }
+        }
+
         SolarSystem {
             renderer,
             bodies,
@@ -218,6 +235,25 @@ impl SolarSystem {
             current_time: now_ms,
             background_mesh,
             background_texture,
+            focused_body_index: None,
+        }
+    }
+
+    pub fn select_body(&mut self, index: usize) {
+        if index < self.bodies.len() {
+            self.focused_body_index = Some(index);
+            // Zoom in to the body
+            // Use a distance relative to the body's radius, but clamped
+            let radius = self.bodies[index].radius;
+            // For Sun (radius ~0.465), distance ~2.0 is good.
+            // For Earth (radius ~0.0042), distance ~0.02 is good.
+            // So roughly 5x radius.
+            self.camera_distance = radius * 5.0;
+            
+            // Clamp to reasonable limits so we don't clip inside
+            self.camera_distance = self.camera_distance.max(radius * 1.5);
+        } else {
+            self.focused_body_index = None;
         }
     }
 
@@ -348,16 +384,39 @@ impl SolarSystem {
         self.renderer.resize(width, height);
         self.renderer.enable_depth_test();
 
+        // Calculate positions first
+        let mut positions = vec![Vector3::new(0.0, 0.0, 0.0); self.bodies.len()];
+        for i in 0..self.bodies.len() {
+            let body = &self.bodies[i];
+            let x = body.orbit_radius * body.orbit_angle.cos();
+            let z = body.orbit_radius * body.orbit_angle.sin();
+            
+            let y = z * body.orbit_inclination.sin();
+            let z = z * body.orbit_inclination.cos();
+
+            let mut pos = Vector3::new(x, y, z);
+            if let Some(parent_idx) = body.parent {
+                pos += positions[parent_idx];
+            }
+            positions[i] = pos;
+        }
+
+        let target = if let Some(idx) = self.focused_body_index {
+            positions[idx]
+        } else {
+            Vector3::new(0.0, 0.0, 0.0)
+        };
+
         let aspect = width as f32 / height as f32;
-        let projection = Matrix4::new_perspective(aspect, 45.0 * std::f32::consts::PI / 180.0, 0.1, 50000.0);
+        let projection = Matrix4::new_perspective(aspect, 45.0 * std::f32::consts::PI / 180.0, 0.0001, 50000.0); // Reduced near plane for close zoom
         
-        let cam_x = self.camera_distance * self.camera_rotation.0.cos() * self.camera_rotation.1.sin();
-        let cam_y = self.camera_distance * self.camera_rotation.0.sin();
-        let cam_z = self.camera_distance * self.camera_rotation.0.cos() * self.camera_rotation.1.cos();
+        let cam_x = target.x + self.camera_distance * self.camera_rotation.0.cos() * self.camera_rotation.1.sin();
+        let cam_y = target.y + self.camera_distance * self.camera_rotation.0.sin();
+        let cam_z = target.z + self.camera_distance * self.camera_rotation.0.cos() * self.camera_rotation.1.cos();
 
         let view = Matrix4::look_at_rh(
             &Point3::new(cam_x, cam_y, cam_z),
-            &Point3::new(0.0, 0.0, 0.0),
+            &Point3::new(target.x, target.y, target.z),
             &Vector3::y(),
         );
 
@@ -375,22 +434,9 @@ impl SolarSystem {
         );
         self.renderer.enable_depth_test();
 
-        let mut positions = vec![Vector3::new(0.0, 0.0, 0.0); self.bodies.len()];
-
-        for i in 0..self.bodies.len() {
-            let body = &self.bodies[i];
-            let x = body.orbit_radius * body.orbit_angle.cos();
-            let z = body.orbit_radius * body.orbit_angle.sin();
-            
-            let y = z * body.orbit_inclination.sin();
-            let z = z * body.orbit_inclination.cos();
-
-            let mut pos = Vector3::new(x, y, z);
-            if let Some(parent_idx) = body.parent {
-                pos += positions[parent_idx];
-            }
-            positions[i] = pos;
-        }
+        // Positions already calculated above
+        // let mut positions = vec![Vector3::new(0.0, 0.0, 0.0); self.bodies.len()];
+        // ... loop removed ...
 
         for (i, body) in self.bodies.iter().enumerate() {
             let pos = positions[i];

@@ -302,3 +302,14 @@ pub fn set_solar_time_scale(scale: f32) {
         }
     });
 }
+
+#[wasm_bindgen]
+pub fn select_solar_body(index: usize) {
+    CURRENT_GAME.with(|g| {
+        if let Some(active_game) = g.borrow_mut().as_mut() {
+            if let ActiveGame::Solar(game) = active_game {
+                game.select_body(index);
+            }
+        }
+    });
+}
