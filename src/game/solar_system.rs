@@ -138,7 +138,7 @@ impl SolarSystem {
         let p_neptune = 60189.0;
         bodies.push(create_body("Neptune", 1.7, 55.0, get_orbit_speed(p_neptune), get_initial_angle(304.88, p_neptune), (0.0, 0.0, 0.8), Some(0), Mesh::sphere, Some("assets/textures/2k_neptune.jpg"), 0.67, 28.3, 1.77));
 
-        let background_texture = renderer.create_texture("assets/textures/2k_stars_milky_way.jpg").ok();
+        let background_texture = renderer.create_texture("assets/textures/8k_stars.jpg").ok();
         let background_mesh = Mesh::sphere(1.0, 40, 40, 1.0, 1.0, 1.0);
 
         SolarSystem {
@@ -260,7 +260,7 @@ impl SolarSystem {
         
         self.renderer.draw_mesh(
             &self.background_mesh,
-            0.0, 0.0, 0.0,
+            cam_x, cam_y, cam_z,
             500.0, 500.0, 500.0,
             0.0, 0.0, 0.0,
             &projection,
