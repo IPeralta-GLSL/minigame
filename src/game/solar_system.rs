@@ -216,16 +216,59 @@ impl SolarSystem {
                 }
             }
 
+            // Generate Voyager 1 trajectory
+            // Approximate path: Earth -> Jupiter -> Saturn -> Out
+            let mut trail = Vec::new();
+            
+            // Earth (100.0) to Jupiter (520.0)
+            // Angle 0 to 2.0
+            for i in 0..100 {
+                let t = i as f32 / 100.0;
+                let r = 100.0 + (520.0 - 100.0) * t;
+                let a = 0.0 + (2.0 - 0.0) * t;
+                let x = r * a.cos();
+                let z = r * a.sin();
+                trail.push(x); trail.push(0.0); trail.push(z);
+            }
+            
+            // Jupiter (520.0) to Saturn (958.0)
+            // Angle 2.0 to 3.5
+            for i in 0..100 {
+                let t = i as f32 / 100.0;
+                let r = 520.0 + (958.0 - 520.0) * t;
+                let a = 2.0 + (3.5 - 2.0) * t;
+                let x = r * a.cos();
+                let z = r * a.sin();
+                trail.push(x); trail.push(0.0); trail.push(z);
+            }
+            
+            // Saturn (958.0) to Current (16200.0)
+            // Angle 3.5 to 4.5 (approx 258 deg)
+            // Inclination starts ramping up
+            for i in 0..500 {
+                let t = i as f32 / 500.0;
+                let r = 958.0 + (16200.0 - 958.0) * t;
+                let a = 3.5 + (4.5 - 3.5) * t;
+                let inc = 35.0f32.to_radians() * t; // Ramp up inclination
+                
+                let x = r * a.cos();
+                let z = r * a.sin();
+                let y = z * inc.sin(); // Simple approximation
+                let z = z * inc.cos();
+                
+                trail.push(x); trail.push(y); trail.push(z);
+            }
+
             bodies.push(Body {
                 mesh,
                 radius: 0.0001, // Tiny
                 orbit_radius: 16200.0, // ~162 AU
                 orbit_speed: 0.0, 
-                orbit_angle: 0.0, 
+                orbit_angle: 4.5, 
                 color: (0.8, 0.8, 0.8),
                 parent: Some(0),
                 name: "Voyager 1".to_string(),
-                trail: Vec::new(),
+                trail,
                 label_element,
                 texture: None,
                 night_texture: None,
@@ -347,6 +390,32 @@ impl SolarSystem {
         let mut positions = vec![Vector3::new(0.0, 0.0, 0.0); self.bodies.len()];
 
         for i in 0..self.bodies.len() {
+            // Special handling for Voyager 1
+            if self.bodies[i].name == "Voyager 1" {
+                let body = &mut self.bodies[i];
+                // Move outwards linearly
+                // Speed: ~3.6 AU/year = 360 units / year
+                // 1 year = 365.25 days
+                // Speed per day = 360 / 365.25 ~= 0.98 units/day
+                // time_scale is roughly days/second (if 1.0 = 1 day/sec)
+                // Actually time_scale is just a multiplier.
+                // In update logic: orbit_angle += orbit_speed * dt * time_scale
+                // orbit_speed is rad/sec.
+                
+                // Let's just add a small amount to radius
+                body.orbit_radius += 0.98 * dt as f32 * self.time_scale;
+                
+                let x = body.orbit_radius * body.orbit_angle.cos();
+                let z = body.orbit_radius * body.orbit_angle.sin();
+                let y = z * body.orbit_inclination.sin();
+                let z = z * body.orbit_inclination.cos();
+                
+                positions[i] = Vector3::new(x, y, z);
+                
+                // Don't update trail using orbital logic
+                continue;
+            }
+
             let body = &mut self.bodies[i];
             if body.parent.is_some() {
                 body.orbit_angle += body.orbit_speed * dt as f32 * self.time_scale; 

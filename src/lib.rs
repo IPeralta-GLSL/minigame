@@ -209,7 +209,7 @@ pub async fn start_solar_system() -> Result<(), JsValue> {
     opts.set_method("GET");
     opts.set_mode(RequestMode::Cors);
     
-    let request = Request::new_with_str_and_init("/assets/models/voyager_1.glb", &opts)?;
+    let request = Request::new_with_str_and_init("/assets/models/voyager/Voyager.glb", &opts)?;
     let resp_value = JsFuture::from(window.fetch_with_request(&request)).await;
     
     if let Ok(resp_value) = resp_value {
