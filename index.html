@@ -182,6 +182,19 @@
             border-bottom: 1px solid #666;
             padding-bottom: 5px;
         }
+        .solar-info {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 10px 20px;
+            border-radius: 8px;
+            color: white;
+            font-family: monospace;
+            font-size: 16px;
+            border: 1px solid #444;
+            pointer-events: none;
+        }
         .body-list {
             list-style: none;
         }
@@ -262,6 +275,9 @@
         </div>
         
         <div id="solar-ui">
+            <div class="solar-info">
+                <span id="solar-date">Loading...</span>
+            </div>
             <div class="solar-sidebar">
                 <h3>Celestial Bodies</h3>
                 <ul class="body-list">
@@ -365,11 +381,38 @@
             function updateTimeScale() {
                 const scale = isPaused ? 0 : currentSpeed;
                 set_solar_time_scale(scale);
-                speedVal.textContent = currentSpeed.toFixed(1);
+                
+                let displaySpeed = currentSpeed;
+                let unit = "x";
+                
+                if (currentSpeed >= 31536000) {
+                    displaySpeed = (currentSpeed / 31536000).toFixed(2);
+                    unit = " years/sec";
+                } else if (currentSpeed >= 86400) {
+                    displaySpeed = (currentSpeed / 86400).toFixed(2);
+                    unit = " days/sec";
+                } else if (currentSpeed >= 3600) {
+                    displaySpeed = (currentSpeed / 3600).toFixed(2);
+                    unit = " hours/sec";
+                } else {
+                    displaySpeed = currentSpeed.toFixed(1);
+                }
+                
+                speedVal.textContent = `${displaySpeed}${unit}`;
             }
             
             timeSpeedInput.addEventListener('input', (e) => {
-                currentSpeed = parseFloat(e.target.value);
+                // Exponential slider: 0-100 maps to 1x - 100,000,000x
+                const val = parseFloat(e.target.value);
+                if (val <= 1) {
+                    currentSpeed = val;
+                } else {
+                    // Logarithmic scale
+                    // val 0 -> 1
+                    // val 100 -> 100,000,000 (approx 3 years/sec)
+                    // 10^(val/12.5)
+                    currentSpeed = Math.pow(10, val / 12.5);
+                }
                 isPaused = false;
                 updateTimeScale();
             });
