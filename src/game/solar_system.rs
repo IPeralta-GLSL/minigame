@@ -22,6 +22,7 @@ pub struct SolarSystem {
     last_time: f64,
     is_dragging: bool,
     last_mouse_pos: (i32, i32),
+    time_scale: f32,
 }
 
 impl SolarSystem {
@@ -156,7 +157,12 @@ impl SolarSystem {
             last_time: Date::now(),
             is_dragging: false,
             last_mouse_pos: (0, 0),
+            time_scale: 1.0,
         }
+    }
+
+    pub fn set_time_scale(&mut self, scale: f32) {
+        self.time_scale = scale;
     }
 
     pub fn update(&mut self) {
@@ -166,7 +172,7 @@ impl SolarSystem {
 
         for body in &mut self.bodies {
             if body.parent.is_some() {
-                body.orbit_angle += body.orbit_speed * dt as f32 * 0.5; 
+                body.orbit_angle += body.orbit_speed * dt as f32 * 0.5 * self.time_scale; 
             }
         }
     }
