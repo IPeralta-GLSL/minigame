@@ -195,7 +195,7 @@ impl SolarSystem {
                     let y = z * body.orbit_inclination.sin();
                     let z = z * body.orbit_inclination.cos();
                     
-                    let mut pos = Vector3::new(x, y, z);
+                    let pos = Vector3::new(x, y, z);
                     
                     if body.parent.is_some() && body.parent.unwrap() == 0 {
                          body.trail.push(pos.x);
@@ -370,7 +370,8 @@ impl SolarSystem {
             0.0, 0.0, 0.0,
             &projection,
             &view,
-            self.background_texture.as_ref()
+            self.background_texture.as_ref(),
+            None
         );
         self.renderer.enable_depth_test();
 
@@ -412,13 +413,27 @@ impl SolarSystem {
             let dz = cam_z - pos.z;
             let dist = (dx*dx + dy*dy + dz*dz).sqrt();
             
-            // Minimum visible size (e.g. 0.5% of distance)
-            let min_size = dist * 0.005;
-            let render_radius = body.radius.max(min_size);
+            // Minimum visible size (fixed angular size)
+            // 0.002 radians ~= 0.1 degrees.
+            let min_size = dist * 0.002; 
             
-            // Only use texture if we are close enough (real size is significant)
-            // If we are rendering an "icon" (scaled up), maybe we should use a flat color or the texture?
-            // Using the texture on a tiny sphere scaled up looks okay, it acts like an icon.
+            let (render_radius, use_texture) = if min_size > body.radius {
+                (min_size, false)
+            } else {
+                (body.radius, true)
+            };
+            
+            let texture_to_use = if use_texture {
+                body.texture.as_ref()
+            } else {
+                None
+            };
+            
+            let color_override = if !use_texture {
+                Some(body.color)
+            } else {
+                None
+            };
             
             self.renderer.draw_mesh(
                 &body.mesh,
@@ -427,7 +442,8 @@ impl SolarSystem {
                 body.axial_tilt, body.current_rotation, 0.0,
                 &projection,
                 &view,
-                body.texture.as_ref()
+                texture_to_use,
+                color_override
             );
             
             if let Some(element) = &body.label_element {

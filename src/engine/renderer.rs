@@ -216,7 +216,7 @@ impl Renderer {
         );
     }
 
-    pub fn draw_mesh(&self, mesh: &Mesh, x: f32, y: f32, z: f32, w: f32, h: f32, d: f32, rotation_x: f32, rotation_y: f32, rotation_z: f32, projection: &Matrix4<f32>, view: &Matrix4<f32>, texture: Option<&WebGlTexture>) {
+    pub fn draw_mesh(&self, mesh: &Mesh, x: f32, y: f32, z: f32, w: f32, h: f32, d: f32, rotation_x: f32, rotation_y: f32, rotation_z: f32, projection: &Matrix4<f32>, view: &Matrix4<f32>, texture: Option<&WebGlTexture>, color_override: Option<(f32, f32, f32)>) {
         if let Some(tex) = texture {
             self.gl.active_texture(WebGlRenderingContext::TEXTURE0);
             self.gl.bind_texture(WebGlRenderingContext::TEXTURE_2D, Some(tex));
@@ -225,7 +225,12 @@ impl Renderer {
             self.gl.uniform1i(Some(&self.u_use_uniform_color_location), 0);
         } else {
             self.gl.uniform1i(Some(&self.u_use_texture_location), 0);
-            self.gl.uniform1i(Some(&self.u_use_uniform_color_location), 0);
+            if let Some((r, g, b)) = color_override {
+                self.gl.uniform1i(Some(&self.u_use_uniform_color_location), 1);
+                self.gl.uniform3f(Some(&self.u_uniform_color_location), r, g, b);
+            } else {
+                self.gl.uniform1i(Some(&self.u_use_uniform_color_location), 0);
+            }
         }
 
         self.gl.bind_buffer(WebGlRenderingContext::ARRAY_BUFFER, Some(&self.dynamic_vertex_buffer));
