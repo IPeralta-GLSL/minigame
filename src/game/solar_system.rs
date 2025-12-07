@@ -135,6 +135,10 @@ impl SolarSystem {
         // Mars: 1.52 AU = 152.0 units. Radius = 0.0022
         bodies.push(create_body("Mars", 0.0022, 152.0, get_orbit_speed(p_mars), get_initial_angle(355.45, p_mars), (1.0, 0.0, 0.0), Some(0), Mesh::sphere, Some("assets/textures/2k_mars.jpg"), 1.03, 25.2, 1.85));
 
+        // Ceres: 2.77 AU = 277.0 units. Radius = 0.00029
+        let p_ceres = 1681.6;
+        bodies.push(create_body("Ceres", 0.00029, 277.0, get_orbit_speed(p_ceres), get_initial_angle(0.0, p_ceres), (0.4, 0.4, 0.4), Some(0), Mesh::sphere, Some("assets/textures/2k_ceres_fictional.jpg"), 0.375, 4.0, 10.6));
+
         let p_jupiter = 4332.589;
         // Jupiter: 5.20 AU = 520.0 units. Radius = 0.047
         bodies.push(create_body("Jupiter", 0.047, 520.0, get_orbit_speed(p_jupiter), get_initial_angle(34.40, p_jupiter), (0.8, 0.6, 0.4), Some(0), Mesh::sphere, Some("assets/textures/2k_jupiter.jpg"), 0.41, 3.1, 1.3));
@@ -150,6 +154,22 @@ impl SolarSystem {
         let p_neptune = 60189.0;
         // Neptune: 30.05 AU = 3005.0 units. Radius = 0.016
         bodies.push(create_body("Neptune", 0.016, 3005.0, get_orbit_speed(p_neptune), get_initial_angle(304.88, p_neptune), (0.0, 0.0, 0.8), Some(0), Mesh::sphere, Some("assets/textures/2k_neptune.jpg"), 0.67, 28.3, 1.77));
+
+        // Pluto: 39.48 AU = 3948.0 units. Radius = 0.00075
+        let p_pluto = 90560.0;
+        bodies.push(create_body("Pluto", 0.00075, 3948.0, get_orbit_speed(p_pluto), get_initial_angle(0.0, p_pluto), (0.6, 0.5, 0.4), Some(0), Mesh::sphere, Some("https://upload.wikimedia.org/wikipedia/commons/e/ef/Pluto_in_True_Color_-_High-Res.jpg"), -6.39, 122.5, 17.16));
+
+        // Haumea: 43.13 AU = 4313.0 units. Radius = 0.00055
+        let p_haumea = 103368.0;
+        bodies.push(create_body("Haumea", 0.00055, 4313.0, get_orbit_speed(p_haumea), get_initial_angle(0.0, p_haumea), (0.7, 0.7, 0.7), Some(0), Mesh::sphere, Some("assets/textures/2k_haumea_fictional.jpg"), 0.16, 0.0, 28.2));
+
+        // Makemake: 45.79 AU = 4579.0 units. Radius = 0.00046
+        let p_makemake = 112862.0;
+        bodies.push(create_body("Makemake", 0.00046, 4579.0, get_orbit_speed(p_makemake), get_initial_angle(0.0, p_makemake), (0.8, 0.6, 0.5), Some(0), Mesh::sphere, Some("assets/textures/2k_makemake_fictional.jpg"), 0.95, 0.0, 29.0));
+
+        // Eris: 67.67 AU = 6767.0 units. Radius = 0.00075
+        let p_eris = 203443.0;
+        bodies.push(create_body("Eris", 0.00075, 6767.0, get_orbit_speed(p_eris), get_initial_angle(0.0, p_eris), (0.9, 0.9, 0.9), Some(0), Mesh::sphere, Some("assets/textures/2k_eris_fictional.jpg"), 1.08, 78.0, 44.0));
 
         let background_texture = renderer.create_texture("assets/textures/8k_stars.jpg").ok();
         let background_mesh = Mesh::sphere(1.0, 40, 40, 1.0, 1.0, 1.0);
@@ -329,7 +349,7 @@ impl SolarSystem {
         self.renderer.enable_depth_test();
 
         let aspect = width as f32 / height as f32;
-        let projection = Matrix4::new_perspective(aspect, 45.0 * std::f32::consts::PI / 180.0, 0.1, 10000.0);
+        let projection = Matrix4::new_perspective(aspect, 45.0 * std::f32::consts::PI / 180.0, 0.1, 50000.0);
         
         let cam_x = self.camera_distance * self.camera_rotation.0.cos() * self.camera_rotation.1.sin();
         let cam_y = self.camera_distance * self.camera_rotation.0.sin();
@@ -471,6 +491,6 @@ impl SolarSystem {
 
     pub fn handle_wheel(&mut self, delta: f32) {
         self.camera_distance += delta * 0.05 * (self.camera_distance / 50.0).max(0.1); // Logarithmic zoom speed
-        self.camera_distance = self.camera_distance.max(1.0).min(5000.0);
+        self.camera_distance = self.camera_distance.max(1.0).min(20000.0);
     }
 }
