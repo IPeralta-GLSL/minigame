@@ -313,6 +313,18 @@
                     <li>Neptune</li>
                 </ul>
             </div>
+
+            <div id="solar-info-panel" style="position: absolute; top: 20px; right: 20px; background: rgba(0,0,0,0.8); padding: 15px; border-radius: 8px; color: white; width: 250px; display: none; border: 1px solid #444; pointer-events: auto;">
+                <h3 id="info-name" style="margin-bottom: 10px; color: #4a9eff; border-bottom: 1px solid #666; padding-bottom: 5px;">Planet Name</h3>
+                <div style="font-size: 14px; line-height: 1.6;">
+                    <p><strong>Mass:</strong> <span id="info-mass">-</span></p>
+                    <p><strong>Radius:</strong> <span id="info-radius">-</span></p>
+                    <p><strong>Temp:</strong> <span id="info-temp">-</span></p>
+                    <p><strong>Orbital Period:</strong> <span id="info-period">-</span></p>
+                    <p><strong>Eccentricity:</strong> <span id="info-eccentricity">-</span></p>
+                    <p style="margin-top: 10px; font-style: italic; color: #aaa;" id="info-desc"></p>
+                </div>
+            </div>
             
             <div class="time-controls">
                 <button id="time-pause">⏸️</button>
