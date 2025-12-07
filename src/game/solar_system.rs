@@ -563,21 +563,32 @@ impl SolarSystem {
             }
             
             if let Some(element) = &body.label_element {
-                let pos_vec4 = Vector4::new(pos.x, pos.y + body.radius + 0.5, pos.z, 1.0);
-                let clip_space = projection * view * pos_vec4;
+                let center_world = Vector4::new(pos.x, pos.y, pos.z, 1.0);
+                let view_pos = view * center_world;
+                // Calculate position of the top of the sphere in view space (screen up)
+                let top_view = view_pos + Vector4::new(0.0, render_radius, 0.0, 0.0);
                 
-                if clip_space.w > 0.0 {
-                    let ndc_x = clip_space.x / clip_space.w;
-                    let ndc_y = clip_space.y / clip_space.w;
+                let clip_center = projection * view_pos;
+                let clip_top = projection * top_view;
+                
+                if clip_center.w > 0.0 {
+                    let ndc_center_x = clip_center.x / clip_center.w;
+                    let ndc_center_y = clip_center.y / clip_center.w;
+                    let ndc_top_y = clip_top.y / clip_top.w;
                     
-                    if ndc_x >= -1.0 && ndc_x <= 1.0 && ndc_y >= -1.0 && ndc_y <= 1.0 {
-                        let screen_x = (ndc_x + 1.0) * width as f32 / 2.0;
-                        let screen_y = (1.0 - ndc_y) * height as f32 / 2.0;
+                    if ndc_center_x >= -1.0 && ndc_center_x <= 1.0 && ndc_center_y >= -1.0 && ndc_center_y <= 1.0 {
+                        let screen_x = (ndc_center_x + 1.0) * width as f32 / 2.0;
+                        let screen_cy = (1.0 - ndc_center_y) * height as f32 / 2.0;
+                        let screen_ty = (1.0 - ndc_top_y) * height as f32 / 2.0;
+                        
+                        // Calculate screen radius and apply padding
+                        let radius_px = (screen_cy - screen_ty).abs();
+                        let label_y = screen_cy - radius_px - 20.0;
                         
                         let style = element.style();
                         style.set_property("display", "block").unwrap();
                         style.set_property("left", &format!("{}px", screen_x)).unwrap();
-                        style.set_property("top", &format!("{}px", screen_y)).unwrap();
+                        style.set_property("top", &format!("{}px", label_y)).unwrap();
                     } else {
                         element.style().set_property("display", "none").unwrap();
                     }
