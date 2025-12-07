@@ -2,8 +2,9 @@ use crate::engine::renderer::Renderer;
 use crate::engine::mesh::Mesh;
 use nalgebra::{Matrix4, Point3, Vector3, Vector4};
 use js_sys::Date;
-use web_sys::{HtmlElement, WebGlTexture, WebGlRenderingContext};
+use web_sys::{HtmlElement, WebGlTexture};
 use wasm_bindgen::JsCast;
+use rand::Rng;
 
 pub struct Body {
     pub mesh: Mesh,
@@ -74,12 +75,14 @@ impl SolarSystem {
         let create_body = |name: &str, radius: f32, orbit_radius: f32, orbit_speed: f32, orbit_angle: f32, color: (f32, f32, f32), parent: Option<usize>, mesh_fn: fn(f32, u16, u16, f32, f32, f32) -> Mesh, texture_url: Option<&str>, night_texture_url: Option<&str>, cloud_texture_url: Option<&str>, rotation_period: f32, axial_tilt: f32, orbit_inclination: f32, eccentricity: f32, mass: &str, temperature: f32, description: &str| {
             let mut label_element = None;
             if let Some(container) = &labels_container {
-                let el = document.create_element("div").unwrap();
-                el.set_class_name("solar-label");
-                el.set_text_content(Some(name));
-                container.append_child(&el).unwrap();
-                if let Ok(html_el) = el.dyn_into::<HtmlElement>() {
-                    label_element = Some(html_el);
+                if !name.starts_with("Asteroid") {
+                    let el = document.create_element("div").unwrap();
+                    el.set_class_name("solar-label");
+                    el.set_text_content(Some(name));
+                    container.append_child(&el).unwrap();
+                    if let Ok(html_el) = el.dyn_into::<HtmlElement>() {
+                        label_element = Some(html_el);
+                    }
                 }
             }
 
@@ -180,6 +183,35 @@ impl SolarSystem {
         let p_ceres = 1681.6;
         bodies.push(create_body("Ceres", 0.00029, 277.0, get_orbit_speed(p_ceres), get_initial_angle(0.0, p_ceres), (0.4, 0.4, 0.4), Some(0), Mesh::sphere, Some("assets/textures/2k_ceres_fictional.jpg"), None, None, 0.375, 4.0, 10.6, 0.076, "9.393 × 10^20 kg", 168.0, "The largest object in the asteroid belt."));
 
+        let mut rng = rand::thread_rng();
+        for i in 0..200 {
+            let angle: f32 = rng.gen_range(0.0..360.0);
+            let dist: f32 = rng.gen_range(220.0..320.0);
+            let size: f32 = rng.gen_range(0.0001..0.0003);
+            let period = (dist / 100.0).powf(1.5) * 365.256;
+            
+            bodies.push(create_body(
+                &format!("Asteroid {}", i),
+                size,
+                dist,
+                get_orbit_speed(period),
+                angle.to_radians(),
+                (0.5, 0.5, 0.5),
+                Some(0),
+                Mesh::sphere,
+                None,
+                None,
+                None,
+                rng.gen_range(5.0..20.0),
+                rng.gen_range(0.0..30.0),
+                rng.gen_range(-10.0..10.0),
+                rng.gen_range(0.0..0.2),
+                "Unknown",
+                150.0,
+                "Asteroid Belt Object"
+            ));
+        }
+
         let p_jupiter = 4332.589;
 
         bodies.push(create_body("Jupiter", 0.047, 520.0, get_orbit_speed(p_jupiter), get_initial_angle(34.40, p_jupiter), (0.8, 0.6, 0.4), Some(0), Mesh::sphere, Some("assets/textures/2k_jupiter.jpg"), None, None, 0.41, 3.1, 1.3, 0.049, "1.898 × 10^27 kg", 165.0, "The largest planet in the Solar System."));
@@ -219,6 +251,7 @@ impl SolarSystem {
         let trail_points = 1000;
         for i in 0..bodies.len() {
             let body = &mut bodies[i];
+            if body.name.starts_with("Asteroid") { continue; }
             if body.orbit_radius > 0.0 && body.orbit_speed != 0.0 {
                 let full_circle = 2.0 * std::f32::consts::PI;
                 let angle_step = full_circle / trail_points as f32;
@@ -256,6 +289,7 @@ impl SolarSystem {
             list.set_inner_html(""); // Clear existing
             
             for (i, body) in bodies.iter().enumerate() {
+                if body.name.starts_with("Asteroid") { continue; }
                 let li = document.create_element("li").unwrap();
                 li.set_text_content(Some(&body.name));
 
@@ -435,6 +469,7 @@ impl SolarSystem {
             positions[i] = pos;
             
             if body.orbit_radius > 0.0 {
+                if body.name.starts_with("Asteroid") { continue; }
 
                 let two_pi = 2.0 * std::f32::consts::PI;
                 let angle_step = two_pi / 1000.0; // 1000 points per orbit
@@ -571,10 +606,9 @@ impl SolarSystem {
 
         for (i, body) in self.bodies.iter().enumerate() {
             let abs_pos = positions[i];
-
             let pos = abs_pos - target;
             
-            if !body.trail.is_empty() {
+            if !body.trail.is_empty() && !body.name.starts_with("Asteroid") {
                 let parent_pos = if let Some(pidx) = body.parent {
                     positions[pidx]
                 } else {
