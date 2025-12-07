@@ -33,7 +33,7 @@ const VERTEX_SHADER: &str = r#"
 "#;
 
 const FRAGMENT_SHADER: &str = r#"
-    precision mediump float;
+    precision highp float;
     varying vec3 vColor;
     varying vec2 vTexCoord;
     varying vec3 vPos;
@@ -49,7 +49,7 @@ const FRAGMENT_SHADER: &str = r#"
     // Light properties (Sun at 0,0,0)
     const vec3 lightPos = vec3(0.0, 0.0, 0.0);
     const vec3 lightColor = vec3(1.0, 1.0, 1.0);
-    const float ambientStrength = 0.05;
+    const float ambientStrength = 0.15;
 
     uniform bool uUseLighting;
 
