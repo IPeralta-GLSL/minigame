@@ -209,7 +209,7 @@ impl SolarSystem {
         bodies.push(create_body("Ceres", 0.00029, 277.0, get_orbit_speed(p_ceres), get_initial_angle(0.0, p_ceres), (0.4, 0.4, 0.4), Some(0), Mesh::sphere, Some("assets/textures/2k_ceres_fictional.jpg"), None, None, None, 0.0, 0.375, 4.0, 10.6, 0.076, "9.393 × 10^20 kg", 168.0, "The largest object in the asteroid belt.", None));
 
         let mut rng = rand::thread_rng();
-        for i in 0..200 {
+        for i in 0..1500 {
             let angle: f32 = rng.gen_range(0.0..360.0);
             let dist: f32 = rng.gen_range(220.0..320.0);
             let size: f32 = rng.gen_range(0.00001..0.00005);
@@ -291,7 +291,7 @@ impl SolarSystem {
         let p_eris = 203443.0;
         bodies.push(create_body("Eris", 0.00075, 6767.0, get_orbit_speed(p_eris), get_initial_angle(0.0, p_eris), (0.9, 0.9, 0.9), Some(0), Mesh::sphere, Some("assets/textures/2k_eris_fictional.jpg"), None, None, None, 0.0, 1.08, 78.0, 44.0, 0.441, "1.66 × 10^22 kg", 30.0, "The most massive and second-largest known dwarf planet.", None));
 
-        for i in 0..300 {
+        for i in 0..2000 {
             let angle: f32 = rng.gen_range(0.0..360.0);
             let dist: f32 = rng.gen_range(3000.0..5500.0);
             let size: f32 = rng.gen_range(0.0002..0.0006);
@@ -730,9 +730,9 @@ impl SolarSystem {
             let dz = rel_cam_z - pos.z;
             let dist = (dx*dx + dy*dy + dz*dz).sqrt();
             
-
-
-            let min_size = dist * 0.002; 
+            let is_small_body = body.name.starts_with("Asteroid") || body.name.starts_with("Kuiper");
+            let scale_factor = if is_small_body { 0.0005 } else { 0.002 };
+            let min_size = dist * scale_factor; 
             
             let (render_radius, use_texture) = if min_size > body.radius {
                 (min_size, false)
