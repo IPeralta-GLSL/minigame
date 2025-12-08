@@ -413,12 +413,16 @@ impl SolarSystem {
                 if let Some(el) = document.get_element_by_id("info-radius") { el.set_text_content(Some(&format!("{:.1} km", body.radius * 6371.0 / 0.0042))); } // Approx scale based on Earth
                 if let Some(el) = document.get_element_by_id("info-temp") { el.set_text_content(Some(&format!("{:.0} K", body.temperature))); }
                 if let Some(el) = document.get_element_by_id("info-period") { 
-                    let period = if body.orbit_speed.abs() > 0.0 {
-                        (2.0 * std::f32::consts::PI / body.orbit_speed) / (24.0 * 3600.0)
+                    if body.name == "Sun" {
+                        el.set_text_content(Some("230,000,000 years (Galactic)"));
                     } else {
-                        0.0
-                    };
-                    el.set_text_content(Some(&format!("{:.2} days", period))); 
+                        let period = if body.orbit_speed.abs() > 0.0 {
+                            (2.0 * std::f32::consts::PI / body.orbit_speed) / (24.0 * 3600.0)
+                        } else {
+                            0.0
+                        };
+                        el.set_text_content(Some(&format!("{:.2} days", period))); 
+                    }
                 }
                 if let Some(el) = document.get_element_by_id("info-eccentricity") { el.set_text_content(Some(&format!("{:.4}", body.eccentricity))); }
                 if let Some(el) = document.get_element_by_id("info-desc") { el.set_text_content(Some(&body.description)); }
