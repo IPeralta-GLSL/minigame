@@ -145,8 +145,14 @@ impl SolarSystem {
                 color
             };
 
+            let (slices, stacks) = if name.starts_with("Asteroid") || name.starts_with("Kuiper") {
+                (6, 6)
+            } else {
+                (40, 40)
+            };
+
             Body {
-                mesh: mesh_fn(1.0, 40, 40, mesh_r, mesh_g, mesh_b),
+                mesh: mesh_fn(1.0, slices, stacks, mesh_r, mesh_g, mesh_b),
                 radius,
                 orbit_radius,
                 orbit_speed,
