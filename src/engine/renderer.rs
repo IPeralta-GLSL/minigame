@@ -48,6 +48,7 @@ const FRAGMENT_SHADER: &str = r#"
     uniform bool uUseUniformColor;
     uniform vec3 uTimeColor;
     uniform bool uIsRing;
+    uniform float uRingInnerRadius;
     
     // Light properties
     uniform vec3 uLightPos;
@@ -69,12 +70,14 @@ const FRAGMENT_SHADER: &str = r#"
         vec2 texCoord = vTexCoord;
         if (uIsRing) {
             float dist = distance(vTexCoord, vec2(0.5));
-            if (dist > 0.5 || dist < 0.15) {
+            float inner = uRingInnerRadius;
+            if (inner <= 0.0) inner = 0.15; // Default fallback
+
+            if (dist > 0.5 || dist < inner) {
                 discard;
             }
-            // Radial mapping: map distance 0.15..0.5 to u 0.0..1.0
-            // (dist - 0.15) / (0.5 - 0.15) = (dist - 0.15) / 0.35
-            texCoord = vec2((dist - 0.15) / 0.35, 0.5);
+            // Radial mapping: map distance inner..0.5 to u 0.0..1.0
+            texCoord = vec2((dist - inner) / (0.5 - inner), 0.5);
         }
 
         if (uUseTexture == 1) {
@@ -163,6 +166,7 @@ pub struct Renderer {
     pub u_use_lighting_location: WebGlUniformLocation,
     pub u_light_pos_location: WebGlUniformLocation,
     pub u_is_ring_location: WebGlUniformLocation,
+    pub u_ring_inner_radius_location: WebGlUniformLocation,
     unit_cube_vertex_buffer: WebGlBuffer,
     unit_cube_index_buffer: WebGlBuffer,
     unit_cube_index_count: i32,
@@ -204,6 +208,8 @@ impl Renderer {
             .ok_or("Failed to get uLightPos location")?;
         let u_is_ring_location = gl.get_uniform_location(&program, "uIsRing")
             .ok_or("Failed to get uIsRing location")?;
+        let u_ring_inner_radius_location = gl.get_uniform_location(&program, "uRingInnerRadius")
+            .ok_or("Failed to get uRingInnerRadius location")?;
 
         // Create unit cube buffers
         let unit_cube_vertex_buffer = gl.create_buffer().ok_or("Failed to create unit cube buffer")?;
@@ -258,6 +264,7 @@ impl Renderer {
             u_use_lighting_location,
             u_light_pos_location,
             u_is_ring_location,
+            u_ring_inner_radius_location,
         })
     }
 
@@ -332,10 +339,11 @@ impl Renderer {
         );
     }
 
-    pub fn draw_mesh(&self, mesh: &Mesh, x: f32, y: f32, z: f32, w: f32, h: f32, d: f32, rotation_x: f32, rotation_y: f32, rotation_z: f32, projection: &Matrix4<f32>, view: &Matrix4<f32>, texture: Option<&WebGlTexture>, night_texture: Option<&WebGlTexture>, color_override: Option<(f32, f32, f32)>, is_ring: bool) {
+    pub fn draw_mesh(&self, mesh: &Mesh, x: f32, y: f32, z: f32, w: f32, h: f32, d: f32, rotation_x: f32, rotation_y: f32, rotation_z: f32, projection: &Matrix4<f32>, view: &Matrix4<f32>, texture: Option<&WebGlTexture>, night_texture: Option<&WebGlTexture>, color_override: Option<(f32, f32, f32)>, is_ring: bool, ring_inner_radius: Option<f32>) {
         // Enable lighting by default for meshes
         self.gl.uniform1i(Some(&self.u_use_lighting_location), 1);
         self.gl.uniform1i(Some(&self.u_is_ring_location), if is_ring { 1 } else { 0 });
+        self.gl.uniform1f(Some(&self.u_ring_inner_radius_location), ring_inner_radius.unwrap_or(0.0));
 
         if let Some(tex) = texture {
             self.gl.active_texture(WebGlRenderingContext::TEXTURE0);
