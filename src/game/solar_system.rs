@@ -49,6 +49,7 @@ pub struct SolarSystem {
     background_texture: Option<WebGlTexture>,
     focused_body_index: Option<usize>,
     sphere_mesh: Mesh,
+    asteroid_mesh: Mesh,
     ring_mesh: Mesh,
 }
 
@@ -56,6 +57,7 @@ impl SolarSystem {
     pub fn new(renderer: Renderer) -> Self {
         let mut bodies = Vec::new();
         let sphere_mesh = Mesh::sphere(1.0, 20, 20, 1.0, 1.0, 1.0);
+        let asteroid_mesh = Mesh::sphere(1.0, 6, 6, 1.0, 1.0, 1.0);
         let ring_mesh = Mesh::quad(2.0, 2.0);
         
         let now_ms = Date::now();
@@ -263,7 +265,7 @@ impl SolarSystem {
         let saturn_idx = bodies.len() - 1;
 
         // Saturn Moon
-        bodies.push(create_body("Titan", 0.0017, 0.81, get_orbit_speed(15.94), get_initial_angle(0.0, 15.94), (0.9, 0.7, 0.2), Some(saturn_idx), Mesh::sphere, Some("https://upload.wikimedia.org/wikipedia/commons/9/91/Titan_in_natural_color_Cassini.jpg"), None, None, None, 0.0, 15.94, 0.0, 0.3, 0.028, "1.345 × 10^23 kg", 94.0, "Saturn's largest moon.", None));
+        bodies.push(create_body("Titan", 0.0017, 0.81, get_orbit_speed(15.94), get_initial_angle(0.0, 15.94), (0.9, 0.7, 0.2), Some(saturn_idx), Mesh::sphere, None, None, None, None, 0.0, 15.94, 0.0, 0.3, 0.028, "1.345 × 10^23 kg", 94.0, "Saturn's largest moon.", None));
 
         // Chariklo (Centaur)
         let p_chariklo = 22911.0; // ~62.7 years
@@ -399,6 +401,7 @@ impl SolarSystem {
             background_texture,
             focused_body_index: Some(3),
             sphere_mesh,
+            asteroid_mesh,
             ring_mesh,
         }
     }
@@ -700,9 +703,8 @@ impl SolarSystem {
         
         self.renderer.enable_depth_test();
 
-
-
-
+        let mut instance_data = Vec::with_capacity(self.bodies.len() * 7);
+        let mut asteroid_count = 0;
 
         for (i, body) in self.bodies.iter().enumerate() {
             let abs_pos = positions[i];
@@ -729,15 +731,30 @@ impl SolarSystem {
                 );
             }
 
-
-
             let dx = rel_cam_x - pos.x;
             let dy = rel_cam_y - pos.y;
             let dz = rel_cam_z - pos.z;
             let dist = (dx*dx + dy*dy + dz*dz).sqrt();
             
             let is_small_body = body.name.starts_with("Asteroid") || body.name.starts_with("Kuiper");
-            let scale_factor = if is_small_body { 0.0005 } else { 0.002 };
+            
+            if is_small_body {
+                let scale_factor = 0.0005;
+                let min_size = dist * scale_factor; 
+                let render_radius = if min_size > body.radius { min_size } else { body.radius };
+                
+                instance_data.push(pos.x);
+                instance_data.push(pos.y);
+                instance_data.push(pos.z);
+                instance_data.push(render_radius);
+                instance_data.push(body.color.0);
+                instance_data.push(body.color.1);
+                instance_data.push(body.color.2);
+                asteroid_count += 1;
+                continue;
+            }
+
+            let scale_factor = 0.002;
             let min_size = dist * scale_factor; 
             
             let (render_radius, use_texture) = if min_size > body.radius {
@@ -885,6 +902,17 @@ impl SolarSystem {
                     element.style().set_property("display", "none").unwrap();
                 }
             }
+        }
+
+        if asteroid_count > 0 {
+             self.renderer.draw_instanced_mesh(
+                &self.asteroid_mesh,
+                &instance_data,
+                asteroid_count,
+                &projection,
+                &view,
+                &Vector3::new(0.0, 0.0, 0.0)
+            );
         }
     }
 

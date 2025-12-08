@@ -42,6 +42,7 @@ features = [
     "EventTarget",
     "MouseEvent",
     "WheelEvent", "Element", "HtmlElement", "Node", "CssStyleDeclaration",
+    "AngleInstancedArrays",
 ]
 
 [profile.release]

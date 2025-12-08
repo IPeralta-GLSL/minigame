@@ -1,5 +1,5 @@
 use wasm_bindgen::prelude::*;
-use web_sys::{WebGlRenderingContext, WebGlProgram, WebGlBuffer, WebGlUniformLocation, HtmlCanvasElement, WebGlTexture, HtmlImageElement};
+use web_sys::{WebGlRenderingContext, WebGlProgram, WebGlBuffer, WebGlUniformLocation, HtmlCanvasElement, WebGlTexture, HtmlImageElement, AngleInstancedArrays};
 use nalgebra::{Matrix4, Vector3};
 use crate::engine::mesh::Mesh;
 use wasm_bindgen::JsCast;
@@ -29,6 +29,38 @@ const VERTEX_SHADER: &str = r#"
         // Calculate world space position and normal
         vFragPos = vec3(uModel * vec4(aPosition, 1.0));
         vNormal = uNormalMatrix * aNormal; // Assuming aNormal is available in mesh
+    }
+"#;
+
+const INSTANCED_VERTEX_SHADER: &str = r#"
+    attribute vec3 aPosition;
+    attribute vec3 aNormal;
+    attribute vec2 aTexCoord;
+    
+    attribute vec3 aInstancePosition;
+    attribute float aInstanceScale;
+    attribute vec3 aInstanceColor;
+
+    uniform mat4 uView;
+    uniform mat4 uProjection;
+    
+    varying vec3 vColor;
+    varying vec2 vTexCoord;
+    varying vec3 vPos;
+    varying vec3 vNormal;
+    varying vec3 vFragPos;
+
+    void main() {
+        vec3 scaledPos = aPosition * aInstanceScale;
+        vec3 worldPos = scaledPos + aInstancePosition;
+        
+        gl_Position = uProjection * uView * vec4(worldPos, 1.0);
+        
+        vPos = aPosition; 
+        vColor = aInstanceColor;
+        vTexCoord = aTexCoord;
+        vFragPos = worldPos;
+        vNormal = aNormal; 
     }
 "#;
 
@@ -154,6 +186,15 @@ pub struct Renderer {
     unit_cube_index_count: i32,
     dynamic_vertex_buffer: WebGlBuffer,
     dynamic_index_buffer: WebGlBuffer,
+    
+    // Instancing
+    instanced_ext: Option<AngleInstancedArrays>,
+    instanced_program: WebGlProgram,
+    u_instanced_view_loc: WebGlUniformLocation,
+    u_instanced_proj_loc: WebGlUniformLocation,
+    u_instanced_light_pos_loc: WebGlUniformLocation,
+    u_instanced_time_color_loc: WebGlUniformLocation,
+    instance_data_buffer: WebGlBuffer,
 }
 
 impl Renderer {
@@ -192,6 +233,15 @@ impl Renderer {
             .ok_or("Failed to get uIsRing location")?;
         let u_ring_inner_radius_location = gl.get_uniform_location(&program, "uRingInnerRadius")
             .ok_or("Failed to get uRingInnerRadius location")?;
+
+        // Instancing setup
+        let instanced_ext = gl.get_extension("ANGLE_instanced_arrays")?.map(|e| e.unchecked_into::<AngleInstancedArrays>());
+        let instanced_program = create_instanced_program(&gl)?;
+        let u_instanced_view_loc = gl.get_uniform_location(&instanced_program, "uView").ok_or("Failed to get uView")?;
+        let u_instanced_proj_loc = gl.get_uniform_location(&instanced_program, "uProjection").ok_or("Failed to get uProjection")?;
+        let u_instanced_light_pos_loc = gl.get_uniform_location(&instanced_program, "uLightPos").ok_or("Failed to get uLightPos")?;
+        let u_instanced_time_color_loc = gl.get_uniform_location(&instanced_program, "uTimeColor").ok_or("Failed to get uTimeColor")?;
+        let instance_data_buffer = gl.create_buffer().ok_or("Failed to create instance buffer")?;
 
         // Create unit cube buffers
         let unit_cube_vertex_buffer = gl.create_buffer().ok_or("Failed to create unit cube buffer")?;
@@ -247,6 +297,13 @@ impl Renderer {
             u_light_pos_location,
             u_is_ring_location,
             u_ring_inner_radius_location,
+            instanced_ext,
+            instanced_program,
+            u_instanced_view_loc,
+            u_instanced_proj_loc,
+            u_instanced_light_pos_loc,
+            u_instanced_time_color_loc,
+            instance_data_buffer,
         })
     }
 
@@ -321,7 +378,130 @@ impl Renderer {
         );
     }
 
+    pub fn draw_instanced_mesh(
+        &self,
+        mesh: &Mesh,
+        instance_data: &[f32],
+        count: i32,
+        projection: &Matrix4<f32>,
+        view: &Matrix4<f32>,
+        light_pos: &Vector3<f32>,
+    ) {
+        let ext = match &self.instanced_ext {
+            Some(e) => e,
+            None => {
+                web_sys::console::log_1(&"Instanced extension not found".into());
+                return;
+            },
+        };
+
+        self.gl.use_program(Some(&self.instanced_program));
+
+        // web_sys::console::log_1(&format!("Drawing instanced: {} instances", count).into());
+
+        self.gl.uniform_matrix4fv_with_f32_array(Some(&self.u_instanced_view_loc), false, view.as_slice());
+        self.gl.uniform_matrix4fv_with_f32_array(Some(&self.u_instanced_proj_loc), false, projection.as_slice());
+        self.gl.uniform3f(Some(&self.u_instanced_light_pos_loc), light_pos.x, light_pos.y, light_pos.z);
+        self.gl.uniform3f(Some(&self.u_instanced_time_color_loc), 1.0, 1.0, 1.0);
+
+        self.gl.bind_buffer(WebGlRenderingContext::ARRAY_BUFFER, Some(&self.dynamic_vertex_buffer));
+        unsafe {
+            let vert_array = js_sys::Float32Array::view(&mesh.vertices);
+            self.gl.buffer_data_with_array_buffer_view(
+                WebGlRenderingContext::ARRAY_BUFFER,
+                &vert_array,
+                WebGlRenderingContext::STATIC_DRAW
+            );
+        }
+
+        self.gl.bind_buffer(WebGlRenderingContext::ELEMENT_ARRAY_BUFFER, Some(&self.dynamic_index_buffer));
+        unsafe {
+            let idx_array = js_sys::Uint16Array::view(&mesh.indices);
+            self.gl.buffer_data_with_array_buffer_view(
+                WebGlRenderingContext::ELEMENT_ARRAY_BUFFER,
+                &idx_array,
+                WebGlRenderingContext::STATIC_DRAW
+            );
+        }
+
+        let pos_loc = self.gl.get_attrib_location(&self.instanced_program, "aPosition");
+        let norm_loc = self.gl.get_attrib_location(&self.instanced_program, "aNormal");
+        let tex_loc = self.gl.get_attrib_location(&self.instanced_program, "aTexCoord");
+
+        if pos_loc != -1 {
+            self.gl.vertex_attrib_pointer_with_i32(pos_loc as u32, 3, WebGlRenderingContext::FLOAT, false, 44, 0);
+            self.gl.enable_vertex_attrib_array(pos_loc as u32);
+        }
+
+        if tex_loc != -1 {
+            self.gl.vertex_attrib_pointer_with_i32(tex_loc as u32, 2, WebGlRenderingContext::FLOAT, false, 44, 24);
+            self.gl.enable_vertex_attrib_array(tex_loc as u32);
+        }
+
+        if norm_loc != -1 {
+            self.gl.vertex_attrib_pointer_with_i32(norm_loc as u32, 3, WebGlRenderingContext::FLOAT, false, 44, 32);
+            self.gl.enable_vertex_attrib_array(norm_loc as u32);
+        }
+
+        self.gl.bind_buffer(WebGlRenderingContext::ARRAY_BUFFER, Some(&self.instance_data_buffer));
+        unsafe {
+            let data_array = js_sys::Float32Array::view(instance_data);
+            self.gl.buffer_data_with_array_buffer_view(
+                WebGlRenderingContext::ARRAY_BUFFER,
+                &data_array,
+                WebGlRenderingContext::DYNAMIC_DRAW
+            );
+        }
+
+        let i_pos_loc = self.gl.get_attrib_location(&self.instanced_program, "aInstancePosition");
+        let i_scale_loc = self.gl.get_attrib_location(&self.instanced_program, "aInstanceScale");
+        let i_col_loc = self.gl.get_attrib_location(&self.instanced_program, "aInstanceColor");
+
+        let stride = 28; 
+
+        if i_pos_loc != -1 {
+            self.gl.vertex_attrib_pointer_with_i32(i_pos_loc as u32, 3, WebGlRenderingContext::FLOAT, false, stride, 0);
+            self.gl.enable_vertex_attrib_array(i_pos_loc as u32);
+            ext.vertex_attrib_divisor_angle(i_pos_loc as u32, 1);
+        }
+
+        if i_scale_loc != -1 {
+            self.gl.vertex_attrib_pointer_with_i32(i_scale_loc as u32, 1, WebGlRenderingContext::FLOAT, false, stride, 12);
+            self.gl.enable_vertex_attrib_array(i_scale_loc as u32);
+            ext.vertex_attrib_divisor_angle(i_scale_loc as u32, 1);
+        }
+
+        if i_col_loc != -1 {
+            self.gl.vertex_attrib_pointer_with_i32(i_col_loc as u32, 3, WebGlRenderingContext::FLOAT, false, stride, 16);
+            self.gl.enable_vertex_attrib_array(i_col_loc as u32);
+            ext.vertex_attrib_divisor_angle(i_col_loc as u32, 1);
+        }
+
+        ext.draw_elements_instanced_angle_with_i32(
+            WebGlRenderingContext::TRIANGLES,
+            mesh.indices.len() as i32,
+            WebGlRenderingContext::UNSIGNED_SHORT,
+            0,
+            count
+        );
+
+        if i_pos_loc != -1 {
+            ext.vertex_attrib_divisor_angle(i_pos_loc as u32, 0);
+            self.gl.disable_vertex_attrib_array(i_pos_loc as u32);
+        }
+        if i_scale_loc != -1 {
+            ext.vertex_attrib_divisor_angle(i_scale_loc as u32, 0);
+            self.gl.disable_vertex_attrib_array(i_scale_loc as u32);
+        }
+        if i_col_loc != -1 {
+            ext.vertex_attrib_divisor_angle(i_col_loc as u32, 0);
+            self.gl.disable_vertex_attrib_array(i_col_loc as u32);
+        }
+    }
+
     pub fn draw_mesh(&self, mesh: &Mesh, x: f32, y: f32, z: f32, w: f32, h: f32, d: f32, rotation_x: f32, rotation_y: f32, rotation_z: f32, projection: &Matrix4<f32>, view: &Matrix4<f32>, texture: Option<&WebGlTexture>, night_texture: Option<&WebGlTexture>, color_override: Option<(f32, f32, f32)>, is_ring: bool, ring_inner_radius: Option<f32>, use_lighting: bool) {
+        self.gl.use_program(Some(&self.program));
+        
         // Enable lighting by default for meshes
         self.gl.uniform1i(Some(&self.u_use_lighting_location), if use_lighting { 1 } else { 0 });
         self.gl.uniform1i(Some(&self.u_is_ring_location), if is_ring { 1 } else { 0 });
@@ -537,6 +717,22 @@ fn is_power_of_2(value: u32) -> bool {
 
 fn create_program(gl: &WebGlRenderingContext) -> Result<WebGlProgram, JsValue> {
     let vert_shader = compile_shader(gl, WebGlRenderingContext::VERTEX_SHADER, VERTEX_SHADER)?;
+    let frag_shader = compile_shader(gl, WebGlRenderingContext::FRAGMENT_SHADER, FRAGMENT_SHADER)?;
+
+    let program = gl.create_program().ok_or("Unable to create program")?;
+    gl.attach_shader(&program, &vert_shader);
+    gl.attach_shader(&program, &frag_shader);
+    gl.link_program(&program);
+
+    if gl.get_program_parameter(&program, WebGlRenderingContext::LINK_STATUS).as_bool().unwrap_or(false) {
+        Ok(program)
+    } else {
+        Err(JsValue::from_str(&gl.get_program_info_log(&program).unwrap_or_default()))
+    }
+}
+
+fn create_instanced_program(gl: &WebGlRenderingContext) -> Result<WebGlProgram, JsValue> {
+    let vert_shader = compile_shader(gl, WebGlRenderingContext::VERTEX_SHADER, INSTANCED_VERTEX_SHADER)?;
     let frag_shader = compile_shader(gl, WebGlRenderingContext::FRAGMENT_SHADER, FRAGMENT_SHADER)?;
 
     let program = gl.create_program().ok_or("Unable to create program")?;
