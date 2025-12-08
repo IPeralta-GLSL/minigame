@@ -212,7 +212,7 @@ impl SolarSystem {
         for i in 0..200 {
             let angle: f32 = rng.gen_range(0.0..360.0);
             let dist: f32 = rng.gen_range(220.0..320.0);
-            let size: f32 = rng.gen_range(0.0001..0.0003);
+            let size: f32 = rng.gen_range(0.00001..0.00005);
             let period = (dist / 100.0).powf(1.5) * 365.256;
             
             bodies.push(create_body(
@@ -647,7 +647,7 @@ impl SolarSystem {
         };
 
         let aspect = width as f32 / height as f32;
-        let projection = Matrix4::new_perspective(aspect, 45.0 * std::f32::consts::PI / 180.0, 0.00001, 50000.0); // Reduced near plane for close zoom
+        let projection = Matrix4::new_perspective(aspect, 45.0 * std::f32::consts::PI / 180.0, 0.001, 100000000.0); // Increased far plane significantly
         
 
 
@@ -756,6 +756,13 @@ impl SolarSystem {
             } else {
                 None
             };
+
+            // Disable lighting for distant "dots" to make them look flat/2D
+            if !use_texture {
+                self.renderer.gl.uniform1i(Some(&self.renderer.u_use_lighting_location), 0);
+            } else {
+                self.renderer.gl.uniform1i(Some(&self.renderer.u_use_lighting_location), 1);
+            }
             
 
             let mesh_to_use = if !use_texture {
@@ -908,6 +915,6 @@ impl SolarSystem {
         let zoom_sensitivity = 0.001;
         let factor = (delta * zoom_sensitivity).exp();
         self.camera_distance *= factor;
-        self.camera_distance = self.camera_distance.max(0.0001).min(50000.0);
+        self.camera_distance = self.camera_distance.max(0.0001).min(10000000.0);
     }
 }
