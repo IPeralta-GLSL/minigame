@@ -412,8 +412,16 @@ impl SolarSystem {
                 if let Some(el) = document.get_element_by_id("info-mass") { el.set_text_content(Some(&body.mass)); }
                 if let Some(el) = document.get_element_by_id("info-radius") { el.set_text_content(Some(&format!("{:.1} km", body.radius * 6371.0 / 0.0042))); } // Approx scale based on Earth
                 if let Some(el) = document.get_element_by_id("info-temp") { el.set_text_content(Some(&format!("{:.0} K", body.temperature))); }
+                if let Some(el) = document.get_element_by_id("info-speed") {
+                    if body.name.trim() == "Sun" {
+                         el.set_text_content(Some("230 km/s (Galactic)"));
+                    } else {
+                        let speed_km_s = body.orbit_speed.abs() * body.orbit_radius * 1496000.0;
+                        el.set_text_content(Some(&format!("{:.2} km/s", speed_km_s)));
+                    }
+                }
                 if let Some(el) = document.get_element_by_id("info-period") { 
-                    if body.name == "Sun" {
+                    if body.name.trim() == "Sun" {
                         el.set_text_content(Some("230,000,000 years (Galactic)"));
                     } else {
                         let period = if body.orbit_speed.abs() > 0.0 {
