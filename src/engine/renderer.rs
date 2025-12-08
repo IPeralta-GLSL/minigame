@@ -50,7 +50,6 @@ const FRAGMENT_SHADER: &str = r#"
     uniform bool uIsRing;
     uniform float uRingInnerRadius;
     
-    // Light properties
     uniform vec3 uLightPos;
     const vec3 lightColor = vec3(1.0, 1.0, 1.0);
     const float ambientStrength = 0.15;
@@ -71,12 +70,11 @@ const FRAGMENT_SHADER: &str = r#"
         if (uIsRing) {
             float dist = distance(vTexCoord, vec2(0.5));
             float inner = uRingInnerRadius;
-            if (inner <= 0.0) inner = 0.15; // Default fallback
+            if (inner <= 0.0) inner = 0.15;
 
             if (dist > 0.5 || dist < inner) {
                 discard;
             }
-            // Radial mapping: map distance inner..0.5 to u 0.0..1.0
             texCoord = vec2((dist - inner) / (0.5 - inner), 0.5);
         }
 
@@ -89,29 +87,22 @@ const FRAGMENT_SHADER: &str = r#"
         vec3 result;
         
         if (uUseLighting) {
-            // Lighting Calculation
-            // Ambient
             vec3 ambient = ambientStrength * lightColor;
             
-            // Diffuse
             vec3 norm = normalize(vNormal);
             vec3 lightDir = normalize(uLightPos - vFragPos);
             
-            // If the object is the sun (at 0,0,0), it should be fully lit
             float diff = max(dot(norm, lightDir), 0.0);
 
             if (uIsRing) {
-                // Rings are translucent and scatter light, so we make them brighter
-                // and less dependent on the normal (which might be perpendicular to light)
                 diff = 0.8;
                 ambient = vec3(0.4);
             }
             
-            // Special case for Sun (or objects very close to light source)
             float dist = length(vFragPos - uLightPos);
             if (dist < 1.0) {
                 diff = 1.0;
-                ambient = vec3(1.0); // Full brightness for sun
+                ambient = vec3(1.0);
             }
             
             vec3 diffuse = diff * lightColor;
@@ -119,31 +110,22 @@ const FRAGMENT_SHADER: &str = r#"
             vec3 dayColor = (ambient + diffuse) * color;
             
             if (uUseNightTexture == 1) {
-                vec3 nightColor = texture2D(uNightTexture, vTexCoord).rgb;
-                // Mix based on diffuse factor
-                // When diff is high (day), use dayColor.
-                // When diff is low (night), use nightColor.
-                // Transition around terminator.
+                vec3 nightColor = texture2D(uNightTexture, texCoord).rgb;
                 float mixFactor = smoothstep(0.0, 0.2, diff);
                 result = mix(nightColor, dayColor, mixFactor);
             } else {
                 result = dayColor;
             }
         } else {
-            // No lighting (unlit)
             result = color;
         }
 
-        // Apply time of day filter (if used for other scenes)
         result *= uTimeColor;
 
-        // Color grading
-        // Increase saturation slightly
         float luminance = dot(result, vec3(0.2126, 0.7152, 0.0722));
         vec3 gray = vec3(luminance);
         result = mix(gray, result, 1.2);
         
-        // Slight contrast
         result = pow(result, vec3(1.1));
 
         gl_FragColor = vec4(result, alpha);
@@ -339,9 +321,9 @@ impl Renderer {
         );
     }
 
-    pub fn draw_mesh(&self, mesh: &Mesh, x: f32, y: f32, z: f32, w: f32, h: f32, d: f32, rotation_x: f32, rotation_y: f32, rotation_z: f32, projection: &Matrix4<f32>, view: &Matrix4<f32>, texture: Option<&WebGlTexture>, night_texture: Option<&WebGlTexture>, color_override: Option<(f32, f32, f32)>, is_ring: bool, ring_inner_radius: Option<f32>) {
+    pub fn draw_mesh(&self, mesh: &Mesh, x: f32, y: f32, z: f32, w: f32, h: f32, d: f32, rotation_x: f32, rotation_y: f32, rotation_z: f32, projection: &Matrix4<f32>, view: &Matrix4<f32>, texture: Option<&WebGlTexture>, night_texture: Option<&WebGlTexture>, color_override: Option<(f32, f32, f32)>, is_ring: bool, ring_inner_radius: Option<f32>, use_lighting: bool) {
         // Enable lighting by default for meshes
-        self.gl.uniform1i(Some(&self.u_use_lighting_location), 1);
+        self.gl.uniform1i(Some(&self.u_use_lighting_location), if use_lighting { 1 } else { 0 });
         self.gl.uniform1i(Some(&self.u_is_ring_location), if is_ring { 1 } else { 0 });
         self.gl.uniform1f(Some(&self.u_ring_inner_radius_location), ring_inner_radius.unwrap_or(0.0));
 

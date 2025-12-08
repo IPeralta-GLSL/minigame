@@ -687,7 +687,8 @@ impl SolarSystem {
                 None,
                 None,
                 false,
-                None
+                None,
+                false
             );        // Re-enable lighting for planets
         self.renderer.gl.uniform1i(Some(&self.renderer.u_use_lighting_location), 1);
         
@@ -782,7 +783,8 @@ impl SolarSystem {
                 night_texture_to_use,
                 color_override,
                 false,
-                None
+                None,
+                use_texture
             );
 
             if use_texture {
@@ -806,7 +808,8 @@ impl SolarSystem {
                         None,
                         None,
                         true,
-                        body.ring_inner_radius
+                        body.ring_inner_radius,
+                        true
                     );
                     
                     self.renderer.gl.disable(web_sys::WebGlRenderingContext::BLEND);
@@ -828,7 +831,8 @@ impl SolarSystem {
                         None,
                         None,
                         false,
-                        None
+                        None,
+                        true
                     );
                     
                     self.renderer.gl.disable(web_sys::WebGlRenderingContext::BLEND);
