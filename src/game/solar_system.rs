@@ -235,10 +235,21 @@ impl SolarSystem {
         let p_jupiter = 4332.589;
 
         bodies.push(create_body("Jupiter", 0.047, 520.0, get_orbit_speed(p_jupiter), get_initial_angle(34.40, p_jupiter), (0.8, 0.6, 0.4), Some(0), Mesh::sphere, Some("assets/textures/2k_jupiter.jpg"), None, None, None, 0.0, 0.41, 3.1, 1.3, 0.049, "1.898 × 10^27 kg", 165.0, "The largest planet in the Solar System."));
+        let jupiter_idx = bodies.len() - 1;
+
+        // Jupiter Moons
+        bodies.push(create_body("Io", 0.0012, 0.28, get_orbit_speed(1.769), get_initial_angle(0.0, 1.769), (0.8, 0.7, 0.2), Some(jupiter_idx), Mesh::sphere, Some("https://upload.wikimedia.org/wikipedia/commons/7/7b/Io_highest_resolution_true_color.jpg"), None, None, None, 0.0, 1.769, 0.0, 0.0, 0.004, "8.93 × 10^22 kg", 110.0, "Jupiter's innermost Galilean moon."));
+        bodies.push(create_body("Europa", 0.0010, 0.45, get_orbit_speed(3.55), get_initial_angle(0.0, 3.55), (0.9, 0.9, 0.8), Some(jupiter_idx), Mesh::sphere, Some("https://upload.wikimedia.org/wikipedia/commons/5/54/Europa-moon.jpg"), None, None, None, 0.0, 3.55, 0.1, 0.47, 0.009, "4.8 × 10^22 kg", 102.0, "Jupiter's icy moon."));
+        bodies.push(create_body("Ganymede", 0.0017, 0.71, get_orbit_speed(7.15), get_initial_angle(0.0, 7.15), (0.6, 0.6, 0.6), Some(jupiter_idx), Mesh::sphere, Some("https://upload.wikimedia.org/wikipedia/commons/2/2e/Ganymede_g1_true-edit1.jpg"), None, None, None, 0.0, 7.15, 0.2, 0.2, 0.001, "1.48 × 10^23 kg", 110.0, "The largest moon in the Solar System."));
+        bodies.push(create_body("Callisto", 0.0016, 1.25, get_orbit_speed(16.69), get_initial_angle(0.0, 16.69), (0.4, 0.4, 0.4), Some(jupiter_idx), Mesh::sphere, Some("https://upload.wikimedia.org/wikipedia/commons/e/e9/Callisto.jpg"), None, None, None, 0.0, 16.69, 0.0, 0.2, 0.007, "1.08 × 10^23 kg", 134.0, "Jupiter's heavily cratered moon."));
 
         let p_saturn = 10759.22;
 
         bodies.push(create_body("Saturn", 0.039, 958.0, get_orbit_speed(p_saturn), get_initial_angle(49.94, p_saturn), (0.9, 0.8, 0.5), Some(0), Mesh::sphere, Some("assets/textures/2k_saturn.jpg"), None, None, Some("assets/textures/2k_saturn_ring_alpha.png"), 0.09, 0.45, 26.7, 2.48, 0.057, "5.683 × 10^26 kg", 134.0, "The sixth planet from the Sun, famous for its rings."));
+        let saturn_idx = bodies.len() - 1;
+
+        // Saturn Moon
+        bodies.push(create_body("Titan", 0.0017, 0.81, get_orbit_speed(15.94), get_initial_angle(0.0, 15.94), (0.9, 0.7, 0.2), Some(saturn_idx), Mesh::sphere, Some("https://upload.wikimedia.org/wikipedia/commons/9/91/Titan_in_natural_color_Cassini.jpg"), None, None, None, 0.0, 15.94, 0.0, 0.3, 0.028, "1.345 × 10^23 kg", 94.0, "Saturn's largest moon."));
 
         let p_uranus = 30685.4;
 
