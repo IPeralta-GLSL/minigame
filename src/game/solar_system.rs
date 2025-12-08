@@ -261,7 +261,7 @@ impl SolarSystem {
 
 
         let p_pluto = 90560.0;
-        bodies.push(create_body("Pluto", 0.00075, 3948.0, get_orbit_speed(p_pluto), get_initial_angle(0.0, p_pluto), (0.6, 0.5, 0.4), Some(0), Mesh::sphere, Some("https://upload.wikimedia.org/wikipedia/commons/e/ef/Pluto_in_True_Color_-_High-Res.jpg"), None, None, None, 0.0, -6.39, 122.5, 17.16, 0.244, "1.309 × 10^22 kg", 44.0, "A dwarf planet in the Kuiper belt."));
+        bodies.push(create_body("Pluto", 0.00075, 3948.0, get_orbit_speed(p_pluto), get_initial_angle(0.0, p_pluto), (0.6, 0.5, 0.4), Some(0), Mesh::sphere, Some("assets/textures/Pluto.webp"), None, None, None, 0.0, -6.39, 122.5, 17.16, 0.244, "1.309 × 10^22 kg", 44.0, "A dwarf planet in the Kuiper belt."));
 
 
         let p_haumea = 103368.0;
