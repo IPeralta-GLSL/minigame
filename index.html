@@ -300,6 +300,7 @@
             </div>
             <div class="solar-sidebar">
                 <h3>Celestial Bodies</h3>
+                <button id="toggle-black-hole" style="width: 100%; margin-bottom: 10px; padding: 5px; background: #333; color: white; border: 1px solid #666; cursor: pointer;">Toggle Black Hole</button>
                 <ul class="body-list">
                     <li>Sun</li>
                     <li>Mercury</li>
@@ -339,7 +340,7 @@
         </div>
     </div>
     <script type="module">
-        import init, { start_crossy_road, start_solar_system, touch_left, touch_right, touch_forward, touch_restart, activate_god_mode, set_solar_time_scale, select_solar_body } from './pkg/crossy_road_clone.js';
+        import init, { start_crossy_road, start_solar_system, touch_left, touch_right, touch_forward, touch_restart, activate_god_mode, set_solar_time_scale, select_solar_body, toggle_black_hole } from './pkg/crossy_road_clone.js';
 
         window.selectSolarBody = function(index) {
             select_solar_body(index);
@@ -406,6 +407,13 @@
             requestAnimationFrame(updateFps);
 
             // Solar System Time Controls
+            const toggleBlackHoleBtn = document.getElementById('toggle-black-hole');
+            if (toggleBlackHoleBtn) {
+                toggleBlackHoleBtn.addEventListener('click', () => {
+                    toggle_black_hole();
+                });
+            }
+
             const timeSpeedInput = document.getElementById('time-speed');
             const speedVal = document.getElementById('speed-val');
             const pauseBtn = document.getElementById('time-pause');

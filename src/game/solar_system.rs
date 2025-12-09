@@ -53,6 +53,8 @@ pub struct SolarSystem {
     sphere_mesh: Mesh,
     asteroid_mesh: Mesh,
     ring_mesh: Mesh,
+    is_black_hole: bool,
+    sun_texture: Option<WebGlTexture>,
 }
 
 impl SolarSystem {
@@ -454,6 +456,8 @@ impl SolarSystem {
             }
         }
 
+        let sun_texture = bodies[0].texture.clone();
+
         SolarSystem {
             renderer,
             bodies,
@@ -470,6 +474,25 @@ impl SolarSystem {
             sphere_mesh,
             asteroid_mesh,
             ring_mesh,
+            is_black_hole: false,
+            sun_texture,
+        }
+    }
+
+    pub fn toggle_black_hole(&mut self) {
+        self.is_black_hole = !self.is_black_hole;
+        let body = &mut self.bodies[0];
+        
+        if self.is_black_hole {
+            body.name = "Black Hole".to_string();
+            body.texture = None; 
+            body.color = (0.0, 0.0, 0.0);
+            body.description = "A black hole with the same mass as the Sun.".to_string();
+        } else {
+            body.name = "Sun".to_string();
+            body.texture = self.sun_texture.clone();
+            body.color = (1.0, 1.0, 0.0);
+            body.description = "The star at the center of our Solar System.".to_string();
         }
     }
 
@@ -489,7 +512,7 @@ impl SolarSystem {
                 if let Some(el) = document.get_element_by_id("info-radius") { el.set_text_content(Some(&format!("{:.1} km", body.radius * 6371.0 / 0.0042))); } // Approx scale based on Earth
                 if let Some(el) = document.get_element_by_id("info-temp") { el.set_text_content(Some(&format!("{:.0} K", body.temperature))); }
                 if let Some(el) = document.get_element_by_id("info-speed") {
-                    if body.name.trim() == "Sun" {
+                    if body.name.trim() == "Sun" || body.name.trim() == "Black Hole" {
                          el.set_text_content(Some("230 km/s (Galactic)"));
                     } else {
                         let speed_km_s = body.orbit_speed.abs() * body.orbit_radius * 1496000.0;
@@ -497,7 +520,7 @@ impl SolarSystem {
                     }
                 }
                 if let Some(el) = document.get_element_by_id("info-period") { 
-                    if body.name.trim() == "Sun" {
+                    if body.name.trim() == "Sun" || body.name.trim() == "Black Hole" {
                         el.set_text_content(Some("230,000,000 years (Galactic)"));
                     } else {
                         let period = if body.orbit_speed.abs() > 0.0 {
@@ -900,7 +923,7 @@ impl SolarSystem {
                 &body.mesh
             };
 
-            let should_use_lighting = use_texture && body.name != "Sun";
+            let should_use_lighting = use_texture && body.name != "Sun" && body.name != "Black Hole";
 
             self.renderer.draw_mesh(
                 mesh_to_use,

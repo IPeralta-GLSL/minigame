@@ -308,3 +308,14 @@ pub fn select_solar_body(index: usize) {
         }
     });
 }
+
+#[wasm_bindgen]
+pub fn toggle_black_hole() {
+    CURRENT_GAME.with(|g| {
+        if let Some(active_game) = g.borrow_mut().as_mut() {
+            if let ActiveGame::Solar(game) = active_game {
+                game.toggle_black_hole();
+            }
+        }
+    });
+}
