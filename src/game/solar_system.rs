@@ -515,7 +515,10 @@ impl SolarSystem {
         let dt = (now - self.last_time) / 1000.0;
         self.last_time = now;
         
-        self.current_time += dt * 1000.0 * self.time_scale as f64;
+        // Prevent huge time jumps if dt is too large (e.g. tab inactive)
+        let safe_dt = if dt > 0.1 { 0.1 } else { dt };
+        
+        self.current_time += safe_dt * 1000.0 * self.time_scale as f64;
         
         let date = Date::new(&wasm_bindgen::JsValue::from_f64(self.current_time));
         let window = web_sys::window().unwrap();
@@ -566,7 +569,8 @@ impl SolarSystem {
 
             let body = &mut self.bodies[i];
             if body.parent.is_some() {
-                body.orbit_angle += body.orbit_speed * dt as f32 * self.time_scale; 
+                body.orbit_angle += body.orbit_speed * safe_dt as f32 * self.time_scale;
+                body.orbit_angle %= 2.0 * std::f32::consts::PI;
             }
             
 
@@ -578,11 +582,13 @@ impl SolarSystem {
                 let rotation_speed = (2.0 * std::f32::consts::PI) / period_seconds;
                 
 
-                body.current_rotation += rotation_speed * dt as f32 * self.time_scale;
+                body.current_rotation += rotation_speed * safe_dt as f32 * self.time_scale;
+                body.current_rotation %= 2.0 * std::f32::consts::PI;
 
                 if body.cloud_texture.is_some() {
 
-                    body.cloud_rotation += rotation_speed * 0.2 * dt as f32 * self.time_scale;
+                    body.cloud_rotation += rotation_speed * 0.2 * safe_dt as f32 * self.time_scale;
+                    body.cloud_rotation %= 2.0 * std::f32::consts::PI;
                 }
             }
 
@@ -665,6 +671,7 @@ impl SolarSystem {
                     }
                     
                     body.last_trail_angle += steps as f32 * angle_step;
+                    body.last_trail_angle %= two_pi;
                     
 
                     while body.trail.len() > 3000 {
