@@ -58,7 +58,7 @@ pub struct SolarSystem {
 }
 
 impl SolarSystem {
-    pub fn new(renderer: Renderer) -> Self {
+    pub fn new(renderer: Renderer, is_black_hole_mode: bool) -> Self {
         let mut bodies = Vec::new();
         let sphere_mesh = Mesh::sphere(1.0, 20, 20, 1.0, 1.0, 1.0);
         let asteroid_mesh = Mesh::sphere(1.0, 6, 6, 1.0, 1.0, 1.0);
@@ -191,7 +191,14 @@ impl SolarSystem {
 
 
 
-        bodies.push(create_body("Sun", 0.465, 0.0, 0.0, 0.0, (1.0, 1.0, 0.0), None, Mesh::sphere, Some("assets/textures/2k_sun.jpg"), None, None, None, 0.0, 25.0, 7.25, 0.0, 0.0, 0.0, 0.0, "1.989 × 10^30 kg", 5778.0, "The star at the center of our Solar System.", None));
+        if is_black_hole_mode {
+            // 3km radius. Earth (6371km) is 0.0042.
+            // 3km = 3 * (0.0042 / 6371) = 0.0000019777
+            let bh_radius = 0.0000019777;
+            bodies.push(create_body("Black Hole", bh_radius, 0.0, 0.0, 0.0, (0.0, 0.0, 0.0), None, Mesh::sphere, None, None, None, None, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, "1.989 × 10^30 kg", 0.0, "A black hole with the same mass as the Sun. Event Horizon: 3km.", None));
+        } else {
+            bodies.push(create_body("Sun", 0.465, 0.0, 0.0, 0.0, (1.0, 1.0, 0.0), None, Mesh::sphere, Some("assets/textures/2k_sun.jpg"), None, None, None, 0.0, 25.0, 7.25, 0.0, 0.0, 0.0, 0.0, "1.989 × 10^30 kg", 5778.0, "The star at the center of our Solar System.", None));
+        }
 
         let p_mercury = 87.969;
 
@@ -456,7 +463,7 @@ impl SolarSystem {
             }
         }
 
-        let sun_texture = bodies[0].texture.clone();
+        let sun_texture = if !is_black_hole_mode { bodies[0].texture.clone() } else { None };
 
         SolarSystem {
             renderer,
@@ -474,25 +481,8 @@ impl SolarSystem {
             sphere_mesh,
             asteroid_mesh,
             ring_mesh,
-            is_black_hole: false,
+            is_black_hole: is_black_hole_mode,
             sun_texture,
-        }
-    }
-
-    pub fn toggle_black_hole(&mut self) {
-        self.is_black_hole = !self.is_black_hole;
-        let body = &mut self.bodies[0];
-        
-        if self.is_black_hole {
-            body.name = "Black Hole".to_string();
-            body.texture = None; 
-            body.color = (0.0, 0.0, 0.0);
-            body.description = "A black hole with the same mass as the Sun.".to_string();
-        } else {
-            body.name = "Sun".to_string();
-            body.texture = self.sun_texture.clone();
-            body.color = (1.0, 1.0, 0.0);
-            body.description = "The star at the center of our Solar System.".to_string();
         }
     }
 
@@ -929,7 +919,10 @@ impl SolarSystem {
             let should_use_lighting = use_texture && body.name != "Sun" && body.name != "Black Hole";
             let is_black_hole = body.name == "Black Hole";
             
-            let final_render_radius = if is_black_hole { render_radius * 3.0 } else { render_radius };
+            // If black hole, we want it to be visible despite its tiny physical radius.
+            // We scale it up for rendering so the lensing effect is visible.
+            // 3km is invisible. Let's make the visual effect roughly Sun-sized (0.5) or slightly smaller.
+            let final_render_radius = if is_black_hole { 0.3 } else { render_radius };
 
             self.renderer.draw_mesh(
                 mesh_to_use,

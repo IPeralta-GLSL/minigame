@@ -192,16 +192,26 @@ pub async fn start_crossy_road() -> Result<(), JsValue> {
 }
 
 #[wasm_bindgen]
-pub async fn start_solar_system() -> Result<(), JsValue> {
+pub fn load_solar_system(sim_type: &str) -> Result<(), JsValue> {
     let gl = get_gl()?;
     let renderer = Renderer::new(gl)?;
-
-    let game = SolarSystem::new(renderer);
     
-    CURRENT_GAME.with(|g| *g.borrow_mut() = Some(ActiveGame::Solar(game)));
+    let is_black_hole = sim_type == "black_hole";
+    let game = SolarSystem::new(renderer, is_black_hole);
     
+    CURRENT_GAME.with(|g| {
+        *g.borrow_mut() = Some(ActiveGame::Solar(game));
+    });
+    
+    // Ensure loop is running (idempotent)
     start_game_loop()?;
+    
     Ok(())
+}
+
+#[wasm_bindgen]
+pub fn start_solar_system() -> Result<(), JsValue> {
+    load_solar_system("sun")
 }
 
 fn request_animation_frame(f: &Closure<dyn FnMut()>) {
@@ -304,17 +314,6 @@ pub fn select_solar_body(index: usize) {
         if let Some(active_game) = g.borrow_mut().as_mut() {
             if let ActiveGame::Solar(game) = active_game {
                 game.select_body(index);
-            }
-        }
-    });
-}
-
-#[wasm_bindgen]
-pub fn toggle_black_hole() {
-    CURRENT_GAME.with(|g| {
-        if let Some(active_game) = g.borrow_mut().as_mut() {
-            if let ActiveGame::Solar(game) = active_game {
-                game.toggle_black_hole();
             }
         }
     });
