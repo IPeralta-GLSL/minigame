@@ -124,16 +124,6 @@ const FRAGMENT_SHADER: &str = r#"
                 return;
             }
             
-            // Accretion Disk / Photon Ring (bright rim around EH)
-            float rimWidth = 0.05;
-            if (r < ehRadius + rimWidth) {
-                float t = (r - ehRadius) / rimWidth;
-                // Bright inner edge, fading out
-                vec3 rimColor = vec3(1.0, 0.9, 0.7) * 2.0 * (1.0 - t); 
-                gl_FragColor = vec4(rimColor, 1.0);
-                return;
-            }
-            
             // Gravitational Lensing (Distortion)
             // We want to bend the view vector towards the black hole center.
             // The center direction is -normal (roughly).
