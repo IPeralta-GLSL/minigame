@@ -87,10 +87,31 @@ const FRAGMENT_SHADER: &str = r#"
     const float ambientStrength = 0.15;
 
     uniform bool uUseLighting;
+    uniform bool uIsBlackHole;
+    uniform vec3 uCameraPos;
 
     void main() {
         vec3 color;
         float alpha = 1.0;
+
+        if (uIsBlackHole) {
+            vec3 viewDir = normalize(uCameraPos - vFragPos);
+            vec3 normal = normalize(vNormal);
+            float NdotV = dot(normal, viewDir);
+            
+            // Fresnel effect for photon ring
+            float rim = 1.0 - max(NdotV, 0.0);
+            rim = pow(rim, 4.0); // Sharpen the rim
+            
+            // Color gradient for the rim (accretion disk reflection)
+            vec3 rimColor = vec3(1.0, 0.8, 0.6) * 2.0; // Bright orange/white
+            
+            // Center is black, edge is bright
+            vec3 result = rimColor * rim;
+            
+            gl_FragColor = vec4(result, 1.0);
+            return;
+        }
 
         if (uUseUniformColor) {
             color = uUniformColor;
@@ -181,6 +202,8 @@ pub struct Renderer {
     pub u_light_pos_location: WebGlUniformLocation,
     pub u_is_ring_location: WebGlUniformLocation,
     pub u_ring_inner_radius_location: WebGlUniformLocation,
+    pub u_is_black_hole_location: WebGlUniformLocation,
+    pub u_camera_pos_location: WebGlUniformLocation,
     unit_cube_vertex_buffer: WebGlBuffer,
     unit_cube_index_buffer: WebGlBuffer,
     unit_cube_index_count: i32,
@@ -233,6 +256,10 @@ impl Renderer {
             .ok_or("Failed to get uIsRing location")?;
         let u_ring_inner_radius_location = gl.get_uniform_location(&program, "uRingInnerRadius")
             .ok_or("Failed to get uRingInnerRadius location")?;
+        let u_is_black_hole_location = gl.get_uniform_location(&program, "uIsBlackHole")
+            .ok_or("Failed to get uIsBlackHole location")?;
+        let u_camera_pos_location = gl.get_uniform_location(&program, "uCameraPos")
+            .ok_or("Failed to get uCameraPos location")?;
 
         // Instancing setup
         let instanced_ext = gl.get_extension("ANGLE_instanced_arrays")?.map(|e| e.unchecked_into::<AngleInstancedArrays>());
@@ -297,6 +324,8 @@ impl Renderer {
             u_light_pos_location,
             u_is_ring_location,
             u_ring_inner_radius_location,
+            u_is_black_hole_location,
+            u_camera_pos_location,
             instanced_ext,
             instanced_program,
             u_instanced_view_loc,
@@ -348,19 +377,25 @@ impl Renderer {
         let pos_loc = self.gl.get_attrib_location(&self.program, "aPosition") as u32;
         let col_loc = self.gl.get_attrib_location(&self.program, "aColor") as u32;
         let tex_loc = self.gl.get_attrib_location(&self.program, "aTexCoord") as u32;
+        let norm_loc = self.gl.get_attrib_location(&self.program, "aNormal") as u32;
 
-        self.gl.vertex_attrib_pointer_with_i32(pos_loc, 3, WebGlRenderingContext::FLOAT, false, 32, 0);
+        self.gl.vertex_attrib_pointer_with_i32(pos_loc, 3, WebGlRenderingContext::FLOAT, false, 44, 0);
         self.gl.enable_vertex_attrib_array(pos_loc);
 
         // We need to set these pointers even if unused, to avoid using pointers from other buffers
-        self.gl.vertex_attrib_pointer_with_i32(col_loc, 3, WebGlRenderingContext::FLOAT, false, 32, 12);
+        self.gl.vertex_attrib_pointer_with_i32(col_loc, 3, WebGlRenderingContext::FLOAT, false, 44, 12);
         self.gl.enable_vertex_attrib_array(col_loc);
 
-        self.gl.vertex_attrib_pointer_with_i32(tex_loc, 2, WebGlRenderingContext::FLOAT, false, 32, 24);
+        self.gl.vertex_attrib_pointer_with_i32(tex_loc, 2, WebGlRenderingContext::FLOAT, false, 44, 24);
         self.gl.enable_vertex_attrib_array(tex_loc);
+        
+        self.gl.vertex_attrib_pointer_with_i32(norm_loc, 3, WebGlRenderingContext::FLOAT, false, 44, 32);
+        self.gl.enable_vertex_attrib_array(norm_loc);
 
         self.gl.uniform1i(Some(&self.u_use_uniform_color_location), 1);
         self.gl.uniform1i(Some(&self.u_use_texture_location), 0);
+        self.gl.uniform1i(Some(&self.u_use_lighting_location), 0); // Disable lighting
+        self.gl.uniform1i(Some(&self.u_is_black_hole_location), 0); // Disable black hole shader
         self.gl.uniform3f(Some(&self.u_uniform_color_location), r, g, b);
 
         let model = Matrix4::new_translation(&Vector3::new(x, y, z)) *
@@ -499,13 +534,20 @@ impl Renderer {
         }
     }
 
-    pub fn draw_mesh(&self, mesh: &Mesh, x: f32, y: f32, z: f32, w: f32, h: f32, d: f32, rotation_x: f32, rotation_y: f32, rotation_z: f32, projection: &Matrix4<f32>, view: &Matrix4<f32>, texture: Option<&WebGlTexture>, night_texture: Option<&WebGlTexture>, color_override: Option<(f32, f32, f32)>, is_ring: bool, ring_inner_radius: Option<f32>, use_lighting: bool) {
+    pub fn draw_mesh(&self, mesh: &Mesh, x: f32, y: f32, z: f32, w: f32, h: f32, d: f32, rotation_x: f32, rotation_y: f32, rotation_z: f32, projection: &Matrix4<f32>, view: &Matrix4<f32>, texture: Option<&WebGlTexture>, night_texture: Option<&WebGlTexture>, color_override: Option<(f32, f32, f32)>, is_ring: bool, ring_inner_radius: Option<f32>, use_lighting: bool, is_black_hole: bool, camera_pos: Option<(f32, f32, f32)>) {
         self.gl.use_program(Some(&self.program));
         
         // Enable lighting by default for meshes
         self.gl.uniform1i(Some(&self.u_use_lighting_location), if use_lighting { 1 } else { 0 });
         self.gl.uniform1i(Some(&self.u_is_ring_location), if is_ring { 1 } else { 0 });
         self.gl.uniform1f(Some(&self.u_ring_inner_radius_location), ring_inner_radius.unwrap_or(0.0));
+        self.gl.uniform1i(Some(&self.u_is_black_hole_location), if is_black_hole { 1 } else { 0 });
+        
+        if let Some((cx, cy, cz)) = camera_pos {
+            self.gl.uniform3f(Some(&self.u_camera_pos_location), cx, cy, cz);
+        } else {
+            self.gl.uniform3f(Some(&self.u_camera_pos_location), 0.0, 0.0, 0.0);
+        }
 
         if let Some(tex) = texture {
             self.gl.active_texture(WebGlRenderingContext::TEXTURE0);
@@ -629,17 +671,20 @@ impl Renderer {
         let pos_loc = self.gl.get_attrib_location(&self.program, "aPosition") as u32;
         let col_loc = self.gl.get_attrib_location(&self.program, "aColor") as u32;
         let tex_loc = self.gl.get_attrib_location(&self.program, "aTexCoord") as u32;
+        let norm_loc = self.gl.get_attrib_location(&self.program, "aNormal") as u32;
 
         self.gl.vertex_attrib_pointer_with_i32(pos_loc, 3, WebGlRenderingContext::FLOAT, false, 0, 0);
         self.gl.enable_vertex_attrib_array(pos_loc);
         
         self.gl.disable_vertex_attrib_array(col_loc);
         self.gl.disable_vertex_attrib_array(tex_loc);
+        self.gl.disable_vertex_attrib_array(norm_loc);
 
         self.gl.uniform1i(Some(&self.u_use_uniform_color_location), 1);
         self.gl.uniform1i(Some(&self.u_use_texture_location), 0);
         // Disable lighting for lines
         self.gl.uniform1i(Some(&self.u_use_lighting_location), 0);
+        self.gl.uniform1i(Some(&self.u_is_black_hole_location), 0);
         self.gl.uniform3f(Some(&self.u_uniform_color_location), r, g, b);
 
         let mvp = projection * view;
