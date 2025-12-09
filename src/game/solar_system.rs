@@ -781,19 +781,13 @@ impl SolarSystem {
                 None
             };
 
-            // Disable lighting for distant "dots" to make them look flat/2D
-            if !use_texture {
-                self.renderer.gl.uniform1i(Some(&self.renderer.u_use_lighting_location), 0);
-            } else {
-                self.renderer.gl.uniform1i(Some(&self.renderer.u_use_lighting_location), 1);
-            }
-            
-
             let mesh_to_use = if !use_texture {
                 &self.sphere_mesh
             } else {
                 &body.mesh
             };
+
+            let should_use_lighting = use_texture && body.name != "Sun";
 
             self.renderer.draw_mesh(
                 mesh_to_use,
@@ -807,7 +801,7 @@ impl SolarSystem {
                 color_override,
                 false,
                 None,
-                use_texture
+                should_use_lighting
             );
 
             if use_texture {
