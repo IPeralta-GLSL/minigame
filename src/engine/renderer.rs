@@ -89,27 +89,71 @@ const FRAGMENT_SHADER: &str = r#"
     uniform bool uUseLighting;
     uniform bool uIsBlackHole;
     uniform vec3 uCameraPos;
+    uniform sampler2D uBackgroundTexture;
+
+    vec2 dirToUV(vec3 dir) {
+        float u = 0.5 + atan(dir.z, dir.x) / (2.0 * 3.14159265);
+        float v = 0.5 - asin(dir.y) / 3.14159265;
+        return vec2(u, v);
+    }
 
     void main() {
         vec3 color;
         float alpha = 1.0;
 
         if (uIsBlackHole) {
-            vec3 viewDir = normalize(uCameraPos - vFragPos);
+            vec3 viewDir = normalize(vFragPos - uCameraPos); // Camera to Fragment
             vec3 normal = normalize(vNormal);
-            float NdotV = dot(normal, viewDir);
             
-            // Fresnel effect for photon ring
-            float rim = 1.0 - max(NdotV, 0.0);
-            rim = pow(rim, 4.0); // Sharpen the rim
+            // Calculate impact parameter (distance from center in screen space relative to radius)
+            // For a sphere, N dot V (where V is Frag to Cam) gives us centrality.
+            // Let's use V = uCameraPos - vFragPos (Cam to Frag is -V)
+            vec3 V = normalize(uCameraPos - vFragPos);
+            float NdotV = dot(normal, V);
             
-            // Color gradient for the rim (accretion disk reflection)
-            vec3 rimColor = vec3(1.0, 0.8, 0.6) * 2.0; // Bright orange/white
+            // r is 0 at center, 1 at edge
+            float r = sqrt(1.0 - NdotV * NdotV);
             
-            // Center is black, edge is bright
-            vec3 result = rimColor * rim;
+            // Define Event Horizon radius (relative to the mesh size)
+            // We will render the mesh 3x larger than the actual event horizon.
+            // So EH is at r = 0.33
+            float ehRadius = 0.33;
             
-            gl_FragColor = vec4(result, 1.0);
+            if (r < ehRadius) {
+                gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
+                return;
+            }
+            
+            // Accretion Disk / Photon Ring (bright rim around EH)
+            float rimWidth = 0.05;
+            if (r < ehRadius + rimWidth) {
+                float t = (r - ehRadius) / rimWidth;
+                // Bright inner edge, fading out
+                vec3 rimColor = vec3(1.0, 0.9, 0.7) * 2.0 * (1.0 - t); 
+                gl_FragColor = vec4(rimColor, 1.0);
+                return;
+            }
+            
+            // Gravitational Lensing (Distortion)
+            // We want to bend the view vector towards the black hole center.
+            // The center direction is -normal (roughly).
+            // Strength depends on 1/distance.
+            
+            float dist = r;
+            float strength = 0.2 / (dist * dist); // Inverse square-ish
+            
+            // Bend the view vector
+            // Original view vector is viewDir.
+            // We want to pull it towards the normal (which points out from center).
+            // Wait, light bends IN. So we see light that came from OUT.
+            // So we should bend the lookup vector OUT (along normal).
+            
+            vec3 distortDir = normalize(viewDir - normal * strength);
+            
+            vec2 uv = dirToUV(distortDir);
+            vec3 bgColor = texture2D(uBackgroundTexture, uv).rgb;
+            
+            gl_FragColor = vec4(bgColor, 1.0);
             return;
         }
 
@@ -204,6 +248,7 @@ pub struct Renderer {
     pub u_ring_inner_radius_location: WebGlUniformLocation,
     pub u_is_black_hole_location: WebGlUniformLocation,
     pub u_camera_pos_location: WebGlUniformLocation,
+    pub u_background_texture_location: WebGlUniformLocation,
     unit_cube_vertex_buffer: WebGlBuffer,
     unit_cube_index_buffer: WebGlBuffer,
     unit_cube_index_count: i32,
@@ -260,6 +305,8 @@ impl Renderer {
             .ok_or("Failed to get uIsBlackHole location")?;
         let u_camera_pos_location = gl.get_uniform_location(&program, "uCameraPos")
             .ok_or("Failed to get uCameraPos location")?;
+        let u_background_texture_location = gl.get_uniform_location(&program, "uBackgroundTexture")
+            .ok_or("Failed to get uBackgroundTexture location")?;
 
         // Instancing setup
         let instanced_ext = gl.get_extension("ANGLE_instanced_arrays")?.map(|e| e.unchecked_into::<AngleInstancedArrays>());
@@ -326,6 +373,7 @@ impl Renderer {
             u_ring_inner_radius_location,
             u_is_black_hole_location,
             u_camera_pos_location,
+            u_background_texture_location,
             instanced_ext,
             instanced_program,
             u_instanced_view_loc,
@@ -534,7 +582,7 @@ impl Renderer {
         }
     }
 
-    pub fn draw_mesh(&self, mesh: &Mesh, x: f32, y: f32, z: f32, w: f32, h: f32, d: f32, rotation_x: f32, rotation_y: f32, rotation_z: f32, projection: &Matrix4<f32>, view: &Matrix4<f32>, texture: Option<&WebGlTexture>, night_texture: Option<&WebGlTexture>, color_override: Option<(f32, f32, f32)>, is_ring: bool, ring_inner_radius: Option<f32>, use_lighting: bool, is_black_hole: bool, camera_pos: Option<(f32, f32, f32)>) {
+    pub fn draw_mesh(&self, mesh: &Mesh, x: f32, y: f32, z: f32, w: f32, h: f32, d: f32, rotation_x: f32, rotation_y: f32, rotation_z: f32, projection: &Matrix4<f32>, view: &Matrix4<f32>, texture: Option<&WebGlTexture>, night_texture: Option<&WebGlTexture>, color_override: Option<(f32, f32, f32)>, is_ring: bool, ring_inner_radius: Option<f32>, use_lighting: bool, is_black_hole: bool, camera_pos: Option<(f32, f32, f32)>, background_texture: Option<&WebGlTexture>) {
         self.gl.use_program(Some(&self.program));
         
         // Enable lighting by default for meshes
@@ -547,6 +595,12 @@ impl Renderer {
             self.gl.uniform3f(Some(&self.u_camera_pos_location), cx, cy, cz);
         } else {
             self.gl.uniform3f(Some(&self.u_camera_pos_location), 0.0, 0.0, 0.0);
+        }
+
+        if let Some(bg_tex) = background_texture {
+            self.gl.active_texture(WebGlRenderingContext::TEXTURE2);
+            self.gl.bind_texture(WebGlRenderingContext::TEXTURE_2D, Some(bg_tex));
+            self.gl.uniform1i(Some(&self.u_background_texture_location), 2);
         }
 
         if let Some(tex) = texture {

@@ -835,6 +835,7 @@ impl SolarSystem {
                 None,
                 false,
                 false,
+                None,
                 None
             );        // Re-enable lighting for planets
         self.renderer.gl.uniform1i(Some(&self.renderer.u_use_lighting_location), 1);
@@ -927,11 +928,13 @@ impl SolarSystem {
 
             let should_use_lighting = use_texture && body.name != "Sun" && body.name != "Black Hole";
             let is_black_hole = body.name == "Black Hole";
+            
+            let final_render_radius = if is_black_hole { render_radius * 3.0 } else { render_radius };
 
             self.renderer.draw_mesh(
                 mesh_to_use,
                 pos.x, pos.y, pos.z,
-                render_radius, render_radius, render_radius,
+                final_render_radius, final_render_radius, final_render_radius,
                 body.axial_tilt, body.current_rotation, 0.0,
                 &projection,
                 &view,
@@ -942,7 +945,8 @@ impl SolarSystem {
                 None,
                 should_use_lighting,
                 is_black_hole,
-                Some((rel_cam_x, rel_cam_y, rel_cam_z))
+                Some((rel_cam_x, rel_cam_y, rel_cam_z)),
+                if is_black_hole { self.background_texture.as_ref() } else { None }
             );
 
             if use_texture {
@@ -969,6 +973,7 @@ impl SolarSystem {
                         body.ring_inner_radius,
                         true,
                         false,
+                        None,
                         None
                     );
                     
@@ -994,6 +999,7 @@ impl SolarSystem {
                         None,
                         true,
                         false,
+                        None,
                         None
                     );
                     
