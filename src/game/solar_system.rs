@@ -35,6 +35,7 @@ pub struct Body {
     pub ring_texture: Option<WebGlTexture>,
     pub ring_radius: f32,
     pub ring_inner_radius: Option<f32>,
+    pub is_frozen: bool,
 }
 
 pub struct SolarSystem {
@@ -157,6 +158,12 @@ impl SolarSystem {
                 (40, 40)
             };
 
+            let (final_temp, is_frozen) = if is_black_hole_mode && name != "Black Hole" {
+                (30.0, true)
+            } else {
+                (temperature, false)
+            };
+
             Body {
                 mesh: mesh_fn(1.0, slices, stacks, mesh_r, mesh_g, mesh_b),
                 radius,
@@ -181,11 +188,12 @@ impl SolarSystem {
                 last_trail_angle: orbit_angle,
                 eccentricity,
                 mass: mass.to_string(),
-                temperature,
+                temperature: final_temp,
                 description: description.to_string(),
                 ring_texture,
                 ring_radius,
                 ring_inner_radius,
+                is_frozen,
             }
         };
 
@@ -210,7 +218,11 @@ impl SolarSystem {
 
         let p_earth = 365.256;
 
-        bodies.push(create_body("Earth", 0.0042, 100.0, get_orbit_speed(p_earth), get_initial_angle(100.46, p_earth), (0.0, 0.0, 1.0), Some(0), Mesh::sphere, Some("assets/textures/2k_earth_daymap.jpg"), Some("assets/textures/2k_earth_nightmap.jpg"), Some("assets/textures/2k_earth_clouds.jpg"), None, 0.0, 1.0, 23.4, 0.0, 0.0, 0.0, 0.017, "5.972 × 10^24 kg", 288.0, "Our home planet, the third from the Sun.", None));
+        if is_black_hole_mode {
+            bodies.push(create_body("Earth", 0.0042, 100.0, get_orbit_speed(p_earth), get_initial_angle(100.46, p_earth), (0.8, 0.9, 1.0), Some(0), Mesh::sphere, Some("assets/textures/2k_earth_daymap.jpg"), None, None, None, 0.0, 1.0, 23.4, 0.0, 0.0, 0.0, 0.017, "5.972 × 10^24 kg", 30.0, "A frozen wasteland orbiting a black hole.", None));
+        } else {
+            bodies.push(create_body("Earth", 0.0042, 100.0, get_orbit_speed(p_earth), get_initial_angle(100.46, p_earth), (0.0, 0.0, 1.0), Some(0), Mesh::sphere, Some("assets/textures/2k_earth_daymap.jpg"), Some("assets/textures/2k_earth_nightmap.jpg"), Some("assets/textures/2k_earth_clouds.jpg"), None, 0.0, 1.0, 23.4, 0.0, 0.0, 0.0, 0.017, "5.972 × 10^24 kg", 288.0, "Our home planet, the third from the Sun.", None));
+        }
 
         let p_moon = 27.322;
 
@@ -825,6 +837,7 @@ impl SolarSystem {
                 None,
                 false,
                 false,
+                false,
                 None,
                 None
             );        // Re-enable lighting for planets
@@ -938,6 +951,7 @@ impl SolarSystem {
                 None,
                 should_use_lighting,
                 is_black_hole,
+                body.is_frozen,
                 Some((rel_cam_x, rel_cam_y, rel_cam_z)),
                 if is_black_hole { self.background_texture.as_ref() } else { None }
             );
@@ -966,6 +980,7 @@ impl SolarSystem {
                         body.ring_inner_radius,
                         true,
                         false,
+                        body.is_frozen,
                         None,
                         None
                     );
@@ -992,6 +1007,7 @@ impl SolarSystem {
                         None,
                         true,
                         false,
+                        body.is_frozen,
                         None,
                         None
                     );

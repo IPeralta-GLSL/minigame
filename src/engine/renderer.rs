@@ -88,6 +88,7 @@ const FRAGMENT_SHADER: &str = r#"
 
     uniform bool uUseLighting;
     uniform bool uIsBlackHole;
+    uniform bool uIsFrozen;
     uniform vec3 uCameraPos;
     uniform sampler2D uBackgroundTexture;
 
@@ -207,6 +208,12 @@ const FRAGMENT_SHADER: &str = r#"
             result = color;
         }
 
+        if (uIsFrozen) {
+            float gray = dot(result, vec3(0.299, 0.587, 0.114));
+            vec3 iceColor = vec3(0.7, 0.85, 1.0);
+            result = mix(vec3(gray), iceColor, 0.5) * (gray + 0.2);
+        }
+
         result *= uTimeColor;
 
         float luminance = dot(result, vec3(0.2126, 0.7152, 0.0722));
@@ -237,6 +244,7 @@ pub struct Renderer {
     pub u_is_ring_location: WebGlUniformLocation,
     pub u_ring_inner_radius_location: WebGlUniformLocation,
     pub u_is_black_hole_location: WebGlUniformLocation,
+    pub u_is_frozen_location: WebGlUniformLocation,
     pub u_camera_pos_location: WebGlUniformLocation,
     pub u_background_texture_location: WebGlUniformLocation,
     unit_cube_vertex_buffer: WebGlBuffer,
@@ -293,6 +301,8 @@ impl Renderer {
             .ok_or("Failed to get uRingInnerRadius location")?;
         let u_is_black_hole_location = gl.get_uniform_location(&program, "uIsBlackHole")
             .ok_or("Failed to get uIsBlackHole location")?;
+        let u_is_frozen_location = gl.get_uniform_location(&program, "uIsFrozen")
+            .ok_or("Failed to get uIsFrozen location")?;
         let u_camera_pos_location = gl.get_uniform_location(&program, "uCameraPos")
             .ok_or("Failed to get uCameraPos location")?;
         let u_background_texture_location = gl.get_uniform_location(&program, "uBackgroundTexture")
@@ -362,6 +372,7 @@ impl Renderer {
             u_is_ring_location,
             u_ring_inner_radius_location,
             u_is_black_hole_location,
+            u_is_frozen_location,
             u_camera_pos_location,
             u_background_texture_location,
             instanced_ext,
@@ -572,7 +583,7 @@ impl Renderer {
         }
     }
 
-    pub fn draw_mesh(&self, mesh: &Mesh, x: f32, y: f32, z: f32, w: f32, h: f32, d: f32, rotation_x: f32, rotation_y: f32, rotation_z: f32, projection: &Matrix4<f32>, view: &Matrix4<f32>, texture: Option<&WebGlTexture>, night_texture: Option<&WebGlTexture>, color_override: Option<(f32, f32, f32)>, is_ring: bool, ring_inner_radius: Option<f32>, use_lighting: bool, is_black_hole: bool, camera_pos: Option<(f32, f32, f32)>, background_texture: Option<&WebGlTexture>) {
+    pub fn draw_mesh(&self, mesh: &Mesh, x: f32, y: f32, z: f32, w: f32, h: f32, d: f32, rotation_x: f32, rotation_y: f32, rotation_z: f32, projection: &Matrix4<f32>, view: &Matrix4<f32>, texture: Option<&WebGlTexture>, night_texture: Option<&WebGlTexture>, color_override: Option<(f32, f32, f32)>, is_ring: bool, ring_inner_radius: Option<f32>, use_lighting: bool, is_black_hole: bool, is_frozen: bool, camera_pos: Option<(f32, f32, f32)>, background_texture: Option<&WebGlTexture>) {
         self.gl.use_program(Some(&self.program));
         
         // Enable lighting by default for meshes
@@ -580,6 +591,7 @@ impl Renderer {
         self.gl.uniform1i(Some(&self.u_is_ring_location), if is_ring { 1 } else { 0 });
         self.gl.uniform1f(Some(&self.u_ring_inner_radius_location), ring_inner_radius.unwrap_or(0.0));
         self.gl.uniform1i(Some(&self.u_is_black_hole_location), if is_black_hole { 1 } else { 0 });
+        self.gl.uniform1i(Some(&self.u_is_frozen_location), if is_frozen { 1 } else { 0 });
         
         if let Some((cx, cy, cz)) = camera_pos {
             self.gl.uniform3f(Some(&self.u_camera_pos_location), cx, cy, cz);

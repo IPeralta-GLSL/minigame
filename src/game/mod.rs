@@ -786,13 +786,14 @@ impl Game {
                 None,
                 true,
                 false,
+                false,
                 None,
                 None
             );
         } else {
             // Fallback to procedural car
             let mesh = create_car_mesh(r, g, b);
-            self.renderer.draw_mesh(&mesh, x, y, z, w, h, d, 0.0, rotation, 0.0, projection, view, None, None, None, false, None, true, false, None, None);
+            self.renderer.draw_mesh(&mesh, x, y, z, w, h, d, 0.0, rotation, 0.0, projection, view, None, None, None, false, None, true, false, false, None, None);
         }
     }
 
