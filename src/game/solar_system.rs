@@ -334,10 +334,22 @@ impl SolarSystem {
             ));
         }
 
-        for i in 0..5000 {
+        for i in 0..10000 {
             let angle: f32 = rng.gen_range(0.0..360.0);
-            let dist: f32 = rng.gen_range(10000.0..50000.0);
-            let size: f32 = rng.gen_range(0.00005..0.00015); // Smaller, like asteroids
+            // Real scale: Inner Oort ~2,000 AU (200,000 units) to Outer Oort ~50,000 AU (5,000,000 units)
+            // Using a logarithmic distribution to have more objects in the inner part would be better, 
+            // but linear is fine for now, maybe biased towards inner.
+            // Let's use a power distribution to concentrate more density closer to the center
+            let r = rng.gen_range(0.0f32..1.0f32);
+            let dist_au = 2000.0 + (50000.0 - 2000.0) * r.powf(2.0); // Bias towards outer? No, r^2 biases towards 0 (inner) if r is 0..1? 
+            // If r is 0..1, r^2 is smaller, so it biases towards 0.
+            // Wait, if I want more density inside, I want smaller distances more often.
+            // If r is uniform 0..1. r^2 is clustered near 0.
+            // So dist = min + (max-min) * r^2 will cluster near min. Correct.
+            
+            let dist = dist_au * 100.0; // Convert AU to game units
+            
+            let size: f32 = rng.gen_range(0.00005..0.00015); 
             let period = (dist / 100.0).powf(1.5) * 365.256;
             
             bodies.push(create_body(
@@ -346,7 +358,7 @@ impl SolarSystem {
                 dist,
                 get_orbit_speed(period),
                 angle.to_radians(),
-                (0.8, 0.8, 0.9), // Icy color
+                (0.8, 0.8, 0.9), 
                 Some(0),
                 Mesh::sphere,
                 None,
@@ -356,8 +368,8 @@ impl SolarSystem {
                 0.0,
                 rng.gen_range(5.0..20.0),
                 rng.gen_range(0.0..30.0),
-                rng.gen_range(-90.0..90.0), // Full spherical distribution
-                rng.gen_range(0.0..360.0), // Random longitude
+                rng.gen_range(-90.0..90.0), 
+                rng.gen_range(0.0..360.0), 
                 rng.gen_range(0.0..0.5),
                 "Unknown",
                 10.0,
@@ -697,7 +709,7 @@ impl SolarSystem {
         };
 
         let aspect = width as f32 / height as f32;
-        let projection = Matrix4::new_perspective(aspect, 45.0 * std::f32::consts::PI / 180.0, 0.001, 100000000.0); // Increased far plane significantly
+        let projection = Matrix4::new_perspective(aspect, 45.0 * std::f32::consts::PI / 180.0, 0.001, 200000000.0); // Increased far plane significantly
         
 
 
@@ -988,6 +1000,6 @@ impl SolarSystem {
         let zoom_sensitivity = 0.001;
         let factor = (delta * zoom_sensitivity).exp();
         self.camera_distance *= factor;
-        self.camera_distance = self.camera_distance.max(0.0001).min(10000000.0);
+        self.camera_distance = self.camera_distance.max(0.0001).min(100000000.0);
     }
 }
