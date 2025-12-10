@@ -5,16 +5,29 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>MiniGame Evax</title>
     <style>
+        :root {
+            --bg-glass: rgba(15, 20, 30, 0.85);
+            --border-glass: rgba(255, 255, 255, 0.1);
+            --accent-color: #4a9eff;
+            --accent-hover: #3a8eef;
+            --text-main: #f0f0f0;
+            --text-muted: #a0a0a0;
+            --font-main: 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+        }
+
         * { margin: 0; padding: 0; box-sizing: border-box; touch-action: none; }
+        
         body {
             display: flex;
             justify-content: center;
             align-items: center;
             min-height: 100vh;
-            background: linear-gradient(135deg, #1a1a1a 0%, #383838 100%);
-            font-family: Arial, sans-serif;
+            background: linear-gradient(135deg, #0f0f15 0%, #1a1a25 100%);
+            font-family: var(--font-main);
+            color: var(--text-main);
             overflow: hidden;
         }
+
         .game-container {
             position: relative;
             width: 100%;
@@ -24,131 +37,152 @@
             align-items: center;
             justify-content: center;
         }
+
         canvas {
             width: 100%;
             height: 100%;
             display: block;
         }
+
+        /* UI Panels Common Styles */
+        .panel-glass {
+            background: var(--bg-glass);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--border-glass);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5);
+            border-radius: 12px;
+            color: var(--text-main);
+        }
+
         #score {
             position: absolute;
             top: 20px;
             left: 20px;
             font-size: 28px;
-            font-weight: bold;
+            font-weight: 700;
             color: #fff;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+            text-shadow: 0 2px 10px rgba(0,0,0,0.5);
             pointer-events: none;
+            font-family: var(--font-main);
         }
+
         #gameover {
             display: none;
             position: absolute;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            background: rgba(0, 0, 0, 0.85);
             padding: 40px 60px;
-            border-radius: 16px;
             text-align: center;
-            border: 3px solid #ff4a4a;
             z-index: 10;
+            border: 1px solid rgba(255, 74, 74, 0.3);
         }
+        
         #menu {
             position: absolute;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(0, 0, 0, 0.9);
+            background: rgba(5, 5, 10, 0.95);
             display: flex;
             flex-direction: column;
             justify-content: center;
             align-items: center;
             z-index: 100;
         }
+
         .menu-title {
             font-size: 48px;
             color: white;
-            margin-bottom: 40px;
+            margin-bottom: 50px;
             text-transform: uppercase;
-            letter-spacing: 4px;
+            letter-spacing: 6px;
+            font-weight: 300;
+            text-shadow: 0 0 20px rgba(74, 158, 255, 0.3);
         }
+
         .menu-btn {
-            padding: 15px 40px;
-            margin: 10px;
-            font-size: 24px;
-            background: #4CAF50;
-            color: white;
-            border: none;
+            padding: 16px 40px;
+            margin: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            background: transparent;
+            color: var(--text-main);
+            border: 1px solid rgba(255, 255, 255, 0.2);
             border-radius: 8px;
             cursor: pointer;
-            transition: transform 0.2s, background 0.2s;
-            width: 300px;
+            transition: all 0.3s ease;
+            width: 280px;
+            position: relative;
+            overflow: hidden;
         }
+
         .menu-btn:hover {
-            transform: scale(1.05);
-            background: #45a049;
+            background: rgba(255, 255, 255, 0.1);
+            border-color: var(--accent-color);
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
         }
+
         .menu-btn.solar {
-            background: #2196F3;
-        }
-        .menu-btn.solar:hover {
-            background: #1976D2;
-        }
-        #gameover h2 { color: #ff4a4a; font-size: 36px; margin-bottom: 15px; }
-        #gameover p { color: #fff; font-size: 18px; }
-        .controls { 
-            display: none; 
+            border-color: rgba(74, 158, 255, 0.4);
         }
         
+        .menu-btn.solar:hover {
+            background: rgba(74, 158, 255, 0.15);
+            border-color: var(--accent-color);
+        }
+
+        #gameover h2 { color: #ff4a4a; font-size: 36px; margin-bottom: 15px; font-weight: 300; letter-spacing: 2px; }
+        #gameover p { color: var(--text-muted); font-size: 16px; }
+        
+        .controls { display: none; }
+        
         @media (min-width: 768px) {
-            .game-container {
-                width: auto;
-                height: auto;
-            }
+            .game-container { width: auto; height: auto; }
             canvas {
                 width: 800px;
                 height: 600px;
-                border: 4px solid #42ff13;
-                border-radius: 8px;
+                border: 1px solid rgba(255, 255, 255, 0.1);
+                border-radius: 12px;
+                box-shadow: 0 20px 50px rgba(0,0,0,0.5);
             }
             .controls {
                 display: block;
-                margin-top: 20px; 
-                color: #aaa; 
+                margin-top: 30px; 
+                color: var(--text-muted); 
                 text-align: center;
+                font-size: 14px;
             }
-            .controls h3 { color: #4a9eff; margin-bottom: 10px; }
-            .controls p { margin: 5px 0; }
+            .controls h3 { color: var(--accent-color); margin-bottom: 15px; font-weight: 500; text-transform: uppercase; letter-spacing: 1px; }
+            .controls p { margin: 8px 0; }
             .key {
                 display: inline-block;
-                background: #333;
-                padding: 5px 12px;
+                background: rgba(255, 255, 255, 0.1);
+                padding: 4px 10px;
                 border-radius: 4px;
-                margin: 0 3px;
-                border: 1px solid #555;
+                margin: 0 4px;
+                border: 1px solid rgba(255, 255, 255, 0.1);
+                font-family: monospace;
+                font-size: 12px;
+                color: white;
             }
         }
         
         /* Full screen mode for Solar System */
-        body.solar-mode .game-container {
-            width: 100vw;
-            height: 100vh;
-        }
+        body.solar-mode .game-container { width: 100vw; height: 100vh; }
         body.solar-mode canvas {
             width: 100% !important;
             height: 100% !important;
             border: none !important;
             border-radius: 0 !important;
+            box-shadow: none !important;
         }
-        body.solar-mode .controls {
-            display: none !important;
-        }
-        body.solar-mode #score {
-            display: none !important;
-        }
-        body.solar-mode #god-mode-btn {
-            display: none !important;
-        }
+        body.solar-mode .controls, body.solar-mode #score, body.solar-mode #god-mode-btn { display: none !important; }
         
         /* Solar System UI */
         #solar-ui {
@@ -160,88 +194,140 @@
             width: 100%;
             height: 100%;
         }
-        body.solar-mode #solar-ui {
-            display: block;
-        }
+        body.solar-mode #solar-ui { display: block; }
         
         .solar-sidebar {
             position: absolute;
-            top: 60px;
-            left: 10px;
-            background: rgba(0, 0, 0, 0.7);
-            padding: 15px;
-            border-radius: 8px;
-            color: white;
+            top: 20px;
+            left: 20px;
+            width: 260px;
+            padding: 20px;
             pointer-events: auto;
-            border: 1px solid #444;
-            max-height: 80vh;
+            max-height: calc(100vh - 40px);
             overflow-y: auto;
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255,255,255,0.2) transparent;
         }
+        
+        .solar-sidebar::-webkit-scrollbar { width: 4px; }
+        .solar-sidebar::-webkit-scrollbar-track { background: transparent; }
+        .solar-sidebar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 4px; }
+
         .solar-sidebar h3 {
-            margin-bottom: 10px;
-            border-bottom: 1px solid #666;
-            padding-bottom: 5px;
+            margin-bottom: 15px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding-bottom: 10px;
+            font-weight: 400;
+            letter-spacing: 1px;
+            color: var(--accent-color);
+            font-size: 14px;
+            text-transform: uppercase;
         }
+
         .solar-info {
             position: absolute;
-            top: 10px;
-            right: 10px;
-            background: rgba(0, 0, 0, 0.7);
+            top: 20px;
+            right: 20px;
             padding: 10px 20px;
-            border-radius: 8px;
-            color: white;
-            font-family: monospace;
-            font-size: 16px;
-            border: 1px solid #444;
-            pointer-events: none;
-        }
-        .body-list {
-            list-style: none;
-        }
-        .body-list li {
-            padding: 5px 0;
-            border-bottom: 1px solid #333;
+            font-family: 'Roboto Mono', monospace;
             font-size: 14px;
+            pointer-events: none;
+            color: var(--accent-color);
+            letter-spacing: 1px;
         }
-        .body-list li:last-child {
-            border-bottom: none;
+
+        .body-list { list-style: none; }
+        .body-list li {
+            padding: 10px 12px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+            border-radius: 6px;
+            margin-bottom: 2px;
+            color: var(--text-muted);
         }
+        .body-list li:hover {
+            background: rgba(255, 255, 255, 0.08);
+            color: white;
+            padding-left: 16px;
+        }
+        .body-list li:last-child { border-bottom: none; }
         
         .time-controls {
             position: absolute;
-            bottom: 20px;
+            bottom: 30px;
             left: 50%;
             transform: translateX(-50%);
-            background: rgba(0, 0, 0, 0.7);
-            padding: 15px;
-            border-radius: 8px;
-            color: white;
+            padding: 15px 25px;
             pointer-events: auto;
             display: flex;
             align-items: center;
-            gap: 15px;
-            border: 1px solid #444;
+            gap: 20px;
         }
-        .time-controls button {
-            background: #444;
-            color: white;
-            border: 1px solid #666;
-            padding: 5px 10px;
-            border-radius: 4px;
+
+        .control-btn {
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-main);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 8px 16px;
+            border-radius: 6px;
             cursor: pointer;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            transition: all 0.2s;
+            min-width: 80px;
+            text-align: center;
         }
-        .time-controls button:hover {
-            background: #666;
+        .control-btn:hover {
+            background: var(--accent-color);
+            border-color: var(--accent-color);
+            color: white;
+            box-shadow: 0 0 15px rgba(74, 158, 255, 0.4);
         }
+
         .time-slider-container {
             display: flex;
             flex-direction: column;
             align-items: center;
-            width: 200px;
+            width: 240px;
         }
-        .time-slider-container input {
+        
+        .time-slider-container label {
+            font-size: 11px;
+            color: var(--text-muted);
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .time-slider-container input[type=range] {
             width: 100%;
+            -webkit-appearance: none;
+            background: transparent;
         }
+        
+        .time-slider-container input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 14px;
+            width: 14px;
+            border-radius: 50%;
+            background: var(--accent-color);
+            cursor: pointer;
+            margin-top: -5px;
+            box-shadow: 0 0 10px rgba(74, 158, 255, 0.5);
+        }
+        
+        .time-slider-container input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            cursor: pointer;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 2px;
+        }
+
         .solar-labels {
             position: absolute;
             top: 0;
@@ -253,13 +339,37 @@
         }
         .solar-label {
             position: absolute;
-            color: white;
-            font-family: Arial, sans-serif;
-            font-size: 12px;
-            text-shadow: 1px 1px 2px black;
+            color: rgba(255, 255, 255, 0.8);
+            font-family: var(--font-main);
+            font-size: 11px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.8);
             white-space: nowrap;
             transform: translate(-50%, -100%);
             pointer-events: none;
+            letter-spacing: 0.5px;
+        }
+        
+        /* Custom Select */
+        select#sim-type {
+            width: 100%;
+            padding: 10px;
+            background: rgba(0, 0, 0, 0.3);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 6px;
+            cursor: pointer;
+            font-family: var(--font-main);
+            font-size: 13px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        select#sim-type:hover {
+            border-color: var(--accent-color);
+        }
+        select#sim-type option {
+            background: #1a1a25;
+            color: white;
+            padding: 10px;
         }
     </style>
 </head>
@@ -295,14 +405,14 @@
         
         <div id="solar-ui">
             <div id="solar-labels" class="solar-labels"></div>
-            <div class="solar-info">
+            <div class="solar-info panel-glass">
                 <span id="solar-date">Loading...</span>
             </div>
-            <div class="solar-sidebar">
+            <div class="solar-sidebar panel-glass">
                 <h3>Celestial Bodies</h3>
-                <div style="margin-bottom: 10px; padding: 5px;">
-                    <label for="sim-type" style="display: block; margin-bottom: 5px; font-size: 12px; color: #aaa;">Simulation Type:</label>
-                    <select id="sim-type" style="width: 100%; padding: 5px; background: #333; color: white; border: 1px solid #666; cursor: pointer;">
+                <div style="margin-bottom: 20px;">
+                    <label for="sim-type" style="display: block; margin-bottom: 8px; font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px;">Simulation Type</label>
+                    <select id="sim-type">
                         <option value="sun">Solar System (Sun)</option>
                         <option value="black_hole">Solar System (Black Hole)</option>
                     </select>
@@ -321,27 +431,27 @@
                 </ul>
             </div>
 
-            <div id="solar-info-panel" style="position: absolute; top: 20px; right: 20px; background: rgba(0,0,0,0.8); padding: 15px; border-radius: 8px; color: white; width: 250px; display: none; border: 1px solid #444; pointer-events: auto;">
-                <h3 id="info-name" style="margin-bottom: 10px; color: #4a9eff; border-bottom: 1px solid #666; padding-bottom: 5px;">Planet Name</h3>
-                <div style="font-size: 14px; line-height: 1.6;">
-                    <p><strong>Mass:</strong> <span id="info-mass">-</span></p>
-                    <p><strong>Radius:</strong> <span id="info-radius">-</span></p>
-                    <p><strong>Temp:</strong> <span id="info-temp">-</span></p>
-                    <p><strong>Speed:</strong> <span id="info-speed">-</span></p>
-                    <p><strong>Orbital Period:</strong> <span id="info-period">-</span></p>
-                    <p><strong>Eccentricity:</strong> <span id="info-eccentricity">-</span></p>
-                    <p style="margin-top: 10px; font-style: italic; color: #aaa;" id="info-desc"></p>
+            <div id="solar-info-panel" class="panel-glass" style="position: absolute; top: 20px; right: 20px; width: 280px; display: none; pointer-events: auto; padding: 20px;">
+                <h3 id="info-name" style="margin-bottom: 15px; color: var(--accent-color); border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px; font-weight: 400; letter-spacing: 1px; text-transform: uppercase;">Planet Name</h3>
+                <div style="font-size: 13px; line-height: 1.8; color: var(--text-main);">
+                    <p><strong style="color: var(--text-muted); font-weight: 500;">Mass:</strong> <span id="info-mass" style="float: right;">-</span></p>
+                    <p><strong style="color: var(--text-muted); font-weight: 500;">Radius:</strong> <span id="info-radius" style="float: right;">-</span></p>
+                    <p><strong style="color: var(--text-muted); font-weight: 500;">Temp:</strong> <span id="info-temp" style="float: right;">-</span></p>
+                    <p><strong style="color: var(--text-muted); font-weight: 500;">Speed:</strong> <span id="info-speed" style="float: right;">-</span></p>
+                    <p><strong style="color: var(--text-muted); font-weight: 500;">Period:</strong> <span id="info-period" style="float: right;">-</span></p>
+                    <p><strong style="color: var(--text-muted); font-weight: 500;">Eccentricity:</strong> <span id="info-eccentricity" style="float: right;">-</span></p>
+                    <p style="margin-top: 15px; font-style: italic; color: var(--text-muted); border-top: 1px solid rgba(255,255,255,0.1); padding-top: 10px;" id="info-desc"></p>
                 </div>
             </div>
             
-            <div class="time-controls">
-                <button id="time-pause">⏸️</button>
-                <button id="time-play">▶️</button>
+            <div class="time-controls panel-glass">
+                <button id="time-pause" class="control-btn">Pause</button>
+                <button id="time-play" class="control-btn">Play</button>
                 <div class="time-slider-container">
-                    <label for="time-speed">Speed: <span id="speed-val">1.0</span></label>
+                    <label for="time-speed">Speed: <span id="speed-val" style="color: var(--accent-color);">1.0</span></label>
                     <input type="range" id="time-speed" min="0" max="10" step="1" value="0">
                 </div>
-                <button id="time-reset">Reset</button>
+                <button id="time-reset" class="control-btn">Reset</button>
             </div>
         </div>
     </div>

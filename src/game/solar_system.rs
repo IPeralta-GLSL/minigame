@@ -507,7 +507,8 @@ impl SolarSystem {
             let document = window.document().unwrap();
             
             if let Some(panel) = document.get_element_by_id("solar-info-panel") {
-                panel.set_attribute("style", "position: absolute; top: 20px; right: 20px; background: rgba(0,0,0,0.8); padding: 15px; border-radius: 8px; color: white; width: 250px; display: block; border: 1px solid #444; pointer-events: auto;").unwrap();
+                panel.set_attribute("style", "position: absolute; top: 20px; right: 20px; width: 280px; display: block; pointer-events: auto; padding: 20px;").unwrap();
+                panel.set_class_name("panel-glass");
                 
                 if let Some(el) = document.get_element_by_id("info-name") { el.set_text_content(Some(&body.name)); }
                 if let Some(el) = document.get_element_by_id("info-mass") { el.set_text_content(Some(&body.mass)); }
@@ -847,6 +848,16 @@ impl SolarSystem {
 
         let mut instance_data = Vec::with_capacity(self.bodies.len() * 7);
         let mut asteroid_count = 0;
+        
+        struct BodyScreenData {
+            index: usize,
+            screen_x: f32,
+            screen_y: f32,
+            label_y: f32,
+            radius_px: f32,
+            depth: f32,
+        }
+        let mut screen_data = Vec::new();
 
         for (i, body) in self.bodies.iter().enumerate() {
             let abs_pos = positions[i];
@@ -1017,12 +1028,6 @@ impl SolarSystem {
             }
             
             if let Some(element) = &body.label_element {
-
-
-
-
-
-                
                 let center_world = Vector4::new(pos.x, pos.y, pos.z, 1.0);
                 let view_pos = view * center_world;
 
@@ -1041,19 +1046,60 @@ impl SolarSystem {
                         let screen_cy = (1.0 - ndc_center_y) * height as f32 / 2.0;
                         let screen_ty = (1.0 - ndc_top_y) * height as f32 / 2.0;
                         
-
                         let radius_px = (screen_cy - screen_ty).abs();
                         let label_y = screen_cy - radius_px - 20.0;
                         
-                        let style = element.style();
-                        style.set_property("display", "block").unwrap();
-                        style.set_property("left", &format!("{}px", screen_x)).unwrap();
-                        style.set_property("top", &format!("{}px", label_y)).unwrap();
+                        // Store for second pass
+                        screen_data.push(BodyScreenData {
+                            index: i,
+                            screen_x,
+                            screen_y: screen_cy,
+                            label_y,
+                            radius_px,
+                            depth: dist, // dist calculated earlier
+                        });
                     } else {
                         element.style().set_property("display", "none").unwrap();
                     }
                 } else {
                     element.style().set_property("display", "none").unwrap();
+                }
+            }
+        }
+
+        // Second pass: Occlusion Culling for Labels
+        for data in &screen_data {
+            let mut is_occluded = false;
+            
+            // Check against all other bodies
+            for other in &screen_data {
+                if data.index == other.index { continue; }
+                
+                // If other body is closer and overlaps
+                if other.depth < data.depth {
+                    let dx = data.screen_x - other.screen_x;
+                    let dy = data.screen_y - other.screen_y; // Use center of planet, not label pos
+                    let dist_sq = dx*dx + dy*dy;
+                    
+                    // Check if label center (approx) is inside the other planet's visual radius
+                    // Actually, we should check if the PLANET center is behind the other planet.
+                    // If the planet is hidden, the label should be hidden too.
+                    
+                    if dist_sq < (other.radius_px * other.radius_px) {
+                        is_occluded = true;
+                        break;
+                    }
+                }
+            }
+            
+            if let Some(element) = &self.bodies[data.index].label_element {
+                if is_occluded {
+                    element.style().set_property("display", "none").unwrap();
+                } else {
+                    let style = element.style();
+                    style.set_property("display", "block").unwrap();
+                    style.set_property("left", &format!("{}px", data.screen_x)).unwrap();
+                    style.set_property("top", &format!("{}px", data.label_y)).unwrap();
                 }
             }
         }
