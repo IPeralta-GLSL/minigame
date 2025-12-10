@@ -6,10 +6,10 @@
     <title>MiniGame Evax</title>
     <style>
         :root {
-            --bg-glass: rgba(15, 20, 30, 0.85);
+            --bg-glass: rgba(30, 30, 30, 0.9);
             --border-glass: rgba(255, 255, 255, 0.1);
-            --accent-color: #4a9eff;
-            --accent-hover: #3a8eef;
+            --accent-color: #4CAF50;
+            --accent-hover: #45a049;
             --text-main: #f0f0f0;
             --text-muted: #a0a0a0;
             --font-main: 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
@@ -405,9 +405,7 @@
         
         <div id="solar-ui">
             <div id="solar-labels" class="solar-labels"></div>
-            <div class="solar-info panel-glass">
-                <span id="solar-date">Loading...</span>
-            </div>
+            
             <div class="solar-sidebar panel-glass">
                 <h3>Celestial Bodies</h3>
                 <div style="margin-bottom: 20px;">
@@ -445,6 +443,9 @@
             </div>
             
             <div class="time-controls panel-glass">
+                <div style="margin-right: 20px; font-family: 'Roboto Mono', monospace; color: var(--accent-color); font-size: 14px; white-space: nowrap;">
+                    <span id="solar-date">Loading...</span>
+                </div>
                 <button id="time-pause" class="control-btn">Pause</button>
                 <button id="time-play" class="control-btn">Play</button>
                 <div class="time-slider-container">
