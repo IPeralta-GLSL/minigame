@@ -210,8 +210,8 @@ const FRAGMENT_SHADER: &str = r#"
 
         if (uIsFrozen) {
             float gray = dot(result, vec3(0.299, 0.587, 0.114));
-            vec3 iceColor = vec3(0.7, 0.85, 1.0);
-            result = mix(vec3(gray), iceColor, 0.5) * (gray + 0.2);
+            vec3 iceColor = vec3(0.8, 0.9, 1.0);
+            result = mix(vec3(gray), iceColor, 0.8) * (gray + 0.5);
         }
 
         result *= uTimeColor;

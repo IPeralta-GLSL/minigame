@@ -434,7 +434,13 @@
                 <div style="font-size: 13px; line-height: 1.8; color: var(--text-main);">
                     <p><strong style="color: var(--text-muted); font-weight: 500;">Mass:</strong> <span id="info-mass" style="float: right;">-</span></p>
                     <p><strong style="color: var(--text-muted); font-weight: 500;">Radius:</strong> <span id="info-radius" style="float: right;">-</span></p>
-                    <p><strong style="color: var(--text-muted); font-weight: 500;">Temp:</strong> <span id="info-temp" style="float: right;">-</span></p>
+                    <p style="display: flex; justify-content: space-between; align-items: center;">
+                        <strong style="color: var(--text-muted); font-weight: 500;">Temp:</strong> 
+                        <span style="display: flex; align-items: center; gap: 8px;">
+                            <span id="info-temp">-</span>
+                            <button id="temp-unit-toggle" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: var(--accent-color); border-radius: 4px; cursor: pointer; font-size: 10px; padding: 2px 6px; transition: all 0.2s;">°C/K</button>
+                        </span>
+                    </p>
                     <p><strong style="color: var(--text-muted); font-weight: 500;">Speed:</strong> <span id="info-speed" style="float: right;">-</span></p>
                     <p><strong style="color: var(--text-muted); font-weight: 500;">Period:</strong> <span id="info-period" style="float: right;">-</span></p>
                     <p><strong style="color: var(--text-muted); font-weight: 500;">Eccentricity:</strong> <span id="info-eccentricity" style="float: right;">-</span></p>
@@ -457,7 +463,7 @@
         </div>
     </div>
     <script type="module">
-        import init, { start_crossy_road, start_solar_system, load_solar_system, touch_left, touch_right, touch_forward, touch_restart, activate_god_mode, set_solar_time_scale, select_solar_body } from './pkg/crossy_road_clone.js';
+        import init, { start_crossy_road, start_solar_system, load_solar_system, touch_left, touch_right, touch_forward, touch_restart, activate_god_mode, set_solar_time_scale, select_solar_body, toggle_solar_temperature_unit } from './pkg/crossy_road_clone.js';
 
         window.selectSolarBody = function(index) {
             select_solar_body(index);
@@ -535,6 +541,14 @@
                     isPaused = false;
                     timeSpeedInput.value = 0;
                     updateTimeScale();
+                });
+            }
+
+            const tempToggleBtn = document.getElementById('temp-unit-toggle');
+            if (tempToggleBtn) {
+                tempToggleBtn.addEventListener('click', (e) => {
+                    e.stopPropagation(); // Prevent closing panel if we add click-outside logic later
+                    toggle_solar_temperature_unit();
                 });
             }
 
@@ -652,6 +666,13 @@
             document.getElementById('god-mode-btn').addEventListener('touchstart', (e) => {
                 e.preventDefault();
                 activate_god_mode();
+            });
+
+            // Temperature Toggle
+            document.body.addEventListener('click', (e) => {
+                if (e.target && e.target.id === 'temp-unit-toggle') {
+                    toggle_solar_temperature_unit();
+                }
             });
 
         }).catch(err => {

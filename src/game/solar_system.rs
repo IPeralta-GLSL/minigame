@@ -56,6 +56,7 @@ pub struct SolarSystem {
     ring_mesh: Mesh,
     is_black_hole: bool,
     sun_texture: Option<WebGlTexture>,
+    use_celsius: bool,
 }
 
 impl SolarSystem {
@@ -495,6 +496,7 @@ impl SolarSystem {
             ring_mesh,
             is_black_hole: is_black_hole_mode,
             sun_texture,
+            use_celsius: true,
         }
     }
 
@@ -513,7 +515,14 @@ impl SolarSystem {
                 if let Some(el) = document.get_element_by_id("info-name") { el.set_text_content(Some(&body.name)); }
                 if let Some(el) = document.get_element_by_id("info-mass") { el.set_text_content(Some(&body.mass)); }
                 if let Some(el) = document.get_element_by_id("info-radius") { el.set_text_content(Some(&format!("{:.1} km", body.radius * 6371.0 / 0.0042))); } // Approx scale based on Earth
-                if let Some(el) = document.get_element_by_id("info-temp") { el.set_text_content(Some(&format!("{:.0} K", body.temperature))); }
+                if let Some(el) = document.get_element_by_id("info-temp") {
+                    let temp_str = if self.use_celsius {
+                        format!("{:.0} °C", body.temperature - 273.15)
+                    } else {
+                        format!("{:.0} K", body.temperature)
+                    };
+                    el.set_text_content(Some(&temp_str));
+                }
                 if let Some(el) = document.get_element_by_id("info-speed") {
                     if body.name.trim() == "Sun" || body.name.trim() == "Black Hole" {
                          el.set_text_content(Some("230 km/s (Galactic)"));
@@ -551,6 +560,13 @@ impl SolarSystem {
         }
     }
 
+    pub fn toggle_temperature_unit(&mut self) {
+        self.use_celsius = !self.use_celsius;
+        if let Some(index) = self.focused_body_index {
+            self.select_body(index);
+        }
+    }
+
     pub fn set_time_scale(&mut self, scale: f32) {
         self.time_scale = scale;
     }
@@ -569,9 +585,15 @@ impl SolarSystem {
         let window = web_sys::window().unwrap();
         let document = window.document().unwrap();
             if let Some(element) = document.get_element_by_id("solar-date") {
-            let date_str: String = date.to_locale_string("en-US", &wasm_bindgen::JsValue::UNDEFINED).into();
-            element.set_text_content(Some(&date_str));
-        }
+                let year = date.get_full_year();
+                let month = date.get_month() + 1;
+                let day = date.get_date();
+                let hours = date.get_hours();
+                let minutes = date.get_minutes();
+                let seconds = date.get_seconds();
+                let date_str = format!("{:02}/{:02}/{} {:02}:{:02}:{:02}", month, day, year, hours, minutes, seconds);
+                element.set_text_content(Some(&date_str));
+            }
 
         // Update speed info if a body is selected
         if let Some(idx) = self.focused_body_index {
