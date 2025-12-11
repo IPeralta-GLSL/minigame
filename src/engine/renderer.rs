@@ -40,6 +40,7 @@ const INSTANCED_VERTEX_SHADER: &str = r#"
     attribute vec3 aInstancePosition;
     attribute float aInstanceScale;
     attribute vec3 aInstanceColor;
+    attribute float aInstanceLight;
 
     uniform mat4 uView;
     uniform mat4 uProjection;
@@ -57,7 +58,7 @@ const INSTANCED_VERTEX_SHADER: &str = r#"
         gl_Position = uProjection * uView * vec4(worldPos, 1.0);
         
         vPos = aPosition; 
-        vColor = aInstanceColor;
+        vColor = aInstanceColor * aInstanceLight;
         vTexCoord = aTexCoord;
         vFragPos = worldPos;
         vNormal = aNormal; 
@@ -264,6 +265,7 @@ pub struct Renderer {
     u_instanced_view_loc: WebGlUniformLocation,
     u_instanced_proj_loc: WebGlUniformLocation,
     u_instanced_light_pos_loc: WebGlUniformLocation,
+    u_instanced_use_lighting_loc: WebGlUniformLocation,
     u_instanced_time_color_loc: WebGlUniformLocation,
     instance_data_buffer: WebGlBuffer,
 }
@@ -319,6 +321,7 @@ impl Renderer {
         let u_instanced_view_loc = gl.get_uniform_location(&instanced_program, "uView").ok_or("Failed to get uView")?;
         let u_instanced_proj_loc = gl.get_uniform_location(&instanced_program, "uProjection").ok_or("Failed to get uProjection")?;
         let u_instanced_light_pos_loc = gl.get_uniform_location(&instanced_program, "uLightPos").ok_or("Failed to get uLightPos")?;
+        let u_instanced_use_lighting_loc = gl.get_uniform_location(&instanced_program, "uUseLighting").ok_or("Failed to get uUseLighting instanced")?;
         let u_instanced_time_color_loc = gl.get_uniform_location(&instanced_program, "uTimeColor").ok_or("Failed to get uTimeColor")?;
         let instance_data_buffer = gl.create_buffer().ok_or("Failed to create instance buffer")?;
 
@@ -385,6 +388,7 @@ impl Renderer {
             u_instanced_view_loc,
             u_instanced_proj_loc,
             u_instanced_light_pos_loc,
+            u_instanced_use_lighting_loc,
             u_instanced_time_color_loc,
             instance_data_buffer,
         })
@@ -501,6 +505,7 @@ impl Renderer {
         self.gl.uniform_matrix4fv_with_f32_array(Some(&self.u_instanced_view_loc), false, view.as_slice());
         self.gl.uniform_matrix4fv_with_f32_array(Some(&self.u_instanced_proj_loc), false, projection.as_slice());
         self.gl.uniform3f(Some(&self.u_instanced_light_pos_loc), light_pos.x, light_pos.y, light_pos.z);
+        self.gl.uniform1i(Some(&self.u_instanced_use_lighting_loc), 1); // Enable lighting for instanced
         self.gl.uniform3f(Some(&self.u_instanced_time_color_loc), 1.0, 1.0, 1.0);
 
         self.gl.bind_buffer(WebGlRenderingContext::ARRAY_BUFFER, Some(&self.dynamic_vertex_buffer));
@@ -555,8 +560,9 @@ impl Renderer {
         let i_pos_loc = self.gl.get_attrib_location(&self.instanced_program, "aInstancePosition");
         let i_scale_loc = self.gl.get_attrib_location(&self.instanced_program, "aInstanceScale");
         let i_col_loc = self.gl.get_attrib_location(&self.instanced_program, "aInstanceColor");
+        let i_light_loc = self.gl.get_attrib_location(&self.instanced_program, "aInstanceLight");
 
-        let stride = 28; 
+        let stride = 32; 
 
         if i_pos_loc != -1 {
             self.gl.vertex_attrib_pointer_with_i32(i_pos_loc as u32, 3, WebGlRenderingContext::FLOAT, false, stride, 0);
@@ -574,6 +580,12 @@ impl Renderer {
             self.gl.vertex_attrib_pointer_with_i32(i_col_loc as u32, 3, WebGlRenderingContext::FLOAT, false, stride, 16);
             self.gl.enable_vertex_attrib_array(i_col_loc as u32);
             ext.vertex_attrib_divisor_angle(i_col_loc as u32, 1);
+        }
+
+        if i_light_loc != -1 {
+            self.gl.vertex_attrib_pointer_with_i32(i_light_loc as u32, 1, WebGlRenderingContext::FLOAT, false, stride, 28);
+            self.gl.enable_vertex_attrib_array(i_light_loc as u32);
+            ext.vertex_attrib_divisor_angle(i_light_loc as u32, 1);
         }
 
         ext.draw_elements_instanced_angle_with_i32(
@@ -595,6 +607,10 @@ impl Renderer {
         if i_col_loc != -1 {
             ext.vertex_attrib_divisor_angle(i_col_loc as u32, 0);
             self.gl.disable_vertex_attrib_array(i_col_loc as u32);
+        }
+        if i_light_loc != -1 {
+            ext.vertex_attrib_divisor_angle(i_light_loc as u32, 0);
+            self.gl.disable_vertex_attrib_array(i_light_loc as u32);
         }
     }
 

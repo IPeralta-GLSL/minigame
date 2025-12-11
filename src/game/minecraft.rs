@@ -200,20 +200,46 @@ impl Minecraft {
             &Vector3::y(),
         );
 
-        // Render blocks
-        for ((x, y, z), block_type) in &self.blocks {
-            self.renderer.draw_mesh(
-                &self.cube_mesh,
-                *x as f32, *y as f32, *z as f32,
-                1.0, 1.0, 1.0,
-                0.0, 0.0, 0.0,
-                &projection,
-                &view,
-                None, None,
-                Some(block_type.color()),
-                false, None, true, false, false, None, None
-            );
+        // Light position (Sun)
+        let light_pos = Vector3::new(50.0, 100.0, 50.0);
+
+        // Calculate heightmap for shadows
+        let mut heightmap: HashMap<(i32, i32), i32> = HashMap::new();
+        for (x, y, z) in self.blocks.keys() {
+            let entry = heightmap.entry((*x, *z)).or_insert(-100);
+            if *y > *entry {
+                *entry = *y;
+            }
         }
+
+        // Collect instance data
+        let mut instance_data = Vec::new();
+        let mut count = 0;
+
+        for ((x, y, z), block_type) in &self.blocks {
+            let (r, g, b) = block_type.color();
+            
+            // Shadow logic: if block is below max height at this x,z, it's in shadow
+            let max_y = heightmap.get(&(*x, *z)).unwrap_or(y);
+            let light_level = if y < max_y { 0.6 } else { 1.0 };
+
+            instance_data.extend_from_slice(&[
+                *x as f32, *y as f32, *z as f32, // Position
+                1.0, // Scale
+                r, g, b, // Color
+                light_level // Light level
+            ]);
+            count += 1;
+        }
+
+        self.renderer.draw_instanced_mesh(
+            &self.cube_mesh,
+            &instance_data,
+            count,
+            &projection,
+            &view,
+            &light_pos
+        );
         
         // Render selection highlight (raycast)
         if let Some((bx, by, bz, face)) = self.raycast() {
