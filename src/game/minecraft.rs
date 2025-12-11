@@ -96,8 +96,7 @@ impl Minecraft {
     }
 
     pub fn update(&mut self) {
-        // Apply movement from input state
-        let speed = 0.02; // Acceleration per frame
+        let speed = 0.02;
         let max_speed = 0.15;
         let (yaw, _) = self.player_rot;
         let forward = Vector3::new(yaw.cos(), 0.0, yaw.sin()).normalize();
@@ -115,7 +114,6 @@ impl Minecraft {
             self.velocity.z += move_dir.z * speed;
         }
 
-        // Clamp horizontal velocity
         let h_vel = Vector3::new(self.velocity.x, 0.0, self.velocity.z);
         if h_vel.norm() > max_speed {
             let clamped = h_vel.normalize() * max_speed;
@@ -123,57 +121,88 @@ impl Minecraft {
             self.velocity.z = clamped.z;
         }
 
-        // Physics (Simple gravity)
         self.velocity.y -= 0.02;
-        self.player_pos += self.velocity;
 
-        // Simple collision (floor at y=3 for now, or check blocks)
-        // For a "mini" version, let's just collide with the generated floor at y=3 (since blocks are at 0,1,2)
-        // Actually, let's do simple block collision
+        self.player_pos.x += self.velocity.x;
+        self.resolve_collisions(0); 
         
-        let _player_bbox_min = self.player_pos - Vector3::new(0.3, 1.5, 0.3);
-        let _player_bbox_max = self.player_pos + Vector3::new(0.3, 0.3, 0.3);
+        self.player_pos.z += self.velocity.z;
+        self.resolve_collisions(2); 
 
-        // Check collision with blocks
-        // This is a very naive collision detection
-        if self.player_pos.y < 3.5 { // Top of grass is at y=2.5 (center 2 + 0.5)
-             // self.player_pos.y = 3.5;
-             // self.velocity.y = 0.0;
-             // self.on_ground = true;
-        }
-        
-        // Better collision: check blocks around player
+        self.player_pos.y += self.velocity.y;
         self.on_ground = false;
-        let _check_radius = 1;
+        self.resolve_collisions(1); 
+
+        self.velocity.x *= 0.8;
+        self.velocity.z *= 0.8;
+    }
+
+    fn resolve_collisions(&mut self, axis: usize) {
         let px = self.player_pos.x.round() as i32;
         let py = self.player_pos.y.round() as i32;
         let pz = self.player_pos.z.round() as i32;
 
-        for y in (py - 2)..=(py + 1) {
+        for y in (py - 2)..=(py + 2) {
             for x in (px - 1)..=(px + 1) {
                 for z in (pz - 1)..=(pz + 1) {
                     if self.blocks.contains_key(&(x, y, z)) {
-                        let block_top = y as f32 + 0.5;
-                        if self.player_pos.y - 1.5 < block_top && self.player_pos.y > block_top - 1.0 {
-                             // Horizontal collision logic would go here
-                        }
-                        
-                        // Ground collision
-                        if self.velocity.y < 0.0 && self.player_pos.y - 1.5 <= block_top && self.player_pos.y - 1.5 > block_top - 0.5 {
-                             if (self.player_pos.x - x as f32).abs() < 0.8 && (self.player_pos.z - z as f32).abs() < 0.8 {
-                                 self.player_pos.y = block_top + 1.5;
-                                 self.velocity.y = 0.0;
-                                 self.on_ground = true;
-                             }
+                        let block_min = Vector3::new(x as f32 - 0.5, y as f32 - 0.5, z as f32 - 0.5);
+                        let block_max = Vector3::new(x as f32 + 0.5, y as f32 + 0.5, z as f32 + 0.5);
+
+                        let player_width = 0.6;
+                        let player_height = 1.8;
+                        let player_min = Vector3::new(
+                            self.player_pos.x - player_width / 2.0,
+                            self.player_pos.y - 1.5,
+                            self.player_pos.z - player_width / 2.0
+                        );
+                        let player_max = Vector3::new(
+                            self.player_pos.x + player_width / 2.0,
+                            self.player_pos.y + 0.3,
+                            self.player_pos.z + player_width / 2.0
+                        );
+
+                        if self.aabb_intersect(player_min, player_max, block_min, block_max) {
+                            match axis {
+                                0 => { 
+                                    if self.velocity.x > 0.0 {
+                                        self.player_pos.x = block_min.x - player_width / 2.0 - 0.001;
+                                    } else if self.velocity.x < 0.0 {
+                                        self.player_pos.x = block_max.x + player_width / 2.0 + 0.001;
+                                    }
+                                    self.velocity.x = 0.0;
+                                },
+                                1 => { 
+                                    if self.velocity.y > 0.0 {
+                                        self.player_pos.y = block_min.y - 0.3 - 0.001;
+                                        self.velocity.y = 0.0;
+                                    } else if self.velocity.y < 0.0 {
+                                        self.player_pos.y = block_max.y + 1.5; 
+                                        self.velocity.y = 0.0;
+                                        self.on_ground = true;
+                                    }
+                                },
+                                2 => { 
+                                    if self.velocity.z > 0.0 {
+                                        self.player_pos.z = block_min.z - player_width / 2.0 - 0.001;
+                                    } else if self.velocity.z < 0.0 {
+                                        self.player_pos.z = block_max.z + player_width / 2.0 + 0.001;
+                                    }
+                                    self.velocity.z = 0.0;
+                                },
+                                _ => {}
+                            }
                         }
                     }
                 }
             }
         }
-        
-        // Friction
-        self.velocity.x *= 0.8;
-        self.velocity.z *= 0.8;
+    }
+
+    fn aabb_intersect(&self, min1: Vector3<f32>, max1: Vector3<f32>, min2: Vector3<f32>, max2: Vector3<f32>) -> bool {
+        min1.x < max2.x && max1.x > min2.x &&
+        min1.y < max2.y && max1.y > min2.y &&
+        min1.z < max2.z && max1.z > min2.z
     }
 
     pub fn render(&mut self, width: i32, height: i32) {
@@ -204,14 +233,8 @@ impl Minecraft {
         let light_pos = Vector3::new(50.0, 100.0, 50.0);
 
         // Calculate heightmap for shadows
-        let mut heightmap: HashMap<(i32, i32), i32> = HashMap::new();
-        for (x, y, z) in self.blocks.keys() {
-            let entry = heightmap.entry((*x, *z)).or_insert(-100);
-            if *y > *entry {
-                *entry = *y;
-            }
-        }
-
+        // We don't need a full heightmap, just check block above
+        
         // Collect instance data
         let mut instance_data = Vec::new();
         let mut count = 0;
@@ -219,9 +242,18 @@ impl Minecraft {
         for ((x, y, z), block_type) in &self.blocks {
             let (r, g, b) = block_type.color();
             
-            // Shadow logic: if block is below max height at this x,z, it's in shadow
-            let max_y = heightmap.get(&(*x, *z)).unwrap_or(y);
-            let light_level = if y < max_y { 0.6 } else { 1.0 };
+            // Shadow logic: check if there is a block directly above
+            let mut light_level = 1.0;
+            if self.blocks.contains_key(&(*x, y + 1, *z)) {
+                // If block above is leaves, less shadow
+                if let Some(above_type) = self.blocks.get(&(*x, y + 1, *z)) {
+                    if matches!(above_type, BlockType::Leaves) {
+                        light_level = 0.9; // Soft shadow from leaves
+                    } else {
+                        light_level = 0.6; // Hard shadow
+                    }
+                }
+            }
 
             instance_data.extend_from_slice(&[
                 *x as f32, *y as f32, *z as f32, // Position
