@@ -99,6 +99,7 @@ const FRAGMENT_SHADER: &str = r#"
         return vec2(u, v);
     }
 
+
     void main() {
         vec3 color;
         float alpha = 1.0;
@@ -232,6 +233,39 @@ const FRAGMENT_SHADER: &str = r#"
     }
 "#;
 
+const SKYBOX_VERTEX_SHADER: &str = r#"
+    attribute vec3 aPosition;
+    varying vec3 vTexCoord;
+    uniform mat4 uProjection;
+    uniform mat4 uView;
+    
+    void main() {
+        vTexCoord = aPosition;
+        vec4 pos = uProjection * uView * vec4(aPosition, 1.0);
+        gl_Position = pos.xyww; 
+    }
+"#;
+
+const SKYBOX_FRAGMENT_SHADER: &str = r#"
+    precision mediump float;
+    varying vec3 vTexCoord;
+    uniform sampler2D uSkybox;
+    
+    const vec2 invAtan = vec2(0.1591, 0.3183);
+    vec2 SampleSphericalMap(vec3 v)
+    {
+        vec2 uv = vec2(atan(v.z, v.x), asin(v.y));
+        uv *= invAtan;
+        uv += 0.5;
+        return uv;
+    }
+    
+    void main() {
+        vec2 uv = SampleSphericalMap(normalize(vTexCoord));
+        gl_FragColor = texture2D(uSkybox, uv); 
+    }
+"#;
+
 pub struct Renderer {
     pub gl: WebGlRenderingContext,
     program: WebGlProgram,
@@ -267,7 +301,15 @@ pub struct Renderer {
     u_instanced_light_pos_loc: WebGlUniformLocation,
     u_instanced_use_lighting_loc: WebGlUniformLocation,
     u_instanced_time_color_loc: WebGlUniformLocation,
+    u_instanced_use_texture_loc: WebGlUniformLocation,
+    u_instanced_texture_loc: WebGlUniformLocation,
     instance_data_buffer: WebGlBuffer,
+
+    // Skybox
+    skybox_program: WebGlProgram,
+    u_skybox_view_loc: WebGlUniformLocation,
+    u_skybox_proj_loc: WebGlUniformLocation,
+    u_skybox_texture_loc: WebGlUniformLocation,
 }
 
 impl Renderer {
@@ -323,7 +365,15 @@ impl Renderer {
         let u_instanced_light_pos_loc = gl.get_uniform_location(&instanced_program, "uLightPos").ok_or("Failed to get uLightPos")?;
         let u_instanced_use_lighting_loc = gl.get_uniform_location(&instanced_program, "uUseLighting").ok_or("Failed to get uUseLighting instanced")?;
         let u_instanced_time_color_loc = gl.get_uniform_location(&instanced_program, "uTimeColor").ok_or("Failed to get uTimeColor")?;
+        let u_instanced_use_texture_loc = gl.get_uniform_location(&instanced_program, "uUseTexture").ok_or("Failed to get uUseTexture instanced")?;
+        let u_instanced_texture_loc = gl.get_uniform_location(&instanced_program, "uTexture").ok_or("Failed to get uTexture instanced")?;
         let instance_data_buffer = gl.create_buffer().ok_or("Failed to create instance buffer")?;
+
+        // Skybox setup
+        let skybox_program = create_skybox_program(&gl)?;
+        let u_skybox_view_loc = gl.get_uniform_location(&skybox_program, "uView").ok_or("Failed to get uView skybox")?;
+        let u_skybox_proj_loc = gl.get_uniform_location(&skybox_program, "uProjection").ok_or("Failed to get uProjection skybox")?;
+        let u_skybox_texture_loc = gl.get_uniform_location(&skybox_program, "uSkybox").ok_or("Failed to get uSkybox")?;
 
         // Create unit cube buffers
         let unit_cube_vertex_buffer = gl.create_buffer().ok_or("Failed to create unit cube buffer")?;
@@ -390,7 +440,13 @@ impl Renderer {
             u_instanced_light_pos_loc,
             u_instanced_use_lighting_loc,
             u_instanced_time_color_loc,
+            u_instanced_use_texture_loc,
+            u_instanced_texture_loc,
             instance_data_buffer,
+            skybox_program,
+            u_skybox_view_loc,
+            u_skybox_proj_loc,
+            u_skybox_texture_loc,
         })
     }
 
@@ -481,6 +537,71 @@ impl Renderer {
         );
     }
 
+    pub fn draw_skybox(&self, mesh: &Mesh, projection: &Matrix4<f32>, view: &Matrix4<f32>, texture: Option<&WebGlTexture>) {
+        self.gl.use_program(Some(&self.skybox_program));
+        
+        // Disable depth write so skybox is always behind
+        self.gl.depth_mask(false);
+        
+        // Bind uniforms
+        // Remove translation from view matrix for skybox
+        let mut view_no_trans = *view;
+        view_no_trans[(0, 3)] = 0.0;
+        view_no_trans[(1, 3)] = 0.0;
+        view_no_trans[(2, 3)] = 0.0;
+
+        let view_slice: &[f32] = view_no_trans.as_slice();
+        self.gl.uniform_matrix4fv_with_f32_array(Some(&self.u_skybox_view_loc), false, view_slice);
+        
+        let proj_slice: &[f32] = projection.as_slice();
+        self.gl.uniform_matrix4fv_with_f32_array(Some(&self.u_skybox_proj_loc), false, proj_slice);
+        
+        // Bind texture
+        if let Some(tex) = texture {
+            self.gl.active_texture(WebGlRenderingContext::TEXTURE0);
+            self.gl.bind_texture(WebGlRenderingContext::TEXTURE_2D, Some(tex));
+            self.gl.uniform1i(Some(&self.u_skybox_texture_loc), 0);
+        }
+        
+        // Upload mesh
+        self.gl.bind_buffer(WebGlRenderingContext::ARRAY_BUFFER, Some(&self.dynamic_vertex_buffer));
+        unsafe {
+            let vert_array = js_sys::Float32Array::view(&mesh.vertices);
+            self.gl.buffer_data_with_array_buffer_view(
+                WebGlRenderingContext::ARRAY_BUFFER,
+                &vert_array,
+                WebGlRenderingContext::STATIC_DRAW
+            );
+        }
+
+        self.gl.bind_buffer(WebGlRenderingContext::ELEMENT_ARRAY_BUFFER, Some(&self.dynamic_index_buffer));
+        unsafe {
+            let idx_array = js_sys::Uint16Array::view(&mesh.indices);
+            self.gl.buffer_data_with_array_buffer_view(
+                WebGlRenderingContext::ELEMENT_ARRAY_BUFFER,
+                &idx_array,
+                WebGlRenderingContext::STATIC_DRAW
+            );
+        }
+        
+        // Attributes
+        let pos_loc = self.gl.get_attrib_location(&self.skybox_program, "aPosition");
+        if pos_loc != -1 {
+            self.gl.vertex_attrib_pointer_with_i32(pos_loc as u32, 3, WebGlRenderingContext::FLOAT, false, 44, 0);
+            self.gl.enable_vertex_attrib_array(pos_loc as u32);
+        }
+        
+        self.gl.draw_elements_with_i32(
+            WebGlRenderingContext::TRIANGLES,
+            mesh.indices.len() as i32,
+            WebGlRenderingContext::UNSIGNED_SHORT,
+            0
+        );
+        
+        // Re-enable depth mask
+        self.gl.depth_mask(true);
+    }
+
     pub fn draw_instanced_mesh(
         &self,
         mesh: &Mesh,
@@ -489,6 +610,7 @@ impl Renderer {
         projection: &Matrix4<f32>,
         view: &Matrix4<f32>,
         light_pos: &Vector3<f32>,
+        texture: Option<&WebGlTexture>,
     ) {
         let ext = match &self.instanced_ext {
             Some(e) => e,
@@ -507,6 +629,15 @@ impl Renderer {
         self.gl.uniform3f(Some(&self.u_instanced_light_pos_loc), light_pos.x, light_pos.y, light_pos.z);
         self.gl.uniform1i(Some(&self.u_instanced_use_lighting_loc), 1); // Enable lighting for instanced
         self.gl.uniform3f(Some(&self.u_instanced_time_color_loc), 1.0, 1.0, 1.0);
+
+        if let Some(tex) = texture {
+            self.gl.active_texture(WebGlRenderingContext::TEXTURE0);
+            self.gl.bind_texture(WebGlRenderingContext::TEXTURE_2D, Some(tex));
+            self.gl.uniform1i(Some(&self.u_instanced_use_texture_loc), 1);
+            self.gl.uniform1i(Some(&self.u_instanced_texture_loc), 0);
+        } else {
+            self.gl.uniform1i(Some(&self.u_instanced_use_texture_loc), 0);
+        }
 
         self.gl.bind_buffer(WebGlRenderingContext::ARRAY_BUFFER, Some(&self.dynamic_vertex_buffer));
         unsafe {
@@ -866,6 +997,22 @@ fn create_program(gl: &WebGlRenderingContext) -> Result<WebGlProgram, JsValue> {
 fn create_instanced_program(gl: &WebGlRenderingContext) -> Result<WebGlProgram, JsValue> {
     let vert_shader = compile_shader(gl, WebGlRenderingContext::VERTEX_SHADER, INSTANCED_VERTEX_SHADER)?;
     let frag_shader = compile_shader(gl, WebGlRenderingContext::FRAGMENT_SHADER, FRAGMENT_SHADER)?;
+
+    let program = gl.create_program().ok_or("Unable to create program")?;
+    gl.attach_shader(&program, &vert_shader);
+    gl.attach_shader(&program, &frag_shader);
+    gl.link_program(&program);
+
+    if gl.get_program_parameter(&program, WebGlRenderingContext::LINK_STATUS).as_bool().unwrap_or(false) {
+        Ok(program)
+    } else {
+        Err(JsValue::from_str(&gl.get_program_info_log(&program).unwrap_or_default()))
+    }
+}
+
+fn create_skybox_program(gl: &WebGlRenderingContext) -> Result<WebGlProgram, JsValue> {
+    let vert_shader = compile_shader(gl, WebGlRenderingContext::VERTEX_SHADER, SKYBOX_VERTEX_SHADER)?;
+    let frag_shader = compile_shader(gl, WebGlRenderingContext::FRAGMENT_SHADER, SKYBOX_FRAGMENT_SHADER)?;
 
     let program = gl.create_program().ok_or("Unable to create program")?;
     gl.attach_shader(&program, &vert_shader);

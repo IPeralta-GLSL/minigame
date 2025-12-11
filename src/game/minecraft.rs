@@ -2,8 +2,9 @@ use crate::engine::renderer::Renderer;
 use crate::engine::mesh::Mesh;
 use nalgebra::{Matrix4, Vector3, Point3};
 use std::collections::HashMap;
+use web_sys::WebGlTexture;
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub enum BlockType {
     Grass,
     Dirt,
@@ -37,6 +38,15 @@ pub struct Minecraft {
     on_ground: bool,
     selected_block_type: BlockType,
     input_state: InputState,
+    
+    // Textures
+    grass_texture: Option<WebGlTexture>,
+    dirt_texture: Option<WebGlTexture>,
+    leaves_texture: Option<WebGlTexture>,
+    stone_texture: Option<WebGlTexture>,
+    wood_texture: Option<WebGlTexture>,
+    bedrock_texture: Option<WebGlTexture>,
+    skybox_texture: Option<WebGlTexture>,
 }
 
 struct InputState {
@@ -50,6 +60,17 @@ impl Minecraft {
     pub fn new(renderer: Renderer) -> Self {
         let mut blocks = HashMap::new();
         let cube_mesh = Mesh::cube(1.0, 1.0, 1.0, 1.0);
+
+        // Load textures
+        let grass_texture = renderer.create_texture("assets/textures/TinyCraft/tiles/grass_top.png").ok();
+        let dirt_texture = renderer.create_texture("assets/textures/TinyCraft/tiles/dirt.png").ok();
+        let leaves_texture = renderer.create_texture("assets/textures/TinyCraft/tiles/leaves.png").ok();
+        let stone_texture = renderer.create_texture("assets/textures/TinyCraft/tiles/stone.png").ok();
+        let wood_texture = renderer.create_texture("assets/textures/TinyCraft/tiles/trunk_side.png").ok();
+        let bedrock_texture = renderer.create_texture("assets/textures/TinyCraft/tiles/greystone.png").ok();
+        
+        // Converted from EXR to JPG for browser compatibility
+        let skybox_texture = renderer.create_texture("assets/textures/cloudy_bright_day.jpg").ok();
 
         // Generate simple terrain
         for x in -10..10 {
@@ -92,6 +113,13 @@ impl Minecraft {
                 left: false,
                 right: false,
             },
+            grass_texture,
+            dirt_texture,
+            leaves_texture,
+            stone_texture,
+            wood_texture,
+            bedrock_texture,
+            skybox_texture,
         }
     }
 
@@ -230,18 +258,18 @@ impl Minecraft {
             &Vector3::y(),
         );
 
+        // Draw Skybox
+        self.renderer.draw_skybox(&self.cube_mesh, &projection, &view, self.skybox_texture.as_ref());
+
         // Light position (Sun)
         let light_pos = Vector3::new(50.0, 100.0, 50.0);
 
-        // Calculate heightmap for shadows
-        // We don't need a full heightmap, just check block above
-        
-        // Collect instance data
-        let mut instance_data = Vec::new();
-        let mut count = 0;
+        // Collect instance data grouped by block type
+        let mut instance_data_map: HashMap<BlockType, Vec<f32>> = HashMap::new();
+        let mut count_map: HashMap<BlockType, i32> = HashMap::new();
 
         for ((x, y, z), block_type) in &self.blocks {
-            let (r, g, b) = block_type.color();
+            let (r, g, b) = (1.0, 1.0, 1.0); // Use white for all blocks as they are all textured now
             
             // Shadow logic: check if there is a block directly above
             let mut light_level = 1.0;
@@ -256,23 +284,38 @@ impl Minecraft {
                 }
             }
 
-            instance_data.extend_from_slice(&[
+            let data = instance_data_map.entry(*block_type).or_insert(Vec::new());
+            data.extend_from_slice(&[
                 *x as f32, *y as f32, *z as f32, // Position
                 1.0, // Scale
                 r, g, b, // Color
                 light_level // Light level
             ]);
-            count += 1;
+            *count_map.entry(*block_type).or_insert(0) += 1;
         }
 
-        self.renderer.draw_instanced_mesh(
-            &self.cube_mesh,
-            &instance_data,
-            count,
-            &projection,
-            &view,
-            &light_pos
-        );
+        // Draw each group
+        for (block_type, data) in instance_data_map {
+            let count = count_map[&block_type];
+            let texture = match block_type {
+                BlockType::Grass => self.grass_texture.as_ref(),
+                BlockType::Dirt => self.dirt_texture.as_ref(),
+                BlockType::Leaves => self.leaves_texture.as_ref(),
+                BlockType::Stone => self.stone_texture.as_ref(),
+                BlockType::Wood => self.wood_texture.as_ref(),
+                BlockType::Bedrock => self.bedrock_texture.as_ref(),
+            };
+
+            self.renderer.draw_instanced_mesh(
+                &self.cube_mesh,
+                &data,
+                count,
+                &projection,
+                &view,
+                &light_pos,
+                texture
+            );
+        }
         
         // Render selection highlight (raycast)
         if let Some((bx, by, bz, face)) = self.raycast() {

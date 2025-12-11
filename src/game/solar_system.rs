@@ -1203,7 +1203,8 @@ impl SolarSystem {
                 asteroid_count,
                 &projection,
                 &view,
-                &Vector3::new(0.0, 0.0, 0.0)
+                &Vector3::new(0.0, 0.0, 0.0),
+                None
             );
         }
     }
