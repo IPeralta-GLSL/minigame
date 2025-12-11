@@ -371,6 +371,29 @@
             color: white;
             padding: 10px;
         }
+
+        /* Category Buttons */
+        .cat-btn {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: var(--text-muted);
+            padding: 4px 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 10px;
+            text-transform: uppercase;
+            transition: all 0.2s;
+            flex: 1;
+        }
+        .cat-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+        }
+        .cat-btn.active {
+            background: var(--accent-color);
+            border-color: var(--accent-color);
+            color: white;
+        }
     </style>
 </head>
 <body>
@@ -408,24 +431,23 @@
             
             <div class="solar-sidebar panel-glass">
                 <h3>Celestial Bodies</h3>
-                <div style="margin-bottom: 20px;">
+                <div style="margin-bottom: 15px;">
                     <label for="sim-type" style="display: block; margin-bottom: 8px; font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px;">Simulation Type</label>
                     <select id="sim-type">
                         <option value="sun">Solar System (Sun)</option>
                         <option value="black_hole">Solar System (Black Hole)</option>
                     </select>
                 </div>
+                
+                <div class="category-filters" style="display: flex; gap: 5px; margin-bottom: 15px;">
+                    <button class="cat-btn active" data-cat="all">All</button>
+                    <button class="cat-btn" data-cat="planet">Planets</button>
+                    <button class="cat-btn" data-cat="moon">Moons</button>
+                    <button class="cat-btn" data-cat="star">Star</button>
+                </div>
+
                 <ul class="body-list">
-                    <li>Sun</li>
-                    <li>Mercury</li>
-                    <li>Venus</li>
-                    <li>Earth</li>
-                    <li>Moon</li>
-                    <li>Mars</li>
-                    <li>Jupiter</li>
-                    <li>Saturn</li>
-                    <li>Uranus</li>
-                    <li>Neptune</li>
+                    <!-- Populated by Rust -->
                 </ul>
             </div>
 
@@ -672,6 +694,25 @@
             document.body.addEventListener('click', (e) => {
                 if (e.target && e.target.id === 'temp-unit-toggle') {
                     toggle_solar_temperature_unit();
+                }
+                
+                // Category Filter Logic
+                if (e.target && e.target.classList.contains('cat-btn')) {
+                    // Remove active class from all
+                    document.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('active'));
+                    // Add active to clicked
+                    e.target.classList.add('active');
+                    
+                    const cat = e.target.dataset.cat;
+                    const items = document.querySelectorAll('.body-list li');
+                    
+                    items.forEach(item => {
+                        if (cat === 'all' || item.dataset.category === cat) {
+                            item.style.display = 'block';
+                        } else {
+                            item.style.display = 'none';
+                        }
+                    });
                 }
             });
 

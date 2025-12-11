@@ -90,11 +90,9 @@ impl SolarSystem {
             container.set_inner_html("");
         }
 
-        // Update sidebar list first item name
+        // Clear existing list items
         if let Ok(Some(list)) = document.query_selector(".body-list") {
-            if let Some(first_child) = list.first_element_child() {
-                first_child.set_text_content(Some(if is_black_hole_mode { "Black Hole" } else { "Sun" }));
-            }
+             list.set_inner_html("");
         }
 
         let create_body = |name: &str, radius: f32, orbit_radius: f32, orbit_speed: f32, orbit_angle: f32, color: (f32, f32, f32), parent: Option<usize>, mesh_fn: fn(f32, u16, u16, f32, f32, f32) -> Mesh, texture_url: Option<&str>, night_texture_url: Option<&str>, cloud_texture_url: Option<&str>, ring_texture_url: Option<&str>, ring_radius: f32, rotation_period: f32, axial_tilt: f32, orbit_inclination: f32, longitude_of_ascending_node: f32, argument_of_periapsis: f32, eccentricity: f32, mass: &str, temperature: f32, description: &str, ring_inner_radius: Option<f32>| {
@@ -472,17 +470,25 @@ impl SolarSystem {
         }
 
 
-        if let Some(list) = document.query_selector(".body-list").unwrap() {
+        if let Ok(Some(list)) = document.query_selector(".body-list") {
             list.set_inner_html(""); // Clear existing
             
             for (i, body) in bodies.iter().enumerate() {
                 if body.name.starts_with("Asteroid") || body.name.starts_with("Kuiper") || body.name.starts_with("Oort") { continue; }
+                
                 let li = document.create_element("li").unwrap();
                 li.set_text_content(Some(&body.name));
-
-                li.set_attribute("onclick", &format!("window.selectSolarBody({})", i)).unwrap();
-                li.set_attribute("style", "cursor: pointer; padding: 5px; transition: background 0.2s;").unwrap();
-                li.set_class_name("solar-list-item");
+                
+                let category = if body.name == "Sun" || body.name == "Black Hole" {
+                    "star"
+                } else if let Some(parent_idx) = body.parent {
+                    if parent_idx == 0 { "planet" } else { "moon" }
+                } else {
+                    "star"
+                };
+                
+                li.set_attribute("data-category", category).unwrap();
+                li.set_attribute("onclick", &format!("selectSolarBody({})", i)).unwrap();
                 
                 list.append_child(&li).unwrap();
             }
