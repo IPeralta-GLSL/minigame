@@ -263,17 +263,19 @@ impl Minecraft {
         let origin = Vector3::new(x as f32, y as f32 + 0.6, z as f32);
         let mut ray_pos = origin;
         
-        let max_steps = 30;
+        let max_steps = 100;
+        let step_size = 0.2;
+        
         for _ in 0..max_steps {
             // Step first
-            ray_pos += light_dir * 0.8;
+            ray_pos += light_dir * step_size;
             
             let check_x = ray_pos.x.round() as i32;
             let check_y = ray_pos.y.round() as i32;
             let check_z = ray_pos.z.round() as i32;
             
-            // Self-check (important if light_dir points down)
-            if check_x == x && check_y == y && check_z == z {
+            // Ignore blocks in the same vertical column to prevent ugly self-shadowing on trees/walls
+            if check_x == x && check_z == z {
                 continue;
             }
 
