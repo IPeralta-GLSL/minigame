@@ -73,7 +73,7 @@ impl Minecraft {
         let grass_top_texture = renderer.create_texture("assets/textures/TinyCraft/tiles/grass_top.png").ok();
         let grass_side_texture = renderer.create_texture("assets/textures/TinyCraft/tiles/dirt_grass.png").ok();
         let dirt_texture = renderer.create_texture("assets/textures/TinyCraft/tiles/dirt.png").ok();
-        let leaves_texture = renderer.create_texture("assets/textures/TinyCraft/tiles/leaves.png").ok();
+        let leaves_texture = renderer.create_texture("assets/textures/TinyCraft/tiles/leaves_transparent.png").ok();
         let stone_texture = renderer.create_texture("assets/textures/TinyCraft/tiles/stone.png").ok();
         let wood_side_texture = renderer.create_texture("assets/textures/TinyCraft/tiles/trunk_side.png").ok();
         let wood_top_texture = renderer.create_texture("assets/textures/TinyCraft/tiles/trunk_top.png").ok();

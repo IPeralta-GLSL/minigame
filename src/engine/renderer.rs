@@ -170,6 +170,9 @@ const FRAGMENT_SHADER: &str = r#"
 
         if (uUseTexture == 1) {
             vec4 texColor = texture2D(uTexture, texCoord);
+            if (texColor.a < 0.1) {
+                discard;
+            }
             color *= texColor.rgb;
             alpha = texColor.a;
         }
@@ -945,6 +948,10 @@ impl Renderer {
         let onload = Closure::wrap(Box::new(move || {
             web_sys::console::log_1(&format!("Texture loaded: {}", url_string).into());
             gl.bind_texture(WebGlRenderingContext::TEXTURE_2D, Some(&texture_clone));
+            
+            // Flip Y for textures to match standard UV coordinates
+            gl.pixel_storei(WebGlRenderingContext::UNPACK_FLIP_Y_WEBGL, 1);
+            
             gl.tex_image_2d_with_u32_and_u32_and_image(
                 WebGlRenderingContext::TEXTURE_2D, 0, WebGlRenderingContext::RGBA as i32, WebGlRenderingContext::RGBA, WebGlRenderingContext::UNSIGNED_BYTE, &img_clone
             ).unwrap();
