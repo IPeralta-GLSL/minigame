@@ -60,6 +60,147 @@ impl Mesh {
         Mesh { vertices, indices }
     }
 
+    pub fn face_top(size: f32) -> Self {
+        let s = size / 2.0;
+        let mut vertices = Vec::new();
+        let mut indices = Vec::new();
+
+        let mut add_face = |
+            x1: f32, y1: f32, z1: f32,
+            x2: f32, y2: f32, z2: f32,
+            x3: f32, y3: f32, z3: f32,
+            x4: f32, y4: f32, z4: f32,
+            brightness: f32
+        | {
+            let base = (vertices.len() / 11) as u16;
+            let (r, g, b) = (1.0, 1.0, 1.0);
+            let br = r * brightness;
+            let bg = g * brightness;
+            let bb = b * brightness;
+            
+            let ux = x2 - x1; let uy = y2 - y1; let uz = z2 - z1;
+            let vx = x3 - x1; let vy = y3 - y1; let vz = z3 - z1;
+            let nx = uy * vz - uz * vy;
+            let ny = uz * vx - ux * vz;
+            let nz = ux * vy - uy * vx;
+            let len = (nx*nx + ny*ny + nz*nz).sqrt();
+            let nx = nx / len; let ny = ny / len; let nz = nz / len;
+
+            vertices.extend_from_slice(&[
+                x1, y1, z1, br, bg, bb, 0.0, 0.0, nx, ny, nz,
+                x2, y2, z2, br, bg, bb, 1.0, 0.0, nx, ny, nz,
+                x3, y3, z3, br, bg, bb, 1.0, 1.0, nx, ny, nz,
+                x4, y4, z4, br, bg, bb, 0.0, 1.0, nx, ny, nz,
+            ]);
+            
+            indices.extend_from_slice(&[
+                base, base + 1, base + 2,
+                base, base + 2, base + 3,
+            ]);
+        };
+
+        // Top
+        add_face(-s, s, s, s, s, s, s, s, -s, -s, s, -s, 1.1);
+
+        Mesh { vertices, indices }
+    }
+
+    pub fn face_bottom(size: f32) -> Self {
+        let s = size / 2.0;
+        let mut vertices = Vec::new();
+        let mut indices = Vec::new();
+
+        let mut add_face = |
+            x1: f32, y1: f32, z1: f32,
+            x2: f32, y2: f32, z2: f32,
+            x3: f32, y3: f32, z3: f32,
+            x4: f32, y4: f32, z4: f32,
+            brightness: f32
+        | {
+            let base = (vertices.len() / 11) as u16;
+            let (r, g, b) = (1.0, 1.0, 1.0);
+            let br = r * brightness;
+            let bg = g * brightness;
+            let bb = b * brightness;
+            
+            let ux = x2 - x1; let uy = y2 - y1; let uz = z2 - z1;
+            let vx = x3 - x1; let vy = y3 - y1; let vz = z3 - z1;
+            let nx = uy * vz - uz * vy;
+            let ny = uz * vx - ux * vz;
+            let nz = ux * vy - uy * vx;
+            let len = (nx*nx + ny*ny + nz*nz).sqrt();
+            let nx = nx / len; let ny = ny / len; let nz = nz / len;
+
+            vertices.extend_from_slice(&[
+                x1, y1, z1, br, bg, bb, 0.0, 0.0, nx, ny, nz,
+                x2, y2, z2, br, bg, bb, 1.0, 0.0, nx, ny, nz,
+                x3, y3, z3, br, bg, bb, 1.0, 1.0, nx, ny, nz,
+                x4, y4, z4, br, bg, bb, 0.0, 1.0, nx, ny, nz,
+            ]);
+            
+            indices.extend_from_slice(&[
+                base, base + 1, base + 2,
+                base, base + 2, base + 3,
+            ]);
+        };
+
+        // Bottom
+        add_face(-s, -s, -s, s, -s, -s, s, -s, s, -s, -s, s, 0.4);
+
+        Mesh { vertices, indices }
+    }
+
+    pub fn face_sides(size: f32) -> Self {
+        let s = size / 2.0;
+        let mut vertices = Vec::new();
+        let mut indices = Vec::new();
+
+        let mut add_face = |
+            x1: f32, y1: f32, z1: f32,
+            x2: f32, y2: f32, z2: f32,
+            x3: f32, y3: f32, z3: f32,
+            x4: f32, y4: f32, z4: f32,
+            brightness: f32
+        | {
+            let base = (vertices.len() / 11) as u16;
+            let (r, g, b) = (1.0, 1.0, 1.0);
+            let br = r * brightness;
+            let bg = g * brightness;
+            let bb = b * brightness;
+            
+            let ux = x2 - x1; let uy = y2 - y1; let uz = z2 - z1;
+            let vx = x3 - x1; let vy = y3 - y1; let vz = z3 - z1;
+            let nx = uy * vz - uz * vy;
+            let ny = uz * vx - ux * vz;
+            let nz = ux * vy - uy * vx;
+            let len = (nx*nx + ny*ny + nz*nz).sqrt();
+            let nx = nx / len; let ny = ny / len; let nz = nz / len;
+
+            vertices.extend_from_slice(&[
+                x1, y1, z1, br, bg, bb, 0.0, 0.0, nx, ny, nz,
+                x2, y2, z2, br, bg, bb, 1.0, 0.0, nx, ny, nz,
+                x3, y3, z3, br, bg, bb, 1.0, 1.0, nx, ny, nz,
+                x4, y4, z4, br, bg, bb, 0.0, 1.0, nx, ny, nz,
+            ]);
+            
+            indices.extend_from_slice(&[
+                base, base + 1, base + 2,
+                base, base + 2, base + 3,
+            ]);
+        };
+
+        // Front
+        add_face(-s, -s, s, s, -s, s, s, s, s, -s, s, s, 0.9);
+        // Back
+        add_face(s, -s, -s, -s, -s, -s, -s, s, -s, s, s, -s, 0.7);
+        // Right
+        add_face(s, -s, s, s, -s, -s, s, s, -s, s, s, s, 0.8);
+        // Left
+        add_face(-s, -s, -s, -s, -s, s, -s, s, s, -s, s, -s, 0.6);
+
+        Mesh { vertices, indices }
+    }
+
     pub fn from_gltf(bytes: &[u8]) -> Result<Self, String> {
         let (document, buffers, _) = gltf::import_slice(bytes).map_err(|e| e.to_string())?;
         

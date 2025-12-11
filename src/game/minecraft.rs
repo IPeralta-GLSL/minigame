@@ -33,6 +33,9 @@ pub struct Minecraft {
     player_pos: Vector3<f32>,
     player_rot: (f32, f32), // yaw, pitch
     cube_mesh: Mesh,
+    top_mesh: Mesh,
+    bottom_mesh: Mesh,
+    side_mesh: Mesh,
     is_locked: bool,
     velocity: Vector3<f32>,
     on_ground: bool,
@@ -40,11 +43,13 @@ pub struct Minecraft {
     input_state: InputState,
     
     // Textures
-    grass_texture: Option<WebGlTexture>,
+    grass_top_texture: Option<WebGlTexture>,
+    grass_side_texture: Option<WebGlTexture>,
     dirt_texture: Option<WebGlTexture>,
     leaves_texture: Option<WebGlTexture>,
     stone_texture: Option<WebGlTexture>,
-    wood_texture: Option<WebGlTexture>,
+    wood_side_texture: Option<WebGlTexture>,
+    wood_top_texture: Option<WebGlTexture>,
     bedrock_texture: Option<WebGlTexture>,
     skybox_texture: Option<WebGlTexture>,
 }
@@ -60,13 +65,18 @@ impl Minecraft {
     pub fn new(renderer: Renderer) -> Self {
         let mut blocks = HashMap::new();
         let cube_mesh = Mesh::cube(1.0, 1.0, 1.0, 1.0);
+        let top_mesh = Mesh::face_top(1.0);
+        let bottom_mesh = Mesh::face_bottom(1.0);
+        let side_mesh = Mesh::face_sides(1.0);
 
         // Load textures
-        let grass_texture = renderer.create_texture("assets/textures/TinyCraft/tiles/grass_top.png").ok();
+        let grass_top_texture = renderer.create_texture("assets/textures/TinyCraft/tiles/grass_top.png").ok();
+        let grass_side_texture = renderer.create_texture("assets/textures/TinyCraft/tiles/dirt_grass.png").ok();
         let dirt_texture = renderer.create_texture("assets/textures/TinyCraft/tiles/dirt.png").ok();
         let leaves_texture = renderer.create_texture("assets/textures/TinyCraft/tiles/leaves.png").ok();
         let stone_texture = renderer.create_texture("assets/textures/TinyCraft/tiles/stone.png").ok();
-        let wood_texture = renderer.create_texture("assets/textures/TinyCraft/tiles/trunk_side.png").ok();
+        let wood_side_texture = renderer.create_texture("assets/textures/TinyCraft/tiles/trunk_side.png").ok();
+        let wood_top_texture = renderer.create_texture("assets/textures/TinyCraft/tiles/trunk_top.png").ok();
         let bedrock_texture = renderer.create_texture("assets/textures/TinyCraft/tiles/greystone.png").ok();
         
         // Converted from EXR to JPG for browser compatibility
@@ -103,6 +113,9 @@ impl Minecraft {
             player_pos: Vector3::new(0.0, 5.0, 0.0),
             player_rot: (0.0, 0.0),
             cube_mesh,
+            top_mesh,
+            bottom_mesh,
+            side_mesh,
             is_locked: false,
             velocity: Vector3::new(0.0, 0.0, 0.0),
             on_ground: false,
@@ -113,11 +126,13 @@ impl Minecraft {
                 left: false,
                 right: false,
             },
-            grass_texture,
+            grass_top_texture,
+            grass_side_texture,
             dirt_texture,
             leaves_texture,
             stone_texture,
-            wood_texture,
+            wood_side_texture,
+            wood_top_texture,
             bedrock_texture,
             skybox_texture,
         }
@@ -297,24 +312,48 @@ impl Minecraft {
         // Draw each group
         for (block_type, data) in instance_data_map {
             let count = count_map[&block_type];
-            let texture = match block_type {
-                BlockType::Grass => self.grass_texture.as_ref(),
-                BlockType::Dirt => self.dirt_texture.as_ref(),
-                BlockType::Leaves => self.leaves_texture.as_ref(),
-                BlockType::Stone => self.stone_texture.as_ref(),
-                BlockType::Wood => self.wood_texture.as_ref(),
-                BlockType::Bedrock => self.bedrock_texture.as_ref(),
-            };
-
-            self.renderer.draw_instanced_mesh(
-                &self.cube_mesh,
-                &data,
-                count,
-                &projection,
-                &view,
-                &light_pos,
-                texture
-            );
+            
+            match block_type {
+                BlockType::Grass => {
+                    // Top
+                    self.renderer.draw_instanced_mesh(
+                        &self.top_mesh, &data, count, &projection, &view, &light_pos, self.grass_top_texture.as_ref()
+                    );
+                    // Bottom
+                    self.renderer.draw_instanced_mesh(
+                        &self.bottom_mesh, &data, count, &projection, &view, &light_pos, self.dirt_texture.as_ref()
+                    );
+                    // Sides
+                    self.renderer.draw_instanced_mesh(
+                        &self.side_mesh, &data, count, &projection, &view, &light_pos, self.grass_side_texture.as_ref()
+                    );
+                },
+                BlockType::Wood => {
+                    // Top & Bottom
+                    self.renderer.draw_instanced_mesh(
+                        &self.top_mesh, &data, count, &projection, &view, &light_pos, self.wood_top_texture.as_ref()
+                    );
+                    self.renderer.draw_instanced_mesh(
+                        &self.bottom_mesh, &data, count, &projection, &view, &light_pos, self.wood_top_texture.as_ref()
+                    );
+                    // Sides
+                    self.renderer.draw_instanced_mesh(
+                        &self.side_mesh, &data, count, &projection, &view, &light_pos, self.wood_side_texture.as_ref()
+                    );
+                },
+                _ => {
+                    let texture = match block_type {
+                        BlockType::Dirt => self.dirt_texture.as_ref(),
+                        BlockType::Leaves => self.leaves_texture.as_ref(),
+                        BlockType::Stone => self.stone_texture.as_ref(),
+                        BlockType::Bedrock => self.bedrock_texture.as_ref(),
+                        _ => None,
+                    };
+                    self.renderer.draw_instanced_mesh(
+                        &self.cube_mesh, &data, count, &projection, &view, &light_pos, texture
+                    );
+                }
+            }
         }
         
         // Render selection highlight (raycast)
