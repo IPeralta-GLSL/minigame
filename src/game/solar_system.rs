@@ -84,6 +84,18 @@ impl SolarSystem {
         let window = web_sys::window().unwrap();
         let document = window.document().unwrap();
         let labels_container = document.get_element_by_id("solar-labels");
+        
+        // Clear existing labels
+        if let Some(container) = &labels_container {
+            container.set_inner_html("");
+        }
+
+        // Update sidebar list first item name
+        if let Ok(Some(list)) = document.query_selector(".body-list") {
+            if let Some(first_child) = list.first_element_child() {
+                first_child.set_text_content(Some(if is_black_hole_mode { "Black Hole" } else { "Sun" }));
+            }
+        }
 
         let create_body = |name: &str, radius: f32, orbit_radius: f32, orbit_speed: f32, orbit_angle: f32, color: (f32, f32, f32), parent: Option<usize>, mesh_fn: fn(f32, u16, u16, f32, f32, f32) -> Mesh, texture_url: Option<&str>, night_texture_url: Option<&str>, cloud_texture_url: Option<&str>, ring_texture_url: Option<&str>, ring_radius: f32, rotation_period: f32, axial_tilt: f32, orbit_inclination: f32, longitude_of_ascending_node: f32, argument_of_periapsis: f32, eccentricity: f32, mass: &str, temperature: f32, description: &str, ring_inner_radius: Option<f32>| {
             let mut label_element = None;
