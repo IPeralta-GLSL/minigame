@@ -477,8 +477,6 @@ impl SolarSystem {
                 if body.name.starts_with("Asteroid") || body.name.starts_with("Kuiper") || body.name.starts_with("Oort") { continue; }
                 
                 let li = document.create_element("li").unwrap();
-                li.set_text_content(Some(&body.name));
-                
                 let category = if body.name == "Sun" || body.name == "Black Hole" {
                     "star"
                 } else if let Some(parent_idx) = body.parent {
@@ -486,6 +484,15 @@ impl SolarSystem {
                 } else {
                     "star"
                 };
+
+                let icon_svg = match category {
+                    "star" => r#"<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>"#,
+                    "planet" => r#"<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/></svg>"#,
+                    "moon" => r#"<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>"#,
+                    _ => ""
+                };
+                
+                li.set_inner_html(&format!("{}<span>{}</span>", icon_svg, body.name));
                 
                 li.set_attribute("data-category", category).unwrap();
                 li.set_attribute("onclick", &format!("selectSolarBody({})", i)).unwrap();
