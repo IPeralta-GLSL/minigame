@@ -202,7 +202,7 @@ impl Minecraft {
                         let block_max = Vector3::new(x as f32 + 0.5, y as f32 + 0.5, z as f32 + 0.5);
 
                         let player_width = 0.6;
-                        let player_height = 1.8;
+                        let _player_height = 1.8;
                         let player_min = Vector3::new(
                             self.player_pos.x - player_width / 2.0,
                             self.player_pos.y - 1.5,
@@ -258,39 +258,50 @@ impl Minecraft {
     }
 
     fn calculate_shadow(&self, x: i32, y: i32, z: i32, light_dir: Vector3<f32>) -> f32 {
-        // Start slightly above the top face center to avoid self-shadowing from the block itself
-        // and to avoid shadowing from neighbor ground blocks when sun is low.
-        let origin = Vector3::new(x as f32, y as f32 + 0.6, z as f32);
-        let mut ray_pos = origin;
+        let offsets = [
+            (-0.25f32, -0.25f32),
+            (0.25f32, -0.25f32),
+            (-0.25f32, 0.25f32),
+            (0.25f32, 0.25f32),
+        ];
         
-        let max_steps = 100;
-        let step_size = 0.2;
+        let mut total_shadow = 0.0f32;
         
-        for _ in 0..max_steps {
-            // Step first
-            ray_pos += light_dir * step_size;
+        for (dx, dz) in offsets {
+            let origin = Vector3::new(x as f32 + dx, y as f32 + 0.6, z as f32 + dz);
+            let mut ray_pos = origin;
             
-            let check_x = ray_pos.x.round() as i32;
-            let check_y = ray_pos.y.round() as i32;
-            let check_z = ray_pos.z.round() as i32;
+            let max_steps = 50;
+            let step_size = 0.3f32;
             
-            // Ignore blocks in the same vertical column to prevent ugly self-shadowing on trees/walls
-            if check_x == x && check_z == z {
-                continue;
-            }
-
-            if let Some(block) = self.blocks.get(&(check_x, check_y, check_z)) {
-                if matches!(block, BlockType::Leaves) {
-                    return 0.6; 
-                } else {
-                    return 0.3; 
+            for _ in 0..max_steps {
+                ray_pos += light_dir * step_size;
+                
+                let check_x = ray_pos.x.round() as i32;
+                let check_y = ray_pos.y.round() as i32;
+                let check_z = ray_pos.z.round() as i32;
+                
+                // Ignore blocks in the same vertical column
+                if check_x == x && check_z == z {
+                    continue;
                 }
+
+                if let Some(block) = self.blocks.get(&(check_x, check_y, check_z)) {
+                    if matches!(block, BlockType::Leaves) {
+                        total_shadow += 0.4; 
+                    } else {
+                        total_shadow += 1.0; 
+                    }
+                    break; // Hit something, stop this ray
+                }
+                
+                if ray_pos.y > 20.0 { break; } 
             }
-            
-            if ray_pos.y > 20.0 { break; } 
         }
         
-        1.0 
+        let avg_shadow = total_shadow / 4.0;
+        // Map shadow (0.0 to 1.0) to light level (1.0 to 0.3)
+        (1.0 - avg_shadow * 0.7).max(0.3)
     }
 
     pub fn render(&mut self, width: i32, height: i32) {
@@ -413,7 +424,7 @@ impl Minecraft {
         }
         
         // Render selection highlight (raycast)
-        if let Some((bx, by, bz, face)) = self.raycast() {
+        if let Some((_bx, _by, _bz, _face)) = self.raycast() {
              // Draw a wireframe or slightly larger transparent cube
              // For now, just draw a marker
         }
