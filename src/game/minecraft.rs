@@ -52,6 +52,9 @@ pub struct Minecraft {
     wood_top_texture: Option<WebGlTexture>,
     bedrock_texture: Option<WebGlTexture>,
     skybox_texture: Option<WebGlTexture>,
+    sun_texture: Option<WebGlTexture>,
+    moon_texture: Option<WebGlTexture>,
+    time_of_day: f32,
 }
 
 struct InputState {
@@ -81,6 +84,8 @@ impl Minecraft {
         
         // Converted from EXR to JPG for browser compatibility
         let skybox_texture = renderer.create_texture("assets/textures/cloudy_bright_day.jpg").ok();
+        let sun_texture = renderer.create_texture("assets/textures/2k_sun.jpg").ok();
+        let moon_texture = renderer.create_texture("assets/textures/2k_moon.jpg").ok();
 
         // Generate simple terrain
         for x in -10..10 {
@@ -135,6 +140,9 @@ impl Minecraft {
             wood_top_texture,
             bedrock_texture,
             skybox_texture,
+            sun_texture,
+            moon_texture,
+            time_of_day: 0.3,
         }
     }
 
@@ -249,6 +257,40 @@ impl Minecraft {
         min1.z < max2.z && max1.z > min2.z
     }
 
+    fn calculate_shadow(&self, x: i32, y: i32, z: i32, light_dir: Vector3<f32>) -> f32 {
+        // Start slightly above the top face center to avoid self-shadowing from the block itself
+        // and to avoid shadowing from neighbor ground blocks when sun is low.
+        let origin = Vector3::new(x as f32, y as f32 + 0.6, z as f32);
+        let mut ray_pos = origin;
+        
+        let max_steps = 30;
+        for _ in 0..max_steps {
+            // Step first
+            ray_pos += light_dir * 0.8;
+            
+            let check_x = ray_pos.x.round() as i32;
+            let check_y = ray_pos.y.round() as i32;
+            let check_z = ray_pos.z.round() as i32;
+            
+            // Self-check (important if light_dir points down)
+            if check_x == x && check_y == y && check_z == z {
+                continue;
+            }
+
+            if let Some(block) = self.blocks.get(&(check_x, check_y, check_z)) {
+                if matches!(block, BlockType::Leaves) {
+                    return 0.6; 
+                } else {
+                    return 0.3; 
+                }
+            }
+            
+            if ray_pos.y > 20.0 { break; } 
+        }
+        
+        1.0 
+    }
+
     pub fn render(&mut self, width: i32, height: i32) {
         self.renderer.resize(width, height);
         self.renderer.clear_screen(0.5, 0.7, 1.0); // Sky blue
@@ -275,9 +317,31 @@ impl Minecraft {
 
         // Draw Skybox
         self.renderer.draw_skybox(&self.cube_mesh, &projection, &view, self.skybox_texture.as_ref());
+        self.renderer.gl.depth_mask(true); // Re-enable depth writing
 
-        // Light position (Sun)
-        let light_pos = Vector3::new(50.0, 100.0, 50.0);
+        // Calculate Sun Position again for shadows
+        let sun_angle = (self.time_of_day - 0.25) * std::f32::consts::PI * 2.0;
+        let sun_dist = 100.0;
+        
+        // Sun position for rendering (relative to player so it's always visible)
+        let sun_pos = self.player_pos + Vector3::new(sun_angle.cos() * sun_dist, sun_angle.sin() * sun_dist, 0.0);
+        let moon_pos = self.player_pos + Vector3::new(-sun_angle.cos() * sun_dist, -sun_angle.sin() * sun_dist, 0.0);
+        
+        // Light direction for shadows (Global, independent of player)
+        let light_dir = Vector3::new(sun_angle.cos(), sun_angle.sin(), 0.0).normalize();
+        
+        // Light position for shader (Far away to simulate directional light)
+        let light_pos_uniform = light_dir * 10000.0; 
+
+        // Draw Sun
+        if self.sun_texture.is_some() {
+            self.renderer.draw_textured_cube(sun_pos.x, sun_pos.y, sun_pos.z, 8.0, 8.0, 8.0, self.sun_texture.as_ref(), &projection, &view);
+        }
+
+        // Draw Moon
+        if self.moon_texture.is_some() {
+            self.renderer.draw_textured_cube(moon_pos.x, moon_pos.y, moon_pos.z, 6.0, 6.0, 6.0, self.moon_texture.as_ref(), &projection, &view);
+        }
 
         // Collect instance data grouped by block type
         let mut instance_data_map: HashMap<BlockType, Vec<f32>> = HashMap::new();
@@ -286,18 +350,8 @@ impl Minecraft {
         for ((x, y, z), block_type) in &self.blocks {
             let (r, g, b) = (1.0, 1.0, 1.0); // Use white for all blocks as they are all textured now
             
-            // Shadow logic: check if there is a block directly above
-            let mut light_level = 1.0;
-            if self.blocks.contains_key(&(*x, y + 1, *z)) {
-                // If block above is leaves, less shadow
-                if let Some(above_type) = self.blocks.get(&(*x, y + 1, *z)) {
-                    if matches!(above_type, BlockType::Leaves) {
-                        light_level = 0.9; // Soft shadow from leaves
-                    } else {
-                        light_level = 0.6; // Hard shadow
-                    }
-                }
-            }
+            // Shadow logic: Raycast to sun
+            let light_level = self.calculate_shadow(*x, *y, *z, light_dir);
 
             let data = instance_data_map.entry(*block_type).or_insert(Vec::new());
             data.extend_from_slice(&[
@@ -317,28 +371,28 @@ impl Minecraft {
                 BlockType::Grass => {
                     // Top
                     self.renderer.draw_instanced_mesh(
-                        &self.top_mesh, &data, count, &projection, &view, &light_pos, self.grass_top_texture.as_ref()
+                        &self.top_mesh, &data, count, &projection, &view, &light_pos_uniform, self.grass_top_texture.as_ref()
                     );
                     // Bottom
                     self.renderer.draw_instanced_mesh(
-                        &self.bottom_mesh, &data, count, &projection, &view, &light_pos, self.dirt_texture.as_ref()
+                        &self.bottom_mesh, &data, count, &projection, &view, &light_pos_uniform, self.dirt_texture.as_ref()
                     );
                     // Sides
                     self.renderer.draw_instanced_mesh(
-                        &self.side_mesh, &data, count, &projection, &view, &light_pos, self.grass_side_texture.as_ref()
+                        &self.side_mesh, &data, count, &projection, &view, &light_pos_uniform, self.grass_side_texture.as_ref()
                     );
                 },
                 BlockType::Wood => {
                     // Top & Bottom
                     self.renderer.draw_instanced_mesh(
-                        &self.top_mesh, &data, count, &projection, &view, &light_pos, self.wood_top_texture.as_ref()
+                        &self.top_mesh, &data, count, &projection, &view, &light_pos_uniform, self.wood_top_texture.as_ref()
                     );
                     self.renderer.draw_instanced_mesh(
-                        &self.bottom_mesh, &data, count, &projection, &view, &light_pos, self.wood_top_texture.as_ref()
+                        &self.bottom_mesh, &data, count, &projection, &view, &light_pos_uniform, self.wood_top_texture.as_ref()
                     );
                     // Sides
                     self.renderer.draw_instanced_mesh(
-                        &self.side_mesh, &data, count, &projection, &view, &light_pos, self.wood_side_texture.as_ref()
+                        &self.side_mesh, &data, count, &projection, &view, &light_pos_uniform, self.wood_side_texture.as_ref()
                     );
                 },
                 _ => {
@@ -350,7 +404,7 @@ impl Minecraft {
                         _ => None,
                     };
                     self.renderer.draw_instanced_mesh(
-                        &self.cube_mesh, &data, count, &projection, &view, &light_pos, texture
+                        &self.cube_mesh, &data, count, &projection, &view, &light_pos_uniform, texture
                     );
                 }
             }

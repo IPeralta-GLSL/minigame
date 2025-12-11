@@ -540,6 +540,52 @@ impl Renderer {
         );
     }
 
+    pub fn draw_textured_cube(&self, x: f32, y: f32, z: f32, w: f32, h: f32, d: f32, texture: Option<&WebGlTexture>, projection: &Matrix4<f32>, view: &Matrix4<f32>) {
+        self.gl.bind_buffer(WebGlRenderingContext::ARRAY_BUFFER, Some(&self.unit_cube_vertex_buffer));
+        self.gl.bind_buffer(WebGlRenderingContext::ELEMENT_ARRAY_BUFFER, Some(&self.unit_cube_index_buffer));
+
+        let pos_loc = self.gl.get_attrib_location(&self.program, "aPosition") as u32;
+        let col_loc = self.gl.get_attrib_location(&self.program, "aColor") as u32;
+        let tex_loc = self.gl.get_attrib_location(&self.program, "aTexCoord") as u32;
+        let norm_loc = self.gl.get_attrib_location(&self.program, "aNormal") as u32;
+
+        self.gl.vertex_attrib_pointer_with_i32(pos_loc, 3, WebGlRenderingContext::FLOAT, false, 44, 0);
+        self.gl.enable_vertex_attrib_array(pos_loc);
+        self.gl.vertex_attrib_pointer_with_i32(col_loc, 3, WebGlRenderingContext::FLOAT, false, 44, 12);
+        self.gl.enable_vertex_attrib_array(col_loc);
+        self.gl.vertex_attrib_pointer_with_i32(tex_loc, 2, WebGlRenderingContext::FLOAT, false, 44, 24);
+        self.gl.enable_vertex_attrib_array(tex_loc);
+        self.gl.vertex_attrib_pointer_with_i32(norm_loc, 3, WebGlRenderingContext::FLOAT, false, 44, 32);
+        self.gl.enable_vertex_attrib_array(norm_loc);
+
+        self.gl.uniform1i(Some(&self.u_use_uniform_color_location), 0);
+        self.gl.uniform1i(Some(&self.u_use_lighting_location), 0);
+        self.gl.uniform1i(Some(&self.u_is_black_hole_location), 0);
+
+        if let Some(tex) = texture {
+            self.gl.active_texture(WebGlRenderingContext::TEXTURE0);
+            self.gl.bind_texture(WebGlRenderingContext::TEXTURE_2D, Some(tex));
+            self.gl.uniform1i(Some(&self.u_use_texture_location), 1);
+            self.gl.uniform1i(Some(&self.u_texture_location), 0);
+        } else {
+            self.gl.uniform1i(Some(&self.u_use_texture_location), 0);
+        }
+
+        let model = Matrix4::new_translation(&Vector3::new(x, y, z)) *
+                    Matrix4::new_nonuniform_scaling(&Vector3::new(w, h, d));
+        let mvp = projection * view * model;
+
+        let mvp_array: [f32; 16] = mvp.as_slice().try_into().unwrap();
+        self.gl.uniform_matrix4fv_with_f32_array(Some(&self.mvp_location), false, &mvp_array);
+
+        self.gl.draw_elements_with_i32(
+            WebGlRenderingContext::TRIANGLES,
+            self.unit_cube_index_count,
+            WebGlRenderingContext::UNSIGNED_SHORT,
+            0
+        );
+    }
+
     pub fn draw_skybox(&self, mesh: &Mesh, projection: &Matrix4<f32>, view: &Matrix4<f32>, texture: Option<&WebGlTexture>) {
         self.gl.use_program(Some(&self.skybox_program));
         
