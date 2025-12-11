@@ -407,6 +407,11 @@ impl Renderer {
         self.gl.enable(WebGlRenderingContext::DEPTH_TEST);
     }
 
+    pub fn enable_face_culling(&self) {
+        self.gl.enable(WebGlRenderingContext::CULL_FACE);
+        self.gl.cull_face(WebGlRenderingContext::BACK);
+    }
+
     pub fn enable_blend(&self) {
         self.gl.enable(WebGlRenderingContext::BLEND);
         self.gl.blend_func(WebGlRenderingContext::SRC_ALPHA, WebGlRenderingContext::ONE_MINUS_SRC_ALPHA);
@@ -418,6 +423,11 @@ impl Renderer {
 
     pub fn resize(&self, width: i32, height: i32) {
         self.gl.viewport(0, 0, width, height);
+    }
+
+    pub fn clear_screen(&self, r: f32, g: f32, b: f32) {
+        self.gl.clear_color(r, g, b, 1.0);
+        self.gl.clear(WebGlRenderingContext::COLOR_BUFFER_BIT | WebGlRenderingContext::DEPTH_BUFFER_BIT);
     }
 
     pub fn canvas(&self) -> Option<HtmlCanvasElement> {

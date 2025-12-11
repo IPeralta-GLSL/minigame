@@ -1,4 +1,5 @@
 pub mod solar_system;
+pub mod minecraft;
 use nalgebra::{Matrix4, Vector3, Perspective3};
 use crate::engine::mesh::Mesh;
 use crate::engine::renderer::Renderer;

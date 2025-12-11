@@ -173,16 +173,37 @@
             }
         }
         
-        /* Full screen mode for Solar System */
-        body.solar-mode .game-container { width: 100vw; height: 100vh; }
-        body.solar-mode canvas {
+        /* Crosshair */
+        #crosshair {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 20px;
+            height: 20px;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            display: none;
+            z-index: 1000;
+        }
+        #crosshair::before, #crosshair::after {
+            content: '';
+            position: absolute;
+            background: rgba(255, 255, 255, 0.8);
+        }
+        #crosshair::before { top: 9px; left: 0; width: 20px; height: 2px; }
+        #crosshair::after { top: 0; left: 9px; width: 2px; height: 20px; }
+
+        /* Full screen mode for Solar System & Minecraft */
+        body.solar-mode .game-container, body.minecraft-mode .game-container { width: 100vw; height: 100vh; }
+        body.solar-mode canvas, body.minecraft-mode canvas {
             width: 100% !important;
             height: 100% !important;
             border: none !important;
             border-radius: 0 !important;
             box-shadow: none !important;
         }
-        body.solar-mode .controls, body.solar-mode #score, body.solar-mode #god-mode-btn { display: none !important; }
+        body.solar-mode .controls, body.solar-mode #score, body.solar-mode #god-mode-btn,
+        body.minecraft-mode .controls, body.minecraft-mode #score, body.minecraft-mode #god-mode-btn { display: none !important; }
         
         /* Solar System UI */
         #solar-ui {
@@ -420,8 +441,10 @@
         <h1 class="menu-title">Select Game</h1>
         <button class="menu-btn" onclick="startGame('road')">Crossy Road</button>
         <button class="menu-btn solar" onclick="startGame('solar')">Solar System</button>
+        <button class="menu-btn minecraft" onclick="startGame('minecraft')" style="background: linear-gradient(45deg, #4CAF50, #8BC34A);">Tiny Craft</button>
     </div>
     <div class="game-container">
+        <div id="crosshair"></div>
         <canvas id="canvas"></canvas>
         <div id="score">Score: 0</div>
         <div id="gameover">
@@ -504,7 +527,7 @@
         </div>
     </div>
     <script type="module">
-        import init, { start_crossy_road, start_solar_system, load_solar_system, touch_left, touch_right, touch_forward, touch_restart, activate_god_mode, set_solar_time_scale, select_solar_body, toggle_solar_temperature_unit, set_solar_date } from './pkg/crossy_road_clone.js';
+        import init, { start_crossy_road, start_solar_system, start_minecraft, load_solar_system, touch_left, touch_right, touch_forward, touch_restart, activate_god_mode, set_solar_time_scale, select_solar_body, toggle_solar_temperature_unit, set_solar_date } from './pkg/crossy_road_clone.js';
 
         window.selectSolarBody = function(index) {
             select_solar_body(index);
@@ -516,8 +539,14 @@
             document.getElementById('menu').style.display = 'none';
             if (type === 'road') {
                 document.body.classList.remove('solar-mode');
+                document.body.classList.remove('minecraft-mode');
                 start_crossy_road();
+            } else if (type === 'minecraft') {
+                document.body.classList.remove('solar-mode');
+                document.body.classList.add('minecraft-mode');
+                start_minecraft();
             } else {
+                document.body.classList.remove('minecraft-mode');
                 document.body.classList.add('solar-mode');
                 start_solar_system();
             }
@@ -526,7 +555,7 @@
         
         function resizeCanvas() {
             const canvas = document.getElementById('canvas');
-            if (document.body.classList.contains('solar-mode')) {
+            if (document.body.classList.contains('solar-mode') || document.body.classList.contains('minecraft-mode')) {
                 canvas.width = window.innerWidth;
                 canvas.height = window.innerHeight;
             } else if (window.innerWidth < 768) {
@@ -754,6 +783,13 @@
                             item.style.display = 'none';
                         }
                     });
+                }
+            });
+
+            // Pointer Lock for Minecraft
+            canvas.addEventListener('click', () => {
+                if (document.body.classList.contains('minecraft-mode')) {
+                    canvas.requestPointerLock();
                 }
             });
 

@@ -11,10 +11,12 @@ use crate::engine::renderer::Renderer;
 use crate::engine::mesh::Mesh;
 use crate::game::{Game, AppConfig};
 use crate::game::solar_system::{SolarSystem, SystemType};
+use crate::game::minecraft::Minecraft;
 
 enum ActiveGame {
     Crossy(Game),
     Solar(SolarSystem),
+    Minecraft(Minecraft),
 }
 
 thread_local! {
@@ -54,6 +56,9 @@ fn start_game_loop() -> Result<(), JsValue> {
                     },
                     ActiveGame::Solar(game) => {
                         game.handle_input(&event.key());
+                    },
+                    ActiveGame::Minecraft(game) => {
+                        game.handle_input(&event.key());
                     }
                 }
             }
@@ -63,10 +68,24 @@ fn start_game_loop() -> Result<(), JsValue> {
     web_sys::window().unwrap().add_event_listener_with_callback("keydown", closure.as_ref().unchecked_ref())?;
     closure.forget();
 
+    let closure_keyup = Closure::wrap(Box::new(move |event: KeyboardEvent| {
+        CURRENT_GAME.with(|g| {
+            if let Some(ActiveGame::Minecraft(game)) = g.borrow_mut().as_mut() {
+                game.handle_keyup(&event.key());
+            }
+        });
+    }) as Box<dyn FnMut(_)>);
+    web_sys::window().unwrap().add_event_listener_with_callback("keyup", closure_keyup.as_ref().unchecked_ref())?;
+    closure_keyup.forget();
+
     let closure_down = Closure::wrap(Box::new(move |event: MouseEvent| {
         CURRENT_GAME.with(|g| {
-            if let Some(ActiveGame::Solar(game)) = g.borrow_mut().as_mut() {
-                game.handle_mouse_down(event.client_x(), event.client_y());
+            if let Some(active_game) = g.borrow_mut().as_mut() {
+                match active_game {
+                    ActiveGame::Solar(game) => game.handle_mouse_down(event.client_x(), event.client_y()),
+                    ActiveGame::Minecraft(game) => game.handle_mouse_down(event.client_x(), event.client_y(), event.button() as i32),
+                    _ => {}
+                }
             }
         });
     }) as Box<dyn FnMut(_)>);
@@ -86,8 +105,12 @@ fn start_game_loop() -> Result<(), JsValue> {
 
     let closure_move = Closure::wrap(Box::new(move |event: MouseEvent| {
         CURRENT_GAME.with(|g| {
-            if let Some(ActiveGame::Solar(game)) = g.borrow_mut().as_mut() {
-                game.handle_mouse_move(event.client_x(), event.client_y());
+            if let Some(active_game) = g.borrow_mut().as_mut() {
+                match active_game {
+                    ActiveGame::Solar(game) => game.handle_mouse_move(event.client_x(), event.client_y()),
+                    ActiveGame::Minecraft(game) => game.handle_mouse_move(event.movement_x(), event.movement_y()),
+                    _ => {}
+                }
             }
         });
     }) as Box<dyn FnMut(_)>);
@@ -106,6 +129,20 @@ fn start_game_loop() -> Result<(), JsValue> {
         .add_event_listener_with_callback("wheel", closure_wheel.as_ref().unchecked_ref())?;
     closure_wheel.forget();
 
+    let closure_lock = Closure::wrap(Box::new(move || {
+        let document = web_sys::window().unwrap().document().unwrap();
+        let is_locked = document.pointer_lock_element().is_some();
+        
+        CURRENT_GAME.with(|g| {
+            if let Some(ActiveGame::Minecraft(game)) = g.borrow_mut().as_mut() {
+                game.set_locked(is_locked);
+            }
+        });
+    }) as Box<dyn FnMut()>);
+    web_sys::window().unwrap().document().unwrap()
+        .add_event_listener_with_callback("pointerlockchange", closure_lock.as_ref().unchecked_ref())?;
+    closure_lock.forget();
+
     let f = Rc::new(RefCell::new(None));
     let g = f.clone();
 
@@ -119,6 +156,13 @@ fn start_game_loop() -> Result<(), JsValue> {
                         update_ui(game.score, game.coins, game.game_over);
                     },
                     ActiveGame::Solar(game) => {
+                        game.update();
+                        let window = web_sys::window().unwrap();
+                        let width = window.inner_width().unwrap().as_f64().unwrap() as i32;
+                        let height = window.inner_height().unwrap().as_f64().unwrap() as i32;
+                        game.render(width, height);
+                    },
+                    ActiveGame::Minecraft(game) => {
                         game.update();
                         let window = web_sys::window().unwrap();
                         let width = window.inner_width().unwrap().as_f64().unwrap() as i32;
@@ -218,6 +262,20 @@ pub fn start_solar_system() -> Result<(), JsValue> {
     load_solar_system("sun")
 }
 
+#[wasm_bindgen]
+pub fn start_minecraft() -> Result<(), JsValue> {
+    let gl = get_gl()?;
+    let renderer = Renderer::new(gl)?;
+    let game = Minecraft::new(renderer);
+    
+    CURRENT_GAME.with(|g| {
+        *g.borrow_mut() = Some(ActiveGame::Minecraft(game));
+    });
+    
+    start_game_loop()?;
+    Ok(())
+}
+
 fn request_animation_frame(f: &Closure<dyn FnMut()>) {
     web_sys::window()
         .unwrap()
@@ -249,6 +307,7 @@ pub fn touch_left() {
             match active_game {
                 ActiveGame::Crossy(game) => game.move_left(),
                 ActiveGame::Solar(game) => game.handle_input("ArrowLeft"),
+                ActiveGame::Minecraft(game) => game.handle_input("a"),
             }
         }
     });
@@ -261,6 +320,7 @@ pub fn touch_right() {
             match active_game {
                 ActiveGame::Crossy(game) => game.move_right(),
                 ActiveGame::Solar(game) => game.handle_input("ArrowRight"),
+                ActiveGame::Minecraft(game) => game.handle_input("d"),
             }
         }
     });
@@ -273,6 +333,7 @@ pub fn touch_forward() {
             match active_game {
                 ActiveGame::Crossy(game) => game.move_forward(),
                 ActiveGame::Solar(game) => game.handle_input("ArrowUp"),
+                ActiveGame::Minecraft(game) => game.handle_input("w"),
             }
         }
     });
@@ -285,6 +346,7 @@ pub fn touch_restart() {
             match active_game {
                 ActiveGame::Crossy(game) => game.restart(),
                 ActiveGame::Solar(game) => game.handle_input("ArrowDown"),
+                ActiveGame::Minecraft(game) => game.handle_input("s"),
             }
         }
     });
