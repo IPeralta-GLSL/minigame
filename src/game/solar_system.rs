@@ -995,16 +995,7 @@ impl SolarSystem {
                 instance_data.push(body.color.0);
                 instance_data.push(body.color.1);
                 instance_data.push(body.color.2);
-                // Top lights (4)
-                instance_data.push(1.0);
-                instance_data.push(1.0);
-                instance_data.push(1.0);
-                instance_data.push(1.0);
-                // Bottom lights (4)
-                instance_data.push(1.0);
-                instance_data.push(1.0);
-                instance_data.push(1.0);
-                instance_data.push(1.0);
+                instance_data.push(1.0); // Light level
                 asteroid_count += 1;
                 continue;
             }

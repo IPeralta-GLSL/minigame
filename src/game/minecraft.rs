@@ -292,55 +292,40 @@ impl Minecraft {
         min1.z < max2.z && max1.z > min2.z
     }
 
-    fn calculate_shadow(&self, x: i32, y: i32, z: i32, y_offset: f32, light_dir: Vector3<f32>) -> [f32; 4] {
-        // Corners: BL, BR, TL, TR
-        // Corresponds to: (-,-), (+,-), (-,+), (+,+)
-        let offsets = [
-            (-0.4f32, -0.4f32), // BL
-            (0.4f32, -0.4f32),  // BR
-            (-0.4f32, 0.4f32),  // TL
-            (0.4f32, 0.4f32),   // TR
-        ];
+    fn calculate_shadow(&self, x: i32, y: i32, z: i32, light_dir: Vector3<f32>) -> f32 {
+        // Start slightly above the top face center to avoid self-shadowing from the block itself
+        // and to avoid shadowing from neighbor ground blocks when sun is low.
+        let origin = Vector3::new(x as f32, y as f32 + 0.6, z as f32);
+        let mut ray_pos = origin;
         
-        let mut results = [1.0f32; 4];
+        let max_steps = 100;
+        let step_size = 0.2;
         
-        for (i, (dx, dz)) in offsets.iter().enumerate() {
-            let origin = Vector3::new(x as f32 + dx, y as f32 + y_offset, z as f32 + dz);
-            let mut ray_pos = origin;
+        for _ in 0..max_steps {
+            // Step first
+            ray_pos += light_dir * step_size;
             
-            let max_steps = 50;
-            let step_size = 0.3f32;
-            let mut shadow_intensity = 0.0f32;
+            let check_x = ray_pos.x.round() as i32;
+            let check_y = ray_pos.y.round() as i32;
+            let check_z = ray_pos.z.round() as i32;
             
-            for _ in 0..max_steps {
-                ray_pos += light_dir * step_size;
-                
-                let check_x = ray_pos.x.round() as i32;
-                let check_y = ray_pos.y.round() as i32;
-                let check_z = ray_pos.z.round() as i32;
-                
-                // Ignore blocks in the same vertical column
-                if check_x == x && check_z == z {
-                    continue;
-                }
+            // Ignore blocks in the same vertical column to prevent ugly self-shadowing on trees/walls
+            if check_x == x && check_z == z {
+                continue;
+            }
 
-                if let Some(block) = self.blocks.get(&(check_x, check_y, check_z)) {
-                    if matches!(block, BlockType::Leaves) {
-                        shadow_intensity = 0.4; 
-                    } else {
-                        shadow_intensity = 0.7; // Darker shadow for solid blocks
-                    }
-                    break; // Hit something, stop this ray
+            if let Some(block) = self.blocks.get(&(check_x, check_y, check_z)) {
+                if matches!(block, BlockType::Leaves) {
+                    return 0.6; 
+                } else {
+                    return 0.3; 
                 }
-                
-                if ray_pos.y > 20.0 { break; } 
             }
             
-            // Light level = 1.0 - shadow
-            results[i] = (1.0 - shadow_intensity).max(0.3);
+            if ray_pos.y > 20.0 { break; } 
         }
         
-        results
+        1.0 
     }
 
     pub fn render(&mut self, width: i32, height: i32) {
@@ -402,20 +387,15 @@ impl Minecraft {
         for ((x, y, z), block_type) in &self.blocks {
             let (r, g, b) = (1.0, 1.0, 1.0); // Use white for all blocks as they are all textured now
             
-            // Shadow logic: Raycast to sun for 4 corners
-            // Top face (y + 0.6)
-            let light_levels_top = self.calculate_shadow(*x, *y, *z, 0.6, light_dir);
-            // Bottom face (y - 0.4) - slightly above bottom to avoid self-intersection with ground if buried
-            // Actually, for vertical interpolation, we want the bottom corners.
-            let light_levels_bot = self.calculate_shadow(*x, *y, *z, -0.4, light_dir);
+            // Shadow logic: Raycast to sun
+            let light_level = self.calculate_shadow(*x, *y, *z, light_dir);
 
             let data = instance_data_map.entry(*block_type).or_insert(Vec::new());
             data.extend_from_slice(&[
                 *x as f32, *y as f32, *z as f32, // Position
                 1.0, // Scale
                 r, g, b, // Color
-                light_levels_top[0], light_levels_top[1], light_levels_top[2], light_levels_top[3], // Top Light levels
-                light_levels_bot[0], light_levels_bot[1], light_levels_bot[2], light_levels_bot[3]  // Bottom Light levels
+                light_level // Light level
             ]);
             *count_map.entry(*block_type).or_insert(0) += 1;
         }
