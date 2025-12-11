@@ -484,8 +484,10 @@
                 <div style="margin-right: 20px; font-family: 'Roboto Mono', monospace; color: var(--accent-color); font-size: 14px; white-space: nowrap;">
                     <span id="solar-date">Loading...</span>
                 </div>
-                <button id="time-pause" class="control-btn">Pause</button>
-                <button id="time-play" class="control-btn">Play</button>
+                <button id="time-toggle" class="control-btn" style="display: flex; align-items: center; gap: 5px; min-width: 90px; justify-content: center;">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" stroke="none"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+                    Pause
+                </button>
                 <div class="time-slider-container">
                     <label for="time-speed">Speed: <span id="speed-val" style="color: var(--accent-color);">1.0</span></label>
                     <input type="range" id="time-speed" min="0" max="10" step="1" value="0">
@@ -586,8 +588,7 @@
 
             const timeSpeedInput = document.getElementById('time-speed');
             const speedVal = document.getElementById('speed-val');
-            const pauseBtn = document.getElementById('time-pause');
-            const playBtn = document.getElementById('time-play');
+            const toggleBtn = document.getElementById('time-toggle');
             const resetBtn = document.getElementById('time-reset');
             
             let currentSpeed = 1.0;
@@ -615,6 +616,19 @@
                 const scale = isPaused ? 0 : currentSpeed;
                 set_solar_time_scale(scale);
                 
+                // Update toggle button
+                if (isPaused) {
+                    toggleBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="5 3 19 12 5 21 5 3"/></svg> Play';
+                    toggleBtn.style.background = 'rgba(76, 175, 80, 0.2)';
+                    toggleBtn.style.borderColor = 'var(--accent-color)';
+                    toggleBtn.style.color = 'var(--accent-color)';
+                } else {
+                    toggleBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" stroke="none"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg> Pause';
+                    toggleBtn.style.background = '';
+                    toggleBtn.style.borderColor = '';
+                    toggleBtn.style.color = '';
+                }
+
                 // Find label
                 const step = speedSteps.find(s => Math.abs(s.val - currentSpeed) < 0.1);
                 if (step) {
@@ -635,13 +649,8 @@
                 }
             });
             
-            pauseBtn.addEventListener('click', () => {
-                isPaused = true;
-                updateTimeScale();
-            });
-            
-            playBtn.addEventListener('click', () => {
-                isPaused = false;
+            toggleBtn.addEventListener('click', () => {
+                isPaused = !isPaused;
                 updateTimeScale();
             });
             
