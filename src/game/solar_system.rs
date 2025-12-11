@@ -222,9 +222,9 @@ impl SolarSystem {
 
 
         if system_type == SystemType::Sirius {
-            bodies.push(create_body("Sirius A", 0.795, 0.0, 0.0, 0.0, (0.8, 0.9, 1.0), None, Mesh::sphere, None, None, None, None, 0.0, 25.0, 0.0, 0.0, 0.0, 0.0, 0.0, "4.018 × 10^30 kg", 9940.0, "The brightest star in the night sky.", None));
-            let p_sirius_b = 18262.0;
-            bodies.push(create_body("Sirius B", 0.004, 2000.0, get_orbit_speed(p_sirius_b), 0.0, (0.9, 0.9, 1.0), Some(0), Mesh::sphere, None, None, None, None, 0.0, 10.0, 0.0, 0.0, 0.0, 0.0, 0.59, "2.0 × 10^30 kg", 25200.0, "A white dwarf companion to Sirius A.", None));
+            bodies.push(create_body("Sirius A", 0.796, 0.0, 0.0, 0.0, (0.8, 0.9, 1.0), None, Mesh::sphere, None, None, None, None, 0.0, 25.0, 0.0, 0.0, 0.0, 0.0, 0.0, "4.02 × 10^30 kg", 9940.0, "The brightest star in the night sky.", None));
+            let p_sirius_b = 18309.5;
+            bodies.push(create_body("Sirius B", 0.0039, 1980.0, get_orbit_speed(p_sirius_b), 0.0, (0.9, 0.9, 1.0), Some(0), Mesh::sphere, None, None, None, None, 0.0, 10.0, 0.0, 136.5, 0.0, 0.0, 0.592, "2.02 × 10^30 kg", 25000.0, "A white dwarf companion to Sirius A.", None));
         } else {
             if system_type == SystemType::BlackHole {
                 // 3km radius. Earth (6371km) is 0.0042.
