@@ -40,7 +40,8 @@ const INSTANCED_VERTEX_SHADER: &str = r#"
     attribute vec3 aInstancePosition;
     attribute float aInstanceScale;
     attribute vec3 aInstanceColor;
-    attribute float aInstanceLight;
+    attribute vec4 aInstanceLightTop;    // Light levels for top corners
+    attribute vec4 aInstanceLightBottom; // Light levels for bottom corners
 
     uniform mat4 uView;
     uniform mat4 uProjection;
@@ -58,7 +59,39 @@ const INSTANCED_VERTEX_SHADER: &str = r#"
         gl_Position = uProjection * uView * vec4(worldPos, 1.0);
         
         vPos = aPosition; 
-        vColor = aInstanceColor * aInstanceLight;
+        
+        // Trilinear interpolation of light
+        // aPosition ranges from -0.5 to 0.5
+        
+        // Map -0.5..0.5 to 0..1
+        float u = aPosition.x + 0.5; 
+        float v = aPosition.z + 0.5;
+        float w = aPosition.y + 0.5; // Vertical axis
+        
+        // Top plane interpolation
+        float l_bl_top = aInstanceLightTop.x;
+        float l_br_top = aInstanceLightTop.y;
+        float l_tl_top = aInstanceLightTop.z;
+        float l_tr_top = aInstanceLightTop.w;
+        
+        float l_bottom_edge_top = mix(l_bl_top, l_br_top, u);
+        float l_top_edge_top = mix(l_tl_top, l_tr_top, u);
+        float light_top = mix(l_bottom_edge_top, l_top_edge_top, v);
+        
+        // Bottom plane interpolation
+        float l_bl_bot = aInstanceLightBottom.x;
+        float l_br_bot = aInstanceLightBottom.y;
+        float l_tl_bot = aInstanceLightBottom.z;
+        float l_tr_bot = aInstanceLightBottom.w;
+        
+        float l_bottom_edge_bot = mix(l_bl_bot, l_br_bot, u);
+        float l_top_edge_bot = mix(l_tl_bot, l_tr_bot, u);
+        float light_bottom = mix(l_bottom_edge_bot, l_top_edge_bot, v);
+        
+        // Interpolate vertically
+        float lightLevel = mix(light_bottom, light_top, w);
+        
+        vColor = aInstanceColor * lightLevel;
         vTexCoord = aTexCoord;
         vFragPos = worldPos;
         vNormal = aNormal; 
@@ -740,9 +773,10 @@ impl Renderer {
         let i_pos_loc = self.gl.get_attrib_location(&self.instanced_program, "aInstancePosition");
         let i_scale_loc = self.gl.get_attrib_location(&self.instanced_program, "aInstanceScale");
         let i_col_loc = self.gl.get_attrib_location(&self.instanced_program, "aInstanceColor");
-        let i_light_loc = self.gl.get_attrib_location(&self.instanced_program, "aInstanceLight");
+        let i_light_top_loc = self.gl.get_attrib_location(&self.instanced_program, "aInstanceLightTop");
+        let i_light_bot_loc = self.gl.get_attrib_location(&self.instanced_program, "aInstanceLightBottom");
 
-        let stride = 32; 
+        let stride = 60; // 3+1+3+4+4 = 15 floats * 4 bytes = 60 bytes
 
         if i_pos_loc != -1 {
             self.gl.vertex_attrib_pointer_with_i32(i_pos_loc as u32, 3, WebGlRenderingContext::FLOAT, false, stride, 0);
@@ -762,10 +796,16 @@ impl Renderer {
             ext.vertex_attrib_divisor_angle(i_col_loc as u32, 1);
         }
 
-        if i_light_loc != -1 {
-            self.gl.vertex_attrib_pointer_with_i32(i_light_loc as u32, 1, WebGlRenderingContext::FLOAT, false, stride, 28);
-            self.gl.enable_vertex_attrib_array(i_light_loc as u32);
-            ext.vertex_attrib_divisor_angle(i_light_loc as u32, 1);
+        if i_light_top_loc != -1 {
+            self.gl.vertex_attrib_pointer_with_i32(i_light_top_loc as u32, 4, WebGlRenderingContext::FLOAT, false, stride, 28);
+            self.gl.enable_vertex_attrib_array(i_light_top_loc as u32);
+            ext.vertex_attrib_divisor_angle(i_light_top_loc as u32, 1);
+        }
+
+        if i_light_bot_loc != -1 {
+            self.gl.vertex_attrib_pointer_with_i32(i_light_bot_loc as u32, 4, WebGlRenderingContext::FLOAT, false, stride, 44);
+            self.gl.enable_vertex_attrib_array(i_light_bot_loc as u32);
+            ext.vertex_attrib_divisor_angle(i_light_bot_loc as u32, 1);
         }
 
         ext.draw_elements_instanced_angle_with_i32(
@@ -788,9 +828,13 @@ impl Renderer {
             ext.vertex_attrib_divisor_angle(i_col_loc as u32, 0);
             self.gl.disable_vertex_attrib_array(i_col_loc as u32);
         }
-        if i_light_loc != -1 {
-            ext.vertex_attrib_divisor_angle(i_light_loc as u32, 0);
-            self.gl.disable_vertex_attrib_array(i_light_loc as u32);
+        if i_light_top_loc != -1 {
+            ext.vertex_attrib_divisor_angle(i_light_top_loc as u32, 0);
+            self.gl.disable_vertex_attrib_array(i_light_top_loc as u32);
+        }
+        if i_light_bot_loc != -1 {
+            ext.vertex_attrib_divisor_angle(i_light_bot_loc as u32, 0);
+            self.gl.disable_vertex_attrib_array(i_light_bot_loc as u32);
         }
     }
 

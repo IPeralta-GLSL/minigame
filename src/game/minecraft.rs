@@ -3,6 +3,7 @@ use crate::engine::mesh::Mesh;
 use nalgebra::{Matrix4, Vector3, Point3};
 use std::collections::HashMap;
 use web_sys::WebGlTexture;
+use wasm_bindgen::JsCast;
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub enum BlockType {
@@ -187,6 +188,40 @@ impl Minecraft {
 
         self.velocity.x *= 0.8;
         self.velocity.z *= 0.8;
+
+        self.update_time_ui();
+    }
+
+    fn update_time_ui(&mut self) {
+        if let Some(window) = web_sys::window() {
+            if let Some(document) = window.document() {
+                if let Some(element) = document.get_element_by_id("time-slider") {
+                    if let Ok(input) = element.dyn_into::<web_sys::HtmlInputElement>() {
+                        // Check if user is interacting (active element)
+                        let is_active = if let Some(active) = document.active_element() {
+                            &active == input.as_ref() as &web_sys::Element
+                        } else {
+                            false
+                        };
+
+                        if is_active {
+                            // User is dragging, read value
+                            let val_str = input.value();
+                            if let Ok(val) = val_str.parse::<f32>() {
+                                self.time_of_day = val;
+                            }
+                        } else {
+                            // Game is running, update slider
+                            // Auto-increment time
+                            self.time_of_day += 0.0001;
+                            if self.time_of_day > 1.0 { self.time_of_day -= 1.0; }
+                            
+                            input.set_value(&self.time_of_day.to_string());
+                        }
+                    }
+                }
+            }
+        }
     }
 
     fn resolve_collisions(&mut self, axis: usize) {
@@ -257,22 +292,25 @@ impl Minecraft {
         min1.z < max2.z && max1.z > min2.z
     }
 
-    fn calculate_shadow(&self, x: i32, y: i32, z: i32, light_dir: Vector3<f32>) -> f32 {
+    fn calculate_shadow(&self, x: i32, y: i32, z: i32, y_offset: f32, light_dir: Vector3<f32>) -> [f32; 4] {
+        // Corners: BL, BR, TL, TR
+        // Corresponds to: (-,-), (+,-), (-,+), (+,+)
         let offsets = [
-            (-0.25f32, -0.25f32),
-            (0.25f32, -0.25f32),
-            (-0.25f32, 0.25f32),
-            (0.25f32, 0.25f32),
+            (-0.4f32, -0.4f32), // BL
+            (0.4f32, -0.4f32),  // BR
+            (-0.4f32, 0.4f32),  // TL
+            (0.4f32, 0.4f32),   // TR
         ];
         
-        let mut total_shadow = 0.0f32;
+        let mut results = [1.0f32; 4];
         
-        for (dx, dz) in offsets {
-            let origin = Vector3::new(x as f32 + dx, y as f32 + 0.6, z as f32 + dz);
+        for (i, (dx, dz)) in offsets.iter().enumerate() {
+            let origin = Vector3::new(x as f32 + dx, y as f32 + y_offset, z as f32 + dz);
             let mut ray_pos = origin;
             
             let max_steps = 50;
             let step_size = 0.3f32;
+            let mut shadow_intensity = 0.0f32;
             
             for _ in 0..max_steps {
                 ray_pos += light_dir * step_size;
@@ -288,20 +326,21 @@ impl Minecraft {
 
                 if let Some(block) = self.blocks.get(&(check_x, check_y, check_z)) {
                     if matches!(block, BlockType::Leaves) {
-                        total_shadow += 0.4; 
+                        shadow_intensity = 0.4; 
                     } else {
-                        total_shadow += 1.0; 
+                        shadow_intensity = 0.7; // Darker shadow for solid blocks
                     }
                     break; // Hit something, stop this ray
                 }
                 
                 if ray_pos.y > 20.0 { break; } 
             }
+            
+            // Light level = 1.0 - shadow
+            results[i] = (1.0 - shadow_intensity).max(0.3);
         }
         
-        let avg_shadow = total_shadow / 4.0;
-        // Map shadow (0.0 to 1.0) to light level (1.0 to 0.3)
-        (1.0 - avg_shadow * 0.7).max(0.3)
+        results
     }
 
     pub fn render(&mut self, width: i32, height: i32) {
@@ -363,15 +402,20 @@ impl Minecraft {
         for ((x, y, z), block_type) in &self.blocks {
             let (r, g, b) = (1.0, 1.0, 1.0); // Use white for all blocks as they are all textured now
             
-            // Shadow logic: Raycast to sun
-            let light_level = self.calculate_shadow(*x, *y, *z, light_dir);
+            // Shadow logic: Raycast to sun for 4 corners
+            // Top face (y + 0.6)
+            let light_levels_top = self.calculate_shadow(*x, *y, *z, 0.6, light_dir);
+            // Bottom face (y - 0.4) - slightly above bottom to avoid self-intersection with ground if buried
+            // Actually, for vertical interpolation, we want the bottom corners.
+            let light_levels_bot = self.calculate_shadow(*x, *y, *z, -0.4, light_dir);
 
             let data = instance_data_map.entry(*block_type).or_insert(Vec::new());
             data.extend_from_slice(&[
                 *x as f32, *y as f32, *z as f32, // Position
                 1.0, // Scale
                 r, g, b, // Color
-                light_level // Light level
+                light_levels_top[0], light_levels_top[1], light_levels_top[2], light_levels_top[3], // Top Light levels
+                light_levels_bot[0], light_levels_bot[1], light_levels_bot[2], light_levels_bot[3]  // Bottom Light levels
             ]);
             *count_map.entry(*block_type).or_insert(0) += 1;
         }

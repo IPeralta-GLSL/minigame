@@ -39,6 +39,7 @@ features = [
     "Headers",
     "WebGlTexture",
     "HtmlImageElement",
+    "HtmlInputElement",
     "EventTarget",
     "MouseEvent",
     "WheelEvent", "Element", "HtmlElement", "Node", "CssStyleDeclaration",

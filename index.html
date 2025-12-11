@@ -77,6 +77,55 @@
             flex-direction: row;
         }
 
+        #time-control {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            padding: 15px;
+            display: none;
+            flex-direction: column;
+            gap: 10px;
+            z-index: 100;
+            width: 200px;
+            pointer-events: auto;
+        }
+        
+        body.minecraft-mode #time-control {
+            display: flex;
+        }
+
+        .control-label {
+            font-size: 12px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 5px;
+        }
+        
+        input[type=range] {
+            width: 100%;
+            -webkit-appearance: none;
+            background: transparent;
+        }
+        
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 16px;
+            width: 16px;
+            border-radius: 50%;
+            background: var(--accent-color);
+            cursor: pointer;
+            margin-top: -6px;
+        }
+        
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            cursor: pointer;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 2px;
+        }
+
         .hotbar-slot {
             width: 50px;
             height: 50px;
@@ -542,6 +591,10 @@
                 <img src="assets/textures/TinyCraft/tiles/leaves_transparent.png">
                 <span class="key-hint">5</span>
              </div>
+        </div>
+        <div id="time-control" class="panel-glass">
+            <div class="control-label">Time of Day</div>
+            <input type="range" id="time-slider" min="0" max="1" step="0.001" value="0.25">
         </div>
         <div id="gameover">
             <h2>GAME OVER</h2>
