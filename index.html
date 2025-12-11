@@ -55,6 +55,78 @@
             color: var(--text-main);
         }
 
+        #block-ui {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            flex-direction: row;
+            flex-wrap: nowrap;
+            gap: 5px;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 5px;
+            border-radius: 5px;
+            pointer-events: none;
+            display: none;
+            z-index: 100;
+            width: max-content;
+        }
+        
+        body.minecraft-mode #block-ui {
+            display: flex;
+            flex-direction: row;
+        }
+
+        .hotbar-slot {
+            width: 50px;
+            height: 50px;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            background: rgba(0, 0, 0, 0.3);
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: all 0.1s ease;
+        }
+        
+        .hotbar-slot.selected {
+            border-color: white;
+            background: rgba(255, 255, 255, 0.1);
+            transform: scale(1.1);
+            z-index: 10;
+            box-shadow: 0 0 10px rgba(0,0,0,0.5);
+        }
+
+        .hotbar-slot img {
+            width: 32px;
+            height: 32px;
+            image-rendering: pixelated;
+        }
+
+        .key-hint {
+            position: absolute;
+            top: 2px;
+            left: 4px;
+            font-size: 10px;
+            color: #ddd;
+            text-shadow: 1px 1px 0 #000;
+            font-family: monospace;
+        }
+
+        #score {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            padding: 15px;
+            color: white;
+            font-family: monospace;
+            font-size: 18px;
+            pointer-events: none;
+            display: none; /* Hidden by default, shown in minecraft mode */
+            z-index: 100;
+            transition: transform 0.2s;
+        }
+
         #score {
             position: absolute;
             top: 20px;
@@ -449,6 +521,28 @@
         <div id="crosshair"></div>
         <canvas id="canvas"></canvas>
         <div id="score">Score: 0</div>
+        <div id="block-ui">
+             <div class="hotbar-slot selected" id="slot-1">
+                <img src="assets/textures/TinyCraft/tiles/dirt_grass.png">
+                <span class="key-hint">1</span>
+             </div>
+             <div class="hotbar-slot" id="slot-2">
+                <img src="assets/textures/TinyCraft/tiles/dirt.png">
+                <span class="key-hint">2</span>
+             </div>
+             <div class="hotbar-slot" id="slot-3">
+                <img src="assets/textures/TinyCraft/tiles/stone.png">
+                <span class="key-hint">3</span>
+             </div>
+             <div class="hotbar-slot" id="slot-4">
+                <img src="assets/textures/TinyCraft/tiles/trunk_side.png">
+                <span class="key-hint">4</span>
+             </div>
+             <div class="hotbar-slot" id="slot-5">
+                <img src="assets/textures/TinyCraft/tiles/leaves_transparent.png">
+                <span class="key-hint">5</span>
+             </div>
+        </div>
         <div id="gameover">
             <h2>GAME OVER</h2>
             <p>Press <span class="key">R</span> or Tap to restart</p>

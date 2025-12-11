@@ -119,7 +119,7 @@ impl Minecraft {
             is_locked: false,
             velocity: Vector3::new(0.0, 0.0, 0.0),
             on_ground: false,
-            selected_block_type: BlockType::Stone,
+            selected_block_type: BlockType::Grass,
             input_state: InputState {
                 forward: false,
                 backward: false,
@@ -374,12 +374,38 @@ impl Minecraft {
                     self.velocity.y = 0.4;
                 }
             },
-            "1" => self.selected_block_type = BlockType::Grass,
-            "2" => self.selected_block_type = BlockType::Dirt,
-            "3" => self.selected_block_type = BlockType::Stone,
-            "4" => self.selected_block_type = BlockType::Wood,
-            "5" => self.selected_block_type = BlockType::Leaves,
+            "1" => { self.selected_block_type = BlockType::Grass; self.update_block_ui(); },
+            "2" => { self.selected_block_type = BlockType::Dirt; self.update_block_ui(); },
+            "3" => { self.selected_block_type = BlockType::Stone; self.update_block_ui(); },
+            "4" => { self.selected_block_type = BlockType::Wood; self.update_block_ui(); },
+            "5" => { self.selected_block_type = BlockType::Leaves; self.update_block_ui(); },
             _ => {}
+        }
+    }
+
+    fn update_block_ui(&self) {
+        if let Some(window) = web_sys::window() {
+            if let Some(document) = window.document() {
+                let selected_index = match self.selected_block_type {
+                    BlockType::Grass => 1,
+                    BlockType::Dirt => 2,
+                    BlockType::Stone => 3,
+                    BlockType::Wood => 4,
+                    BlockType::Leaves => 5,
+                    _ => 1,
+                };
+
+                for i in 1..=5 {
+                    if let Some(element) = document.get_element_by_id(&format!("slot-{}", i)) {
+                        let class_name = if i == selected_index {
+                            "hotbar-slot selected"
+                        } else {
+                            "hotbar-slot"
+                        };
+                        element.set_class_name(class_name);
+                    }
+                }
+            }
         }
     }
 
