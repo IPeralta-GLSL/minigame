@@ -36,6 +36,7 @@ pub struct Body {
     pub ring_radius: f32,
     pub ring_inner_radius: Option<f32>,
     pub is_frozen: bool,
+    pub mean_longitude_at_epoch: f32,
 }
 
 pub struct SolarSystem {
@@ -70,12 +71,6 @@ impl SolarSystem {
         let j2000_ms = 946728000000.0;
         let days_since_j2000 = (now_ms - j2000_ms) / (1000.0 * 60.0 * 60.0 * 24.0);
         
-        let get_initial_angle = |l0: f32, p: f32| -> f32 {
-            let n = 360.0 / p;
-            let angle_deg = (l0 + n * days_since_j2000 as f32) % 360.0;
-            angle_deg.to_radians()
-        };
-        
         let get_orbit_speed = |p: f32| -> f32 {
             let p_seconds = p * 24.0 * 3600.0;
             (2.0 * std::f32::consts::PI) / p_seconds
@@ -95,7 +90,7 @@ impl SolarSystem {
              list.set_inner_html("");
         }
 
-        let create_body = |name: &str, radius: f32, orbit_radius: f32, orbit_speed: f32, orbit_angle: f32, color: (f32, f32, f32), parent: Option<usize>, mesh_fn: fn(f32, u16, u16, f32, f32, f32) -> Mesh, texture_url: Option<&str>, night_texture_url: Option<&str>, cloud_texture_url: Option<&str>, ring_texture_url: Option<&str>, ring_radius: f32, rotation_period: f32, axial_tilt: f32, orbit_inclination: f32, longitude_of_ascending_node: f32, argument_of_periapsis: f32, eccentricity: f32, mass: &str, temperature: f32, description: &str, ring_inner_radius: Option<f32>| {
+        let create_body = |name: &str, radius: f32, orbit_radius: f32, orbit_speed: f32, mean_longitude: f32, color: (f32, f32, f32), parent: Option<usize>, mesh_fn: fn(f32, u16, u16, f32, f32, f32) -> Mesh, texture_url: Option<&str>, night_texture_url: Option<&str>, cloud_texture_url: Option<&str>, ring_texture_url: Option<&str>, ring_radius: f32, rotation_period: f32, axial_tilt: f32, orbit_inclination: f32, longitude_of_ascending_node: f32, argument_of_periapsis: f32, eccentricity: f32, mass: &str, temperature: f32, description: &str, ring_inner_radius: Option<f32>| {
             let mut label_element = None;
             if let Some(container) = &labels_container {
                 if !name.starts_with("Asteroid") && !name.starts_with("Kuiper") && !name.starts_with("Oort") {
@@ -175,12 +170,21 @@ impl SolarSystem {
                 (temperature, false)
             };
 
+            let orbit_angle = if orbit_speed.abs() > 0.0 {
+                 let n_rad_per_day = orbit_speed * 86400.0;
+                 let angle_rad = mean_longitude.to_radians() + n_rad_per_day * days_since_j2000 as f32;
+                 angle_rad % (2.0 * std::f32::consts::PI)
+            } else {
+                 mean_longitude.to_radians()
+            };
+
             Body {
                 mesh: mesh_fn(1.0, slices, stacks, mesh_r, mesh_g, mesh_b),
                 radius,
                 orbit_radius,
                 orbit_speed,
                 orbit_angle,
+                mean_longitude_at_epoch: mean_longitude,
                 color,
                 parent,
                 name: name.to_string(),
@@ -221,36 +225,36 @@ impl SolarSystem {
 
         let p_mercury = 87.969;
 
-        bodies.push(create_body("Mercury", 0.0016, 39.0, get_orbit_speed(p_mercury), get_initial_angle(252.25, p_mercury), (0.5, 0.5, 0.5), Some(0), Mesh::sphere, Some("assets/textures/2k_mercury.jpg"), None, None, None, 0.0, 58.6, 0.03, 7.0, 0.0, 0.0, 0.205, "3.285 × 10^23 kg", 440.0, "The smallest planet in the Solar System and the closest to the Sun.", None));
+        bodies.push(create_body("Mercury", 0.0016, 39.0, get_orbit_speed(p_mercury), 252.25, (0.5, 0.5, 0.5), Some(0), Mesh::sphere, Some("assets/textures/2k_mercury.jpg"), None, None, None, 0.0, 58.6, 0.03, 7.0, 0.0, 0.0, 0.205, "3.285 × 10^23 kg", 440.0, "The smallest planet in the Solar System and the closest to the Sun.", None));
 
         let p_venus = 224.701;
 
-        bodies.push(create_body("Venus", 0.004, 72.0, get_orbit_speed(p_venus), get_initial_angle(181.98, p_venus), (0.9, 0.7, 0.2), Some(0), Mesh::sphere, Some("assets/textures/2k_venus_surface.jpg"), None, Some("assets/textures/2k_venus_atmosphere.jpg"), None, 0.0, -243.0, 177.3, 3.4, 0.0, 0.0, 0.007, "4.867 × 10^24 kg", 737.0, "The second planet from the Sun. It has a dense atmosphere.", None));
+        bodies.push(create_body("Venus", 0.004, 72.0, get_orbit_speed(p_venus), 181.98, (0.9, 0.7, 0.2), Some(0), Mesh::sphere, Some("assets/textures/2k_venus_surface.jpg"), None, Some("assets/textures/2k_venus_atmosphere.jpg"), None, 0.0, -243.0, 177.3, 3.4, 0.0, 0.0, 0.007, "4.867 × 10^24 kg", 737.0, "The second planet from the Sun. It has a dense atmosphere.", None));
 
         let p_earth = 365.256;
 
         if is_black_hole_mode {
-            bodies.push(create_body("Earth", 0.0042, 100.0, get_orbit_speed(p_earth), get_initial_angle(100.46, p_earth), (0.8, 0.9, 1.0), Some(0), Mesh::sphere, Some("assets/textures/2k_earth_daymap.jpg"), None, None, None, 0.0, 1.0, 23.4, 0.0, 0.0, 0.0, 0.017, "5.972 × 10^24 kg", 30.0, "A frozen wasteland orbiting a black hole.", None));
+            bodies.push(create_body("Earth", 0.0042, 100.0, get_orbit_speed(p_earth), 100.46, (0.8, 0.9, 1.0), Some(0), Mesh::sphere, Some("assets/textures/2k_earth_daymap.jpg"), None, None, None, 0.0, 1.0, 23.4, 0.0, 0.0, 0.0, 0.017, "5.972 × 10^24 kg", 30.0, "A frozen wasteland orbiting a black hole.", None));
         } else {
-            bodies.push(create_body("Earth", 0.0042, 100.0, get_orbit_speed(p_earth), get_initial_angle(100.46, p_earth), (0.0, 0.0, 1.0), Some(0), Mesh::sphere, Some("assets/textures/2k_earth_daymap.jpg"), Some("assets/textures/2k_earth_nightmap.jpg"), Some("assets/textures/2k_earth_clouds.jpg"), None, 0.0, 1.0, 23.4, 0.0, 0.0, 0.0, 0.017, "5.972 × 10^24 kg", 288.0, "Our home planet, the third from the Sun.", None));
+            bodies.push(create_body("Earth", 0.0042, 100.0, get_orbit_speed(p_earth), 100.46, (0.0, 0.0, 1.0), Some(0), Mesh::sphere, Some("assets/textures/2k_earth_daymap.jpg"), Some("assets/textures/2k_earth_nightmap.jpg"), Some("assets/textures/2k_earth_clouds.jpg"), None, 0.0, 1.0, 23.4, 0.0, 0.0, 0.0, 0.017, "5.972 × 10^24 kg", 288.0, "Our home planet, the third from the Sun.", None));
         }
 
         let p_moon = 27.322;
 
-        bodies.push(create_body("Moon", 0.0011, 0.257, get_orbit_speed(p_moon), get_initial_angle(0.0, p_moon), (0.6, 0.6, 0.6), Some(3), Mesh::sphere, Some("assets/textures/2k_moon.jpg"), None, None, None, 0.0, 27.3, 6.7, 5.1, 0.0, 0.0, 0.055, "7.342 × 10^22 kg", 220.0, "Earth's only natural satellite.", None));
+        bodies.push(create_body("Moon", 0.0011, 0.257, get_orbit_speed(p_moon), 0.0, (0.6, 0.6, 0.6), Some(3), Mesh::sphere, Some("assets/textures/2k_moon.jpg"), None, None, None, 0.0, 27.3, 6.7, 5.1, 0.0, 0.0, 0.055, "7.342 × 10^22 kg", 220.0, "Earth's only natural satellite.", None));
 
         let p_mars = 686.980;
 
-        bodies.push(create_body("Mars", 0.0022, 152.0, get_orbit_speed(p_mars), get_initial_angle(355.45, p_mars), (1.0, 0.0, 0.0), Some(0), Mesh::sphere, Some("assets/textures/2k_mars.jpg"), None, None, None, 0.0, 1.03, 25.2, 1.85, 0.0, 0.0, 0.094, "6.39 × 10^23 kg", 210.0, "The fourth planet from the Sun, known as the Red Planet.", None));
+        bodies.push(create_body("Mars", 0.0022, 152.0, get_orbit_speed(p_mars), 355.45, (1.0, 0.0, 0.0), Some(0), Mesh::sphere, Some("assets/textures/2k_mars.jpg"), None, None, None, 0.0, 1.03, 25.2, 1.85, 0.0, 0.0, 0.094, "6.39 × 10^23 kg", 210.0, "The fourth planet from the Sun, known as the Red Planet.", None));
         let mars_idx = bodies.len() - 1;
 
         // Mars Moons
-        bodies.push(create_body("Phobos", 0.00008, 0.006, get_orbit_speed(0.3189), get_initial_angle(0.0, 0.3189), (0.6, 0.5, 0.4), Some(mars_idx), Mesh::sphere, Some("assets/textures/phobos.webp"), None, None, None, 0.0, 0.3189, 0.0, 1.0, 0.0, 0.0, 0.015, "1.06 × 10^16 kg", 233.0, "The larger and inner of the two natural satellites of Mars.", None));
-        bodies.push(create_body("Deimos", 0.00004, 0.015, get_orbit_speed(1.262), get_initial_angle(0.0, 1.262), (0.7, 0.6, 0.5), Some(mars_idx), Mesh::sphere, Some("assets/textures/deimos.webp"), None, None, None, 0.0, 1.262, 0.0, 0.9, 0.0, 0.0, 0.0002, "1.47 × 10^15 kg", 233.0, "The smaller and outer of the two natural satellites of Mars.", None));
+        bodies.push(create_body("Phobos", 0.00008, 0.006, get_orbit_speed(0.3189), 0.0, (0.6, 0.5, 0.4), Some(mars_idx), Mesh::sphere, Some("assets/textures/phobos.webp"), None, None, None, 0.0, 0.3189, 0.0, 1.0, 0.0, 0.0, 0.015, "1.06 × 10^16 kg", 233.0, "The larger and inner of the two natural satellites of Mars.", None));
+        bodies.push(create_body("Deimos", 0.00004, 0.015, get_orbit_speed(1.262), 0.0, (0.7, 0.6, 0.5), Some(mars_idx), Mesh::sphere, Some("assets/textures/deimos.webp"), None, None, None, 0.0, 1.262, 0.0, 0.9, 0.0, 0.0, 0.0002, "1.47 × 10^15 kg", 233.0, "The smaller and outer of the two natural satellites of Mars.", None));
 
 
         let p_ceres = 1681.6;
-        bodies.push(create_body("Ceres", 0.00029, 277.0, get_orbit_speed(p_ceres), get_initial_angle(0.0, p_ceres), (0.4, 0.4, 0.4), Some(0), Mesh::sphere, Some("assets/textures/2k_ceres_fictional.jpg"), None, None, None, 0.0, 0.375, 4.0, 10.6, 0.0, 0.0, 0.076, "9.393 × 10^20 kg", 168.0, "The largest object in the asteroid belt.", None));
+        bodies.push(create_body("Ceres", 0.00029, 277.0, get_orbit_speed(p_ceres), 0.0, (0.4, 0.4, 0.4), Some(0), Mesh::sphere, Some("assets/textures/2k_ceres_fictional.jpg"), None, None, None, 0.0, 0.375, 4.0, 10.6, 0.0, 0.0, 0.076, "9.393 × 10^20 kg", 168.0, "The largest object in the asteroid belt.", None));
 
         let mut rng = rand::thread_rng();
         for i in 0..1500 {
@@ -264,7 +268,7 @@ impl SolarSystem {
                 size,
                 dist,
                 get_orbit_speed(period),
-                angle.to_radians(),
+                angle,
                 (0.5, 0.5, 0.5),
                 Some(0),
                 Mesh::sphere,
@@ -288,54 +292,54 @@ impl SolarSystem {
 
         let p_jupiter = 4332.589;
 
-        bodies.push(create_body("Jupiter", 0.047, 520.0, get_orbit_speed(p_jupiter), get_initial_angle(34.40, p_jupiter), (0.8, 0.6, 0.4), Some(0), Mesh::sphere, Some("assets/textures/2k_jupiter.jpg"), None, None, None, 0.0, 0.41, 3.1, 1.3, 0.0, 0.0, 0.049, "1.898 × 10^27 kg", 165.0, "The largest planet in the Solar System.", None));
+        bodies.push(create_body("Jupiter", 0.047, 520.0, get_orbit_speed(p_jupiter), 34.40, (0.8, 0.6, 0.4), Some(0), Mesh::sphere, Some("assets/textures/2k_jupiter.jpg"), None, None, None, 0.0, 0.41, 3.1, 1.3, 0.0, 0.0, 0.049, "1.898 × 10^27 kg", 165.0, "The largest planet in the Solar System.", None));
         let jupiter_idx = bodies.len() - 1;
 
         // Jupiter Moons
-        bodies.push(create_body("Io", 0.0012, 0.28, get_orbit_speed(1.769), get_initial_angle(0.0, 1.769), (0.8, 0.7, 0.2), Some(jupiter_idx), Mesh::sphere, Some("assets/textures/io.webp"), None, None, None, 0.0, 1.769, 0.0, 0.0, 0.0, 0.0, 0.004, "8.93 × 10^22 kg", 110.0, "Jupiter's innermost Galilean moon.", None));
-        bodies.push(create_body("Europa", 0.0010, 0.45, get_orbit_speed(3.55), get_initial_angle(0.0, 3.55), (0.9, 0.9, 0.8), Some(jupiter_idx), Mesh::sphere, Some("assets/textures/Europa.webp"), None, None, None, 0.0, 3.55, 0.1, 0.47, 0.0, 0.0, 0.009, "4.8 × 10^22 kg", 102.0, "Jupiter's icy moon.", None));
-        bodies.push(create_body("Ganymede", 0.0017, 0.71, get_orbit_speed(7.15), get_initial_angle(0.0, 7.15), (0.6, 0.6, 0.6), Some(jupiter_idx), Mesh::sphere, Some("assets/textures/Ganymede.webp"), None, None, None, 0.0, 7.15, 0.2, 0.2, 0.0, 0.0, 0.001, "1.48 × 10^23 kg", 110.0, "The largest moon in the Solar System.", None));
-        bodies.push(create_body("Callisto", 0.0016, 1.25, get_orbit_speed(16.69), get_initial_angle(0.0, 16.69), (0.4, 0.4, 0.4), Some(jupiter_idx), Mesh::sphere, Some("assets/textures/Callisto.webp"), None, None, None, 0.0, 16.69, 0.0, 0.2, 0.0, 0.0, 0.007, "1.08 × 10^23 kg", 134.0, "Jupiter's heavily cratered moon.", None));
+        bodies.push(create_body("Io", 0.0012, 0.28, get_orbit_speed(1.769), 0.0, (0.8, 0.7, 0.2), Some(jupiter_idx), Mesh::sphere, Some("assets/textures/io.webp"), None, None, None, 0.0, 1.769, 0.0, 0.0, 0.0, 0.0, 0.004, "8.93 × 10^22 kg", 110.0, "Jupiter's innermost Galilean moon.", None));
+        bodies.push(create_body("Europa", 0.0010, 0.45, get_orbit_speed(3.55), 0.0, (0.9, 0.9, 0.8), Some(jupiter_idx), Mesh::sphere, Some("assets/textures/Europa.webp"), None, None, None, 0.0, 3.55, 0.1, 0.47, 0.0, 0.0, 0.009, "4.8 × 10^22 kg", 102.0, "Jupiter's icy moon.", None));
+        bodies.push(create_body("Ganymede", 0.0017, 0.71, get_orbit_speed(7.15), 0.0, (0.6, 0.6, 0.6), Some(jupiter_idx), Mesh::sphere, Some("assets/textures/Ganymede.webp"), None, None, None, 0.0, 7.15, 0.2, 0.2, 0.0, 0.0, 0.001, "1.48 × 10^23 kg", 110.0, "The largest moon in the Solar System.", None));
+        bodies.push(create_body("Callisto", 0.0016, 1.25, get_orbit_speed(16.69), 0.0, (0.4, 0.4, 0.4), Some(jupiter_idx), Mesh::sphere, Some("assets/textures/Callisto.webp"), None, None, None, 0.0, 16.69, 0.0, 0.2, 0.0, 0.0, 0.007, "1.08 × 10^23 kg", 134.0, "Jupiter's heavily cratered moon.", None));
 
         let p_saturn = 10759.22;
 
-        bodies.push(create_body("Saturn", 0.039, 958.0, get_orbit_speed(p_saturn), get_initial_angle(49.94, p_saturn), (0.9, 0.8, 0.5), Some(0), Mesh::sphere, Some("assets/textures/2k_saturn.jpg"), None, None, Some("assets/textures/2k_saturn_ring_alpha.png"), 0.09, 0.45, 26.7, 2.48, 0.0, 0.0, 0.057, "5.683 × 10^26 kg", 134.0, "The sixth planet from the Sun, famous for its rings.", Some(0.15)));
+        bodies.push(create_body("Saturn", 0.039, 958.0, get_orbit_speed(p_saturn), 49.94, (0.9, 0.8, 0.5), Some(0), Mesh::sphere, Some("assets/textures/2k_saturn.jpg"), None, None, Some("assets/textures/2k_saturn_ring_alpha.png"), 0.09, 0.45, 26.7, 2.48, 0.0, 0.0, 0.057, "5.683 × 10^26 kg", 134.0, "The sixth planet from the Sun, famous for its rings.", Some(0.15)));
         let saturn_idx = bodies.len() - 1;
 
         // Saturn Moon
-        bodies.push(create_body("Titan", 0.0017, 0.81, get_orbit_speed(15.94), get_initial_angle(0.0, 15.94), (0.9, 0.7, 0.2), Some(saturn_idx), Mesh::sphere, None, None, None, None, 0.0, 15.94, 0.0, 0.3, 0.0, 0.0, 0.028, "1.345 × 10^23 kg", 94.0, "Saturn's largest moon.", None));
+        bodies.push(create_body("Titan", 0.0017, 0.81, get_orbit_speed(15.94), 0.0, (0.9, 0.7, 0.2), Some(saturn_idx), Mesh::sphere, None, None, None, None, 0.0, 15.94, 0.0, 0.3, 0.0, 0.0, 0.028, "1.345 × 10^23 kg", 94.0, "Saturn's largest moon.", None));
 
         // Chariklo (Centaur)
         let p_chariklo = 22911.0; // ~62.7 years
-        bodies.push(create_body("Chariklo", 0.00008, 1500.0, get_orbit_speed(p_chariklo), get_initial_angle(0.0, p_chariklo), (0.5, 0.4, 0.5), Some(0), Mesh::sphere, Some("assets/textures/chariklo.webp"), None, None, Some("assets/textures/2k_saturn_ring_alpha.png"), 0.0002, 0.3, 0.0, 23.4, 0.0, 0.0, 0.17, "Unknown", 50.0, "A centaur with rings between Saturn and Uranus.", Some(0.4)));
+        bodies.push(create_body("Chariklo", 0.00008, 1500.0, get_orbit_speed(p_chariklo), 0.0, (0.5, 0.4, 0.5), Some(0), Mesh::sphere, Some("assets/textures/chariklo.webp"), None, None, Some("assets/textures/2k_saturn_ring_alpha.png"), 0.0002, 0.3, 0.0, 23.4, 0.0, 0.0, 0.17, "Unknown", 50.0, "A centaur with rings between Saturn and Uranus.", Some(0.4)));
 
         let p_uranus = 30685.4;
 
-        bodies.push(create_body("Uranus", 0.017, 1920.0, get_orbit_speed(p_uranus), get_initial_angle(313.23, p_uranus), (0.0, 0.8, 0.8), Some(0), Mesh::sphere, Some("assets/textures/2k_uranus.jpg"), None, None, None, 0.0, -0.72, 97.8, 0.77, 0.0, 0.0, 0.046, "8.681 × 10^25 kg", 76.0, "The seventh planet from the Sun.", None));
+        bodies.push(create_body("Uranus", 0.017, 1920.0, get_orbit_speed(p_uranus), 313.23, (0.0, 0.8, 0.8), Some(0), Mesh::sphere, Some("assets/textures/2k_uranus.jpg"), None, None, None, 0.0, -0.72, 97.8, 0.77, 0.0, 0.0, 0.046, "8.681 × 10^25 kg", 76.0, "The seventh planet from the Sun.", None));
 
         let p_neptune = 60189.0;
 
-        bodies.push(create_body("Neptune", 0.016, 3005.0, get_orbit_speed(p_neptune), get_initial_angle(304.88, p_neptune), (0.0, 0.0, 0.8), Some(0), Mesh::sphere, Some("assets/textures/2k_neptune.jpg"), None, None, None, 0.0, 0.67, 28.3, 1.77, 0.0, 0.0, 0.011, "1.024 × 10^26 kg", 72.0, "The eighth and farthest-known Solar planet from the Sun.", None));
+        bodies.push(create_body("Neptune", 0.016, 3005.0, get_orbit_speed(p_neptune), 304.88, (0.0, 0.0, 0.8), Some(0), Mesh::sphere, Some("assets/textures/2k_neptune.jpg"), None, None, None, 0.0, 0.67, 28.3, 1.77, 0.0, 0.0, 0.011, "1.024 × 10^26 kg", 72.0, "The eighth and farthest-known Solar planet from the Sun.", None));
 
 
         let p_pluto = 90560.0;
-        bodies.push(create_body("Pluto", 0.00075, 3948.0, get_orbit_speed(p_pluto), get_initial_angle(0.0, p_pluto), (0.6, 0.5, 0.4), Some(0), Mesh::sphere, Some("assets/textures/Pluto.webp"), None, None, None, 0.0, -6.39, 122.5, 17.16, 0.0, 0.0, 0.244, "1.309 × 10^22 kg", 44.0, "A dwarf planet in the Kuiper belt.", None));
+        bodies.push(create_body("Pluto", 0.00075, 3948.0, get_orbit_speed(p_pluto), 0.0, (0.6, 0.5, 0.4), Some(0), Mesh::sphere, Some("assets/textures/Pluto.webp"), None, None, None, 0.0, -6.39, 122.5, 17.16, 0.0, 0.0, 0.244, "1.309 × 10^22 kg", 44.0, "A dwarf planet in the Kuiper belt.", None));
         let pluto_idx = bodies.len() - 1;
 
         // Charon
-        bodies.push(create_body("Charon", 0.00038, 0.013, get_orbit_speed(6.387), get_initial_angle(0.0, 6.387), (0.5, 0.5, 0.5), Some(pluto_idx), Mesh::sphere, Some("assets/textures/Charon.webp"), None, None, None, 0.0, 6.387, 0.0, 0.0, 0.0, 0.0, 0.0, "1.586 × 10^21 kg", 53.0, "Pluto's largest moon.", None));
+        bodies.push(create_body("Charon", 0.00038, 0.013, get_orbit_speed(6.387), 0.0, (0.5, 0.5, 0.5), Some(pluto_idx), Mesh::sphere, Some("assets/textures/Charon.webp"), None, None, None, 0.0, 6.387, 0.0, 0.0, 0.0, 0.0, 0.0, "1.586 × 10^21 kg", 53.0, "Pluto's largest moon.", None));
 
 
         let p_haumea = 103368.0;
-        bodies.push(create_body("Haumea", 0.00055, 4313.0, get_orbit_speed(p_haumea), get_initial_angle(0.0, p_haumea), (0.7, 0.7, 0.7), Some(0), Mesh::sphere, Some("assets/textures/2k_haumea_fictional.jpg"), None, None, None, 0.0, 0.16, 0.0, 28.2, 0.0, 0.0, 0.191, "4.006 × 10^21 kg", 50.0, "A dwarf planet located beyond Neptune's orbit.", None));
+        bodies.push(create_body("Haumea", 0.00055, 4313.0, get_orbit_speed(p_haumea), 0.0, (0.7, 0.7, 0.7), Some(0), Mesh::sphere, Some("assets/textures/2k_haumea_fictional.jpg"), None, None, None, 0.0, 0.16, 0.0, 28.2, 0.0, 0.0, 0.191, "4.006 × 10^21 kg", 50.0, "A dwarf planet located beyond Neptune's orbit.", None));
 
 
         let p_makemake = 112862.0;
-        bodies.push(create_body("Makemake", 0.00046, 4579.0, get_orbit_speed(p_makemake), get_initial_angle(0.0, p_makemake), (0.8, 0.6, 0.5), Some(0), Mesh::sphere, Some("assets/textures/2k_makemake_fictional.jpg"), None, None, None, 0.0, 0.95, 0.0, 29.0, 0.0, 0.0, 0.159, "3.1 × 10^21 kg", 30.0, "A dwarf planet in the Kuiper belt.", None));
+        bodies.push(create_body("Makemake", 0.00046, 4579.0, get_orbit_speed(p_makemake), 0.0, (0.8, 0.6, 0.5), Some(0), Mesh::sphere, Some("assets/textures/2k_makemake_fictional.jpg"), None, None, None, 0.0, 0.95, 0.0, 29.0, 0.0, 0.0, 0.159, "3.1 × 10^21 kg", 30.0, "A dwarf planet in the Kuiper belt.", None));
 
 
         let p_eris = 203443.0;
-        bodies.push(create_body("Eris", 0.00075, 6767.0, get_orbit_speed(p_eris), get_initial_angle(0.0, p_eris), (0.9, 0.9, 0.9), Some(0), Mesh::sphere, Some("assets/textures/2k_eris_fictional.jpg"), None, None, None, 0.0, 1.08, 78.0, 44.0, 0.0, 0.0, 0.441, "1.66 × 10^22 kg", 30.0, "The most massive and second-largest known dwarf planet.", None));
+        bodies.push(create_body("Eris", 0.00075, 6767.0, get_orbit_speed(p_eris), 0.0, (0.9, 0.9, 0.9), Some(0), Mesh::sphere, Some("assets/textures/2k_eris_fictional.jpg"), None, None, None, 0.0, 1.08, 78.0, 44.0, 0.0, 0.0, 0.441, "1.66 × 10^22 kg", 30.0, "The most massive and second-largest known dwarf planet.", None));
 
         for i in 0..2000 {
             let angle: f32 = rng.gen_range(0.0..360.0);
@@ -348,7 +352,7 @@ impl SolarSystem {
                 size,
                 dist,
                 get_orbit_speed(period),
-                angle.to_radians(),
+                angle,
                 (0.6, 0.6, 0.7),
                 Some(0),
                 Mesh::sphere,
@@ -393,7 +397,7 @@ impl SolarSystem {
                 size,
                 dist,
                 get_orbit_speed(period),
-                angle.to_radians(),
+                angle,
                 (0.8, 0.8, 0.9), 
                 Some(0),
                 Mesh::sphere,
@@ -589,6 +593,27 @@ impl SolarSystem {
         self.use_celsius = !self.use_celsius;
         if let Some(index) = self.focused_body_index {
             self.select_body(index);
+        }
+    }
+
+    pub fn set_date_from_timestamp(&mut self, timestamp: f64) {
+        self.current_time = timestamp;
+        let j2000_ms = 946728000000.0;
+        let days_since_j2000 = (timestamp - j2000_ms) / (1000.0 * 60.0 * 60.0 * 24.0);
+        
+        for body in &mut self.bodies {
+            if body.orbit_speed.abs() > 0.0 {
+                 let n_rad_per_day = body.orbit_speed * 86400.0;
+                 let angle_rad = body.mean_longitude_at_epoch.to_radians() + n_rad_per_day * days_since_j2000 as f32;
+                 body.orbit_angle = angle_rad % (2.0 * std::f32::consts::PI);
+            }
+            
+            if body.rotation_period != 0.0 {
+                let period_seconds = body.rotation_period.abs() * 24.0 * 3600.0;
+                let rotation_speed = (2.0 * std::f32::consts::PI) / period_seconds;
+                let total_seconds = days_since_j2000 * 24.0 * 3600.0;
+                body.current_rotation = (rotation_speed * total_seconds as f32) % (2.0 * std::f32::consts::PI);
+            }
         }
     }
 

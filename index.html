@@ -481,8 +481,14 @@
             </div>
             
             <div class="time-controls panel-glass">
-                <div style="margin-right: 20px; font-family: 'Roboto Mono', monospace; color: var(--accent-color); font-size: 14px; white-space: nowrap;">
-                    <span id="solar-date">Loading...</span>
+                <div style="margin-right: 20px; display: flex; flex-direction: column; gap: 5px;">
+                    <div style="font-family: 'Roboto Mono', monospace; color: var(--accent-color); font-size: 14px; white-space: nowrap;">
+                        <span id="solar-date">Loading...</span>
+                    </div>
+                    <div style="display: flex; gap: 5px;">
+                        <input type="date" id="date-picker" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: var(--text-main); border-radius: 4px; padding: 2px 5px; font-family: var(--font-main); font-size: 12px;">
+                        <button id="set-date-btn" style="background: var(--accent-color); border: none; color: white; border-radius: 4px; cursor: pointer; font-size: 12px; padding: 2px 8px;">Go</button>
+                    </div>
                 </div>
                 <button id="time-toggle" class="control-btn" style="display: flex; align-items: center; gap: 5px; min-width: 90px; justify-content: center;">
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" stroke="none"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
@@ -497,7 +503,7 @@
         </div>
     </div>
     <script type="module">
-        import init, { start_crossy_road, start_solar_system, load_solar_system, touch_left, touch_right, touch_forward, touch_restart, activate_god_mode, set_solar_time_scale, select_solar_body, toggle_solar_temperature_unit } from './pkg/crossy_road_clone.js';
+        import init, { start_crossy_road, start_solar_system, load_solar_system, touch_left, touch_right, touch_forward, touch_restart, activate_god_mode, set_solar_time_scale, select_solar_body, toggle_solar_temperature_unit, set_solar_date } from './pkg/crossy_road_clone.js';
 
         window.selectSolarBody = function(index) {
             select_solar_body(index);
@@ -659,6 +665,21 @@
                 isPaused = false;
                 timeSpeedInput.value = 0;
                 updateTimeScale();
+            });
+
+            // Date Picker Logic
+            const datePicker = document.getElementById('date-picker');
+            const setDateBtn = document.getElementById('set-date-btn');
+
+            setDateBtn.addEventListener('click', () => {
+                const dateStr = datePicker.value;
+                if (dateStr) {
+                    const date = new Date(dateStr);
+                    // Set time to 12:00 UTC to avoid timezone issues shifting the day
+                    date.setUTCHours(12, 0, 0, 0);
+                    const timestamp = date.getTime();
+                    set_solar_date(timestamp);
+                }
             });
 
             let touchStartX = 0;
