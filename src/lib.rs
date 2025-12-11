@@ -10,7 +10,7 @@ use std::rc::Rc;
 use crate::engine::renderer::Renderer;
 use crate::engine::mesh::Mesh;
 use crate::game::{Game, AppConfig};
-use crate::game::solar_system::SolarSystem;
+use crate::game::solar_system::{SolarSystem, SystemType};
 
 enum ActiveGame {
     Crossy(Game),
@@ -196,8 +196,12 @@ pub fn load_solar_system(sim_type: &str) -> Result<(), JsValue> {
     let gl = get_gl()?;
     let renderer = Renderer::new(gl)?;
     
-    let is_black_hole = sim_type == "black_hole";
-    let game = SolarSystem::new(renderer, is_black_hole);
+    let system_type = match sim_type {
+        "black_hole" => SystemType::BlackHole,
+        "sirius" => SystemType::Sirius,
+        _ => SystemType::Solar,
+    };
+    let game = SolarSystem::new(renderer, system_type);
     
     CURRENT_GAME.with(|g| {
         *g.borrow_mut() = Some(ActiveGame::Solar(game));

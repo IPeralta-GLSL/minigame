@@ -39,6 +39,13 @@ pub struct Body {
     pub mean_longitude_at_epoch: f32,
 }
 
+#[derive(PartialEq, Clone, Copy)]
+pub enum SystemType {
+    Solar,
+    BlackHole,
+    Sirius,
+}
+
 pub struct SolarSystem {
     renderer: Renderer,
     bodies: Vec<Body>,
@@ -55,13 +62,13 @@ pub struct SolarSystem {
     sphere_mesh: Mesh,
     asteroid_mesh: Mesh,
     ring_mesh: Mesh,
-    is_black_hole: bool,
+    system_type: SystemType,
     sun_texture: Option<WebGlTexture>,
     use_celsius: bool,
 }
 
 impl SolarSystem {
-    pub fn new(renderer: Renderer, is_black_hole_mode: bool) -> Self {
+    pub fn new(renderer: Renderer, system_type: SystemType) -> Self {
         let mut bodies = Vec::new();
         let sphere_mesh = Mesh::sphere(1.0, 20, 20, 1.0, 1.0, 1.0);
         let asteroid_mesh = Mesh::sphere(1.0, 6, 6, 1.0, 1.0, 1.0);
@@ -164,7 +171,7 @@ impl SolarSystem {
                 (40, 40)
             };
 
-            let (final_temp, is_frozen) = if is_black_hole_mode && name != "Black Hole" {
+            let (final_temp, is_frozen) = if system_type == SystemType::BlackHole && name != "Black Hole" {
                 (30.0, true)
             } else {
                 (temperature, false)
@@ -214,14 +221,19 @@ impl SolarSystem {
 
 
 
-        if is_black_hole_mode {
-            // 3km radius. Earth (6371km) is 0.0042.
-            // 3km = 3 * (0.0042 / 6371) = 0.0000019777
-            let bh_radius = 0.0000019777;
-            bodies.push(create_body("Black Hole", bh_radius, 0.0, 0.0, 0.0, (0.0, 0.0, 0.0), None, Mesh::sphere, None, None, None, None, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, "1.989 × 10^30 kg", 0.0, "A black hole with the same mass as the Sun. Event Horizon: 3km.", None));
+        if system_type == SystemType::Sirius {
+            bodies.push(create_body("Sirius A", 0.795, 0.0, 0.0, 0.0, (0.8, 0.9, 1.0), None, Mesh::sphere, None, None, None, None, 0.0, 25.0, 0.0, 0.0, 0.0, 0.0, 0.0, "4.018 × 10^30 kg", 9940.0, "The brightest star in the night sky.", None));
+            let p_sirius_b = 18262.0;
+            bodies.push(create_body("Sirius B", 0.004, 2000.0, get_orbit_speed(p_sirius_b), 0.0, (0.9, 0.9, 1.0), Some(0), Mesh::sphere, None, None, None, None, 0.0, 10.0, 0.0, 0.0, 0.0, 0.0, 0.59, "2.0 × 10^30 kg", 25200.0, "A white dwarf companion to Sirius A.", None));
         } else {
-            bodies.push(create_body("Sun", 0.465, 0.0, 0.0, 0.0, (1.0, 1.0, 0.0), None, Mesh::sphere, Some("assets/textures/2k_sun.jpg"), None, None, None, 0.0, 25.0, 7.25, 0.0, 0.0, 0.0, 0.0, "1.989 × 10^30 kg", 5778.0, "The star at the center of our Solar System.", None));
-        }
+            if system_type == SystemType::BlackHole {
+                // 3km radius. Earth (6371km) is 0.0042.
+                // 3km = 3 * (0.0042 / 6371) = 0.0000019777
+                let bh_radius = 0.0000019777;
+                bodies.push(create_body("Black Hole", bh_radius, 0.0, 0.0, 0.0, (0.0, 0.0, 0.0), None, Mesh::sphere, None, None, None, None, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, "1.989 × 10^30 kg", 0.0, "A black hole with the same mass as the Sun. Event Horizon: 3km.", None));
+            } else {
+                bodies.push(create_body("Sun", 0.465, 0.0, 0.0, 0.0, (1.0, 1.0, 0.0), None, Mesh::sphere, Some("assets/textures/2k_sun.jpg"), None, None, None, 0.0, 25.0, 7.25, 0.0, 0.0, 0.0, 0.0, "1.989 × 10^30 kg", 5778.0, "The star at the center of our Solar System.", None));
+            }
 
         let p_mercury = 87.969;
 
@@ -233,7 +245,7 @@ impl SolarSystem {
 
         let p_earth = 365.256;
 
-        if is_black_hole_mode {
+        if system_type == SystemType::BlackHole {
             bodies.push(create_body("Earth", 0.0042, 100.0, get_orbit_speed(p_earth), 100.46, (0.8, 0.9, 1.0), Some(0), Mesh::sphere, Some("assets/textures/2k_earth_daymap.jpg"), None, None, None, 0.0, 1.0, 23.4, 0.0, 0.0, 0.0, 0.017, "5.972 × 10^24 kg", 30.0, "A frozen wasteland orbiting a black hole.", None));
         } else {
             bodies.push(create_body("Earth", 0.0042, 100.0, get_orbit_speed(p_earth), 100.46, (0.0, 0.0, 1.0), Some(0), Mesh::sphere, Some("assets/textures/2k_earth_daymap.jpg"), Some("assets/textures/2k_earth_nightmap.jpg"), Some("assets/textures/2k_earth_clouds.jpg"), None, 0.0, 1.0, 23.4, 0.0, 0.0, 0.0, 0.017, "5.972 × 10^24 kg", 288.0, "Our home planet, the third from the Sun.", None));
@@ -419,6 +431,8 @@ impl SolarSystem {
             ));
         }
 
+        }
+
         let background_texture = renderer.create_texture("assets/textures/8k_stars.jpg").ok();
         let background_mesh = Mesh::sphere(1.0, 40, 40, 1.0, 1.0, 1.0);
 
@@ -481,7 +495,7 @@ impl SolarSystem {
                 if body.name.starts_with("Asteroid") || body.name.starts_with("Kuiper") || body.name.starts_with("Oort") { continue; }
                 
                 let li = document.create_element("li").unwrap();
-                let category = if body.name == "Sun" || body.name == "Black Hole" {
+                let category = if body.name == "Sun" || body.name == "Black Hole" || body.name.starts_with("Sirius") {
                     "star"
                 } else if let Some(parent_idx) = body.parent {
                     if parent_idx == 0 { "planet" } else { "moon" }
@@ -505,7 +519,13 @@ impl SolarSystem {
             }
         }
 
-        let sun_texture = if !is_black_hole_mode { bodies[0].texture.clone() } else { None };
+        let sun_texture = if system_type == SystemType::Solar { bodies[0].texture.clone() } else { None };
+
+        let focused_body_index = match system_type {
+            SystemType::Solar => Some(3),
+            SystemType::BlackHole => Some(1),
+            SystemType::Sirius => Some(0),
+        };
 
         SolarSystem {
             renderer,
@@ -519,11 +539,11 @@ impl SolarSystem {
             current_time: now_ms,
             background_mesh,
             background_texture,
-            focused_body_index: Some(3),
+            focused_body_index,
             sphere_mesh,
             asteroid_mesh,
             ring_mesh,
-            is_black_hole: is_black_hole_mode,
+            system_type,
             sun_texture,
             use_celsius: true,
         }
