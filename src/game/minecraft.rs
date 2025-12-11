@@ -98,6 +98,7 @@ impl Minecraft {
     pub fn update(&mut self) {
         let speed = 0.02;
         let max_speed = 0.15;
+        
         let (yaw, _) = self.player_rot;
         let forward = Vector3::new(yaw.cos(), 0.0, yaw.sin()).normalize();
         let right = Vector3::new(-yaw.sin(), 0.0, yaw.cos()).normalize();
