@@ -335,7 +335,7 @@ impl Minecraft {
         self.renderer.enable_face_culling();
 
         let aspect = width as f32 / height as f32;
-        let projection = Matrix4::new_perspective(aspect, 45.0f32.to_radians(), 0.1, 100.0);
+        let projection = Matrix4::new_perspective(aspect, 45.0f32.to_radians(), 0.1, 500.0);
         
         // Camera view matrix
         let (yaw, pitch) = self.player_rot;

@@ -84,8 +84,8 @@ const FRAGMENT_SHADER: &str = r#"
     uniform float uRingInnerRadius;
     
     uniform vec3 uLightPos;
-    const vec3 lightColor = vec3(1.0, 1.0, 1.0);
-    const float ambientStrength = 0.15;
+    const vec3 lightColor = vec3(0.75, 0.75, 0.75);
+    const float ambientStrength = 0.3;
 
     uniform bool uUseLighting;
     uniform bool uIsBlackHole;
