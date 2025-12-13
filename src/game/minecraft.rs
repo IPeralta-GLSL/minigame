@@ -85,7 +85,7 @@ impl Minecraft {
         
         // Converted from EXR to JPG for browser compatibility
         let skybox_texture = renderer.create_texture("assets/textures/cloudy_bright_day.jpg").ok();
-        let sun_texture = renderer.create_texture("assets/textures/2k_sun.jpg").ok();
+        let sun_texture = renderer.create_texture("assets/textures/TinyCraft/Sky/sun.png").ok();
         let moon_texture = renderer.create_texture("assets/textures/2k_moon.jpg").ok();
 
         // Generate simple terrain
@@ -143,7 +143,7 @@ impl Minecraft {
             skybox_texture,
             sun_texture,
             moon_texture,
-            time_of_day: 0.3,
+            time_of_day: 0.5,
         }
     }
 
@@ -213,7 +213,7 @@ impl Minecraft {
                         } else {
                             // Game is running, update slider
                             // Auto-increment time
-                            self.time_of_day += 0.0001;
+                            // self.time_of_day += 0.0001;
                             if self.time_of_day > 1.0 { self.time_of_day -= 1.0; }
                             
                             input.set_value(&self.time_of_day.to_string());
@@ -309,10 +309,10 @@ impl Minecraft {
             let check_y = ray_pos.y.round() as i32;
             let check_z = ray_pos.z.round() as i32;
             
-            // Ignore blocks in the same vertical column to prevent ugly self-shadowing on trees/walls
-            if check_x == x && check_z == z {
-                continue;
-            }
+            // Removed the column check to allow shadows from blocks directly above (e.g. trees at noon)
+            // if check_x == x && check_z == z {
+            //    continue;
+            // }
 
             if let Some(block) = self.blocks.get(&(check_x, check_y, check_z)) {
                 if matches!(block, BlockType::Leaves) {
