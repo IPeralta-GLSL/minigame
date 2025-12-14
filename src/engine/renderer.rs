@@ -670,6 +670,7 @@ impl Renderer {
         view: &Matrix4<f32>,
         light_pos: &Vector3<f32>,
         texture: Option<&WebGlTexture>,
+        alpha: f32,
     ) {
         let ext = match &self.instanced_ext {
             Some(e) => e,
@@ -688,7 +689,7 @@ impl Renderer {
         self.gl.uniform3f(Some(&self.u_instanced_light_pos_loc), light_pos.x, light_pos.y, light_pos.z);
         self.gl.uniform1i(Some(&self.u_instanced_use_lighting_loc), 1); // Enable lighting for instanced
         self.gl.uniform3f(Some(&self.u_instanced_time_color_loc), 1.0, 1.0, 1.0);
-        self.gl.uniform1f(Some(&self.u_instanced_global_alpha_loc), 1.0); // Default alpha
+        self.gl.uniform1f(Some(&self.u_instanced_global_alpha_loc), alpha);
 
         if let Some(tex) = texture {
             self.gl.active_texture(WebGlRenderingContext::TEXTURE0);

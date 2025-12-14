@@ -1205,7 +1205,8 @@ impl SolarSystem {
                 &projection,
                 &view,
                 &Vector3::new(0.0, 0.0, 0.0),
-                None
+                None,
+                1.0
             );
         }
     }

@@ -103,11 +103,9 @@ impl Minecraft {
         for x in -size..size {
             for z in -size..size {
                 // Simple heightmap generation
-                let h_base = (
-                    (x as f32 * 0.1).sin() * 2.0 + 
+                let h_base = (x as f32 * 0.1).sin() * 2.0 + 
                     (z as f32 * 0.15).cos() * 2.0 +
-                    ((x as f32 * 0.3).sin() * (z as f32 * 0.3).cos()) * 1.0
-                );
+                    ((x as f32 * 0.3).sin() * (z as f32 * 0.3).cos()) * 1.0;
                 
                 // Add some "mountains"
                 let mountain = if h_base > 2.0 {
@@ -146,47 +144,58 @@ impl Minecraft {
         }
 
         // Trees
-        // Simple pseudo-random placement
-        for x in -size..size {
-            for z in -size..size {
-                if (x * x * z * z + x * 7 + z * 3) % 100 < 2 { // 2% chance
-                    // Find ground height
-                    let mut y = 20;
-                    while y > 0 {
-                        if let Some(block) = blocks.get(&(x, y, z)) {
-                            if *block == BlockType::Grass {
-                                // Plant tree
-                                for ty in 1..5 {
-                                    blocks.insert((x, y + ty, z), BlockType::Wood);
-                                }
-                                // Leaves
-                                for lx in -2i32..=2 {
-                                    for lz in -2i32..=2 {
-                                        for ly in 3..5 {
-                                            if lx.abs() == 2 && lz.abs() == 2 { continue; } // Round corners
-                                            if lx == 0 && lz == 0 && ly < 5 { continue; } // Trunk space
-                                            blocks.insert((x + lx, y + ly, z), BlockType::Leaves);
-                                        }
-                                    }
-                                }
-                                // Top leaves
-                                for lx in -1i32..=1 {
-                                    for lz in -1i32..=1 {
-                                        if lx.abs() == 1 && lz.abs() == 1 { continue; } // Cross shape
-                                        if lx == 0 && lz == 0 { continue; } // Trunk space
-                                        blocks.insert((x + lx, y + 5, z), BlockType::Leaves);
-                                    }
-                                }
-                                // Cap the top
-                                blocks.insert((x, y + 6, z), BlockType::Leaves);
-                                
-                                break;
-                            } else if *block == BlockType::Water || *block == BlockType::Stone || *block == BlockType::Sand {
-                                break; // Don't plant on water, stone or sand
+        // Grid-based placement to prevent overlapping
+        let tree_spacing = 5;
+        for x_base in (-size..size).step_by(tree_spacing) {
+            for z_base in (-size..size).step_by(tree_spacing) {
+                // Pseudo-random offset within the grid cell
+                let offset_x = ((x_base * 31 + z_base * 17) as i32).abs() % 3;
+                let offset_z = ((x_base * 13 + z_base * 23) as i32).abs() % 3;
+                
+                let x = x_base + offset_x;
+                let z = z_base + offset_z;
+
+                if x >= size || z >= size { continue; }
+
+                // Random chance to skip tree (density control)
+                if ((x * x + z * z * 3) as i32).abs() % 100 > 40 { continue; } // 40% chance per cell
+
+                // Find ground height
+                let mut y = 20;
+                while y > 0 {
+                    if let Some(block) = blocks.get(&(x, y, z)) {
+                        if *block == BlockType::Grass {
+                            // Plant tree
+                            for ty in 1..5 {
+                                blocks.insert((x, y + ty, z), BlockType::Wood);
                             }
+                            // Leaves
+                            for lx in -2i32..=2 {
+                                for lz in -2i32..=2 {
+                                    for ly in 3..5 {
+                                        if lx.abs() == 2 && lz.abs() == 2 { continue; } // Round corners
+                                        if lx == 0 && lz == 0 && ly < 5 { continue; } // Trunk space
+                                        blocks.insert((x + lx, y + ly, z), BlockType::Leaves);
+                                    }
+                                }
+                            }
+                            // Top leaves
+                            for lx in -1i32..=1 {
+                                for lz in -1i32..=1 {
+                                    if lx.abs() == 1 && lz.abs() == 1 { continue; } // Cross shape
+                                    if lx == 0 && lz == 0 { continue; } // Trunk space
+                                    blocks.insert((x + lx, y + 5, z), BlockType::Leaves);
+                                }
+                            }
+                            // Cap the top
+                            blocks.insert((x, y + 6, z), BlockType::Leaves);
+                            
+                            break;
+                        } else if *block == BlockType::Water || *block == BlockType::Stone || *block == BlockType::Sand {
+                            break; // Don't plant on water, stone or sand
                         }
-                        y -= 1;
                     }
+                    y -= 1;
                 }
             }
         }
@@ -505,28 +514,28 @@ impl Minecraft {
                 BlockType::Grass => {
                     // Top
                     self.renderer.draw_instanced_mesh(
-                        &self.top_mesh, &data, count, &projection, &view, &light_pos_uniform, self.grass_top_texture.as_ref()
+                        &self.top_mesh, &data, count, &projection, &view, &light_pos_uniform, self.grass_top_texture.as_ref(), 1.0
                     );
                     // Bottom
                     self.renderer.draw_instanced_mesh(
-                        &self.bottom_mesh, &data, count, &projection, &view, &light_pos_uniform, self.dirt_texture.as_ref()
+                        &self.bottom_mesh, &data, count, &projection, &view, &light_pos_uniform, self.dirt_texture.as_ref(), 1.0
                     );
                     // Sides
                     self.renderer.draw_instanced_mesh(
-                        &self.side_mesh, &data, count, &projection, &view, &light_pos_uniform, self.grass_side_texture.as_ref()
+                        &self.side_mesh, &data, count, &projection, &view, &light_pos_uniform, self.grass_side_texture.as_ref(), 1.0
                     );
                 },
                 BlockType::Wood => {
                     // Top & Bottom
                     self.renderer.draw_instanced_mesh(
-                        &self.top_mesh, &data, count, &projection, &view, &light_pos_uniform, self.wood_top_texture.as_ref()
+                        &self.top_mesh, &data, count, &projection, &view, &light_pos_uniform, self.wood_top_texture.as_ref(), 1.0
                     );
                     self.renderer.draw_instanced_mesh(
-                        &self.bottom_mesh, &data, count, &projection, &view, &light_pos_uniform, self.wood_top_texture.as_ref()
+                        &self.bottom_mesh, &data, count, &projection, &view, &light_pos_uniform, self.wood_top_texture.as_ref(), 1.0
                     );
                     // Sides
                     self.renderer.draw_instanced_mesh(
-                        &self.side_mesh, &data, count, &projection, &view, &light_pos_uniform, self.wood_side_texture.as_ref()
+                        &self.side_mesh, &data, count, &projection, &view, &light_pos_uniform, self.wood_side_texture.as_ref(), 1.0
                     );
                 },
                 _ => {
@@ -541,7 +550,7 @@ impl Minecraft {
                     };
                     
                     self.renderer.draw_instanced_mesh(
-                        &self.cube_mesh, &data, count, &projection, &view, &light_pos_uniform, texture
+                        &self.cube_mesh, &data, count, &projection, &view, &light_pos_uniform, texture, 1.0
                     );
                 }
             }
@@ -552,15 +561,10 @@ impl Minecraft {
             self.renderer.gl.enable(web_sys::WebGlRenderingContext::BLEND);
             self.renderer.gl.blend_func(web_sys::WebGlRenderingContext::SRC_ALPHA, web_sys::WebGlRenderingContext::ONE_MINUS_SRC_ALPHA);
             
-            // Set global alpha for water
-            self.renderer.gl.uniform1f(Some(&self.renderer.u_instanced_global_alpha_loc), 0.6);
-
             self.renderer.draw_instanced_mesh(
-                &self.cube_mesh, &data, water_count, &projection, &view, &light_pos_uniform, self.water_texture.as_ref()
+                &self.cube_mesh, &data, water_count, &projection, &view, &light_pos_uniform, self.water_texture.as_ref(), 0.6
             );
             
-            // Reset global alpha
-            self.renderer.gl.uniform1f(Some(&self.renderer.u_instanced_global_alpha_loc), 1.0);
             self.renderer.gl.disable(web_sys::WebGlRenderingContext::BLEND);
         }
         
