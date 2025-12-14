@@ -36,6 +36,13 @@ impl BlockType {
             BlockType::Ice => (0.6, 0.8, 1.0),
         }
     }
+
+    pub fn is_transparent(&self) -> bool {
+        match self {
+            BlockType::Leaves | BlockType::Water | BlockType::Glass | BlockType::Ice => true,
+            _ => false,
+        }
+    }
 }
 
 pub struct Minecraft {
@@ -70,6 +77,11 @@ pub struct Minecraft {
     sun_texture: Option<WebGlTexture>,
     moon_texture: Option<WebGlTexture>,
     time_of_day: f32,
+    
+    cached_instance_data: HashMap<BlockType, Vec<f32>>,
+    cached_counts: HashMap<BlockType, i32>,
+    is_dirty: bool,
+    last_shadow_time: f32,
 }
 
 struct InputState {
@@ -261,6 +273,10 @@ impl Minecraft {
             sun_texture,
             moon_texture,
             time_of_day: 0.5,
+            cached_instance_data: HashMap::new(),
+            cached_counts: HashMap::new(),
+            is_dirty: true,
+            last_shadow_time: -1.0,
         }
     }
         
@@ -454,6 +470,49 @@ impl Minecraft {
         1.0 
     }
 
+    fn is_block_hidden(&self, x: i32, y: i32, z: i32) -> bool {
+        let neighbors = [
+            (x + 1, y, z), (x - 1, y, z),
+            (x, y + 1, z), (x, y - 1, z),
+            (x, y, z + 1), (x, y, z - 1),
+        ];
+
+        for neighbor in neighbors.iter() {
+            match self.blocks.get(neighbor) {
+                Some(block) => {
+                    if block.is_transparent() {
+                        return false;
+                    }
+                },
+                None => return false,
+            }
+        }
+        true
+    }
+
+    fn update_instance_data(&mut self, light_dir: Vector3<f32>) {
+        self.cached_instance_data.clear();
+        self.cached_counts.clear();
+
+        for ((x, y, z), block_type) in &self.blocks {
+            if self.is_block_hidden(*x, *y, *z) {
+                continue;
+            }
+            let (r, g, b) = (1.0, 1.0, 1.0);
+            
+            let light_level = self.calculate_shadow(*x, *y, *z, light_dir);
+
+            let data = self.cached_instance_data.entry(*block_type).or_insert(Vec::new());
+            data.extend_from_slice(&[
+                *x as f32, *y as f32, *z as f32, // Position
+                1.0, // Scale
+                r, g, b, // Color
+                light_level // Light level
+            ]);
+            *self.cached_counts.entry(*block_type).or_insert(0) += 1;
+        }
+    }
+
     pub fn render(&mut self, width: i32, height: i32) {
         self.renderer.resize(width, height);
         self.renderer.clear_screen(0.5, 0.7, 1.0); // Sky blue
@@ -506,55 +565,41 @@ impl Minecraft {
             self.renderer.draw_textured_cube(moon_pos.x, moon_pos.y, moon_pos.z, 6.0, 6.0, 6.0, self.moon_texture.as_ref(), &projection, &view);
         }
 
-        // Collect instance data grouped by block type
-        let mut instance_data_map: HashMap<BlockType, Vec<f32>> = HashMap::new();
-        let mut count_map: HashMap<BlockType, i32> = HashMap::new();
-
-        for ((x, y, z), block_type) in &self.blocks {
-            let (r, g, b) = (1.0, 1.0, 1.0); // Use white for all blocks as they are all textured now
-            
-            // Shadow logic: Raycast to sun
-            let light_level = self.calculate_shadow(*x, *y, *z, light_dir);
-
-            let data = instance_data_map.entry(*block_type).or_insert(Vec::new());
-            data.extend_from_slice(&[
-                *x as f32, *y as f32, *z as f32, // Position
-                1.0, // Scale
-                r, g, b, // Color
-                light_level // Light level
-            ]);
-            *count_map.entry(*block_type).or_insert(0) += 1;
+        if self.is_dirty || (self.time_of_day - self.last_shadow_time).abs() > 0.01 {
+             self.update_instance_data(light_dir);
+             self.last_shadow_time = self.time_of_day;
+             self.is_dirty = false;
         }
 
         // Draw each group
         // Separate water to draw last for transparency
-        let mut water_data: Option<Vec<f32>> = None;
+        let mut water_data: Option<&Vec<f32>> = None;
         let mut water_count = 0;
-        let mut glass_data: Option<Vec<f32>> = None;
+        let mut glass_data: Option<&Vec<f32>> = None;
         let mut glass_count = 0;
-        let mut ice_data: Option<Vec<f32>> = None;
+        let mut ice_data: Option<&Vec<f32>> = None;
         let mut ice_count = 0;
 
-        for (block_type, data) in instance_data_map {
-            if block_type == BlockType::Water {
+        for (block_type, data) in &self.cached_instance_data {
+            if *block_type == BlockType::Water {
                 water_data = Some(data);
-                water_count = count_map[&block_type];
+                water_count = self.cached_counts[block_type];
                 continue;
             }
-            if block_type == BlockType::Glass {
+            if *block_type == BlockType::Glass {
                 glass_data = Some(data);
-                glass_count = count_map[&block_type];
+                glass_count = self.cached_counts[block_type];
                 continue;
             }
-            if block_type == BlockType::Ice {
+            if *block_type == BlockType::Ice {
                 ice_data = Some(data);
-                ice_count = count_map[&block_type];
+                ice_count = self.cached_counts[block_type];
                 continue;
             }
 
-            let count = count_map[&block_type];
+            let count = self.cached_counts[block_type];
             
-            match block_type {
+            match *block_type {
                 BlockType::Grass => {
                     self.renderer.draw_instanced_mesh(
                         &self.top_mesh, &data, count, &projection, &view, &light_pos_uniform, self.grass_top_texture.as_ref(), 1.0
@@ -578,7 +623,7 @@ impl Minecraft {
                     );
                 },
                 _ => {
-                    let texture = match block_type {
+                    let texture = match *block_type {
                         BlockType::Dirt => self.dirt_texture.as_ref(),
                         BlockType::Leaves => self.leaves_texture.as_ref(),
                         BlockType::Stone => self.stone_texture.as_ref(),
@@ -710,6 +755,7 @@ impl Minecraft {
         if let Some((bx, by, bz, face)) = self.raycast() {
             if button == 0 { // Left click: Break
                 self.blocks.remove(&(bx, by, bz));
+                self.is_dirty = true;
             } else if button == 2 { // Right click: Place
                 let (nx, ny, nz) = match face {
                     0 => (bx + 1, by, bz),
@@ -724,6 +770,7 @@ impl Minecraft {
                 let block_center = Vector3::new(nx as f32, ny as f32, nz as f32);
                 if (self.player_pos - block_center).norm() > 1.5 {
                     self.blocks.insert((nx, ny, nz), self.selected_block_type);
+                    self.is_dirty = true;
                 }
             }
         }
