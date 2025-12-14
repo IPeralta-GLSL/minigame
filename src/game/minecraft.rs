@@ -13,6 +13,8 @@ pub enum BlockType {
     Wood,
     Leaves,
     Bedrock,
+    Sand,
+    Water,
 }
 
 impl BlockType {
@@ -24,6 +26,8 @@ impl BlockType {
             BlockType::Wood => (0.4, 0.2, 0.0),
             BlockType::Leaves => (0.1, 0.6, 0.1),
             BlockType::Bedrock => (0.1, 0.1, 0.1),
+            BlockType::Sand => (0.76, 0.7, 0.5),
+            BlockType::Water => (0.2, 0.4, 0.8),
         }
     }
 }
@@ -52,6 +56,8 @@ pub struct Minecraft {
     wood_side_texture: Option<WebGlTexture>,
     wood_top_texture: Option<WebGlTexture>,
     bedrock_texture: Option<WebGlTexture>,
+    sand_texture: Option<WebGlTexture>,
+    water_texture: Option<WebGlTexture>,
     skybox_texture: Option<WebGlTexture>,
     sun_texture: Option<WebGlTexture>,
     moon_texture: Option<WebGlTexture>,
@@ -82,32 +88,104 @@ impl Minecraft {
         let wood_side_texture = renderer.create_texture("assets/textures/TinyCraft/tiles/trunk_side.png").ok();
         let wood_top_texture = renderer.create_texture("assets/textures/TinyCraft/tiles/trunk_top.png").ok();
         let bedrock_texture = renderer.create_texture("assets/textures/TinyCraft/tiles/greystone.png").ok();
+        let sand_texture = renderer.create_texture("assets/textures/TinyCraft/tiles/sand.png").ok();
+        let water_texture = renderer.create_texture("assets/textures/TinyCraft/tiles/water.png").ok();
         
         // Converted from EXR to JPG for browser compatibility
         let skybox_texture = renderer.create_texture("assets/textures/cloudy_bright_day.jpg").ok();
         let sun_texture = renderer.create_texture("assets/textures/TinyCraft/Sky/sun.png").ok();
         let moon_texture = renderer.create_texture("assets/textures/2k_moon.jpg").ok();
 
-        // Generate simple terrain
-        for x in -10..10 {
-            for z in -10..10 {
+        // Generate terrain with mountains and lakes
+        let size = 32;
+        let water_level = 3;
+        
+        for x in -size..size {
+            for z in -size..size {
+                // Simple heightmap generation
+                let h_base = (
+                    (x as f32 * 0.1).sin() * 2.0 + 
+                    (z as f32 * 0.15).cos() * 2.0 +
+                    ((x as f32 * 0.3).sin() * (z as f32 * 0.3).cos()) * 1.0
+                );
+                
+                // Add some "mountains"
+                let mountain = if h_base > 2.0 {
+                    (h_base - 2.0).powf(1.5) * 2.0
+                } else {
+                    0.0
+                };
+                
+                let h = (h_base + mountain).round() as i32 + 4; // Base height shifted up
+
                 blocks.insert((x, 0, z), BlockType::Bedrock);
-                blocks.insert((x, 1, z), BlockType::Dirt);
-                blocks.insert((x, 2, z), BlockType::Grass);
+                
+                for y in 1..=h {
+                    if y == h {
+                        if y > 8 {
+                            blocks.insert((x, y, z), BlockType::Stone); // Mountain peaks
+                        } else if y <= water_level + 1 {
+                            blocks.insert((x, y, z), BlockType::Sand); // Beach
+                        } else {
+                            blocks.insert((x, y, z), BlockType::Grass);
+                        }
+                    } else if y > h - 3 {
+                        blocks.insert((x, y, z), BlockType::Dirt);
+                    } else {
+                        blocks.insert((x, y, z), BlockType::Stone);
+                    }
+                }
+                
+                // Water
+                if h < water_level {
+                    for y in (h+1)..=water_level {
+                        blocks.insert((x, y, z), BlockType::Water);
+                    }
+                }
             }
         }
 
-        // Some trees
-        let trees = [(2, 2), (-5, -5), (7, -3)];
-        for (tx, tz) in trees {
-            for y in 3..6 {
-                blocks.insert((tx, y, tz), BlockType::Wood);
-            }
-            for x in -1..=1 {
-                for z in -1..=1 {
-                    for y in 5..7 {
-                        if x == 0 && z == 0 && y < 6 { continue; }
-                        blocks.insert((tx + x, y, tz + z), BlockType::Leaves);
+        // Trees
+        // Simple pseudo-random placement
+        for x in -size..size {
+            for z in -size..size {
+                if (x * x * z * z + x * 7 + z * 3) % 100 < 2 { // 2% chance
+                    // Find ground height
+                    let mut y = 20;
+                    while y > 0 {
+                        if let Some(block) = blocks.get(&(x, y, z)) {
+                            if *block == BlockType::Grass {
+                                // Plant tree
+                                for ty in 1..5 {
+                                    blocks.insert((x, y + ty, z), BlockType::Wood);
+                                }
+                                // Leaves
+                                for lx in -2i32..=2 {
+                                    for lz in -2i32..=2 {
+                                        for ly in 3..5 {
+                                            if lx.abs() == 2 && lz.abs() == 2 { continue; } // Round corners
+                                            if lx == 0 && lz == 0 && ly < 5 { continue; } // Trunk space
+                                            blocks.insert((x + lx, y + ly, z), BlockType::Leaves);
+                                        }
+                                    }
+                                }
+                                // Top leaves
+                                for lx in -1i32..=1 {
+                                    for lz in -1i32..=1 {
+                                        if lx.abs() == 1 && lz.abs() == 1 { continue; } // Cross shape
+                                        if lx == 0 && lz == 0 { continue; } // Trunk space
+                                        blocks.insert((x + lx, y + 5, z), BlockType::Leaves);
+                                    }
+                                }
+                                // Cap the top
+                                blocks.insert((x, y + 6, z), BlockType::Leaves);
+                                
+                                break;
+                            } else if *block == BlockType::Water || *block == BlockType::Stone || *block == BlockType::Sand {
+                                break; // Don't plant on water, stone or sand
+                            }
+                        }
+                        y -= 1;
                     }
                 }
             }
@@ -116,7 +194,7 @@ impl Minecraft {
         Minecraft {
             renderer,
             blocks,
-            player_pos: Vector3::new(0.0, 5.0, 0.0),
+            player_pos: Vector3::new(0.0, 10.0, 0.0), // Start higher
             player_rot: (0.0, 0.0),
             cube_mesh,
             top_mesh,
@@ -140,6 +218,8 @@ impl Minecraft {
             wood_side_texture,
             wood_top_texture,
             bedrock_texture,
+            sand_texture,
+            water_texture,
             skybox_texture,
             sun_texture,
             moon_texture,
@@ -233,6 +313,13 @@ impl Minecraft {
             for x in (px - 1)..=(px + 1) {
                 for z in (pz - 1)..=(pz + 1) {
                     if self.blocks.contains_key(&(x, y, z)) {
+                        // Skip collision for water
+                        if let Some(block) = self.blocks.get(&(x, y, z)) {
+                            if *block == BlockType::Water {
+                                continue;
+                            }
+                        }
+
                         let block_min = Vector3::new(x as f32 - 0.5, y as f32 - 0.5, z as f32 - 0.5);
                         let block_max = Vector3::new(x as f32 + 0.5, y as f32 + 0.5, z as f32 + 0.5);
 
@@ -401,7 +488,17 @@ impl Minecraft {
         }
 
         // Draw each group
+        // Separate water to draw last for transparency
+        let mut water_data: Option<Vec<f32>> = None;
+        let mut water_count = 0;
+
         for (block_type, data) in instance_data_map {
+            if block_type == BlockType::Water {
+                water_data = Some(data);
+                water_count = count_map[&block_type];
+                continue;
+            }
+
             let count = count_map[&block_type];
             
             match block_type {
@@ -438,13 +535,33 @@ impl Minecraft {
                         BlockType::Leaves => self.leaves_texture.as_ref(),
                         BlockType::Stone => self.stone_texture.as_ref(),
                         BlockType::Bedrock => self.bedrock_texture.as_ref(),
+                        BlockType::Sand => self.sand_texture.as_ref(),
+                        // Water handled separately
                         _ => None,
                     };
+                    
                     self.renderer.draw_instanced_mesh(
                         &self.cube_mesh, &data, count, &projection, &view, &light_pos_uniform, texture
                     );
                 }
             }
+        }
+
+        // Draw Water Last
+        if let Some(data) = water_data {
+            self.renderer.gl.enable(web_sys::WebGlRenderingContext::BLEND);
+            self.renderer.gl.blend_func(web_sys::WebGlRenderingContext::SRC_ALPHA, web_sys::WebGlRenderingContext::ONE_MINUS_SRC_ALPHA);
+            
+            // Set global alpha for water
+            self.renderer.gl.uniform1f(Some(&self.renderer.u_instanced_global_alpha_loc), 0.6);
+
+            self.renderer.draw_instanced_mesh(
+                &self.cube_mesh, &data, water_count, &projection, &view, &light_pos_uniform, self.water_texture.as_ref()
+            );
+            
+            // Reset global alpha
+            self.renderer.gl.uniform1f(Some(&self.renderer.u_instanced_global_alpha_loc), 1.0);
+            self.renderer.gl.disable(web_sys::WebGlRenderingContext::BLEND);
         }
         
         // Render selection highlight (raycast)

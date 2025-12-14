@@ -82,6 +82,7 @@ const FRAGMENT_SHADER: &str = r#"
     uniform vec3 uTimeColor;
     uniform bool uIsRing;
     uniform float uRingInnerRadius;
+    uniform float uGlobalAlpha;
     
     uniform vec3 uLightPos;
     const vec3 lightColor = vec3(0.75, 0.75, 0.75);
@@ -232,7 +233,7 @@ const FRAGMENT_SHADER: &str = r#"
         
         result = pow(result, vec3(1.1));
 
-        gl_FragColor = vec4(result, alpha);
+        gl_FragColor = vec4(result, alpha * uGlobalAlpha);
     }
 "#;
 
@@ -290,6 +291,7 @@ pub struct Renderer {
     pub u_is_frozen_location: WebGlUniformLocation,
     pub u_camera_pos_location: WebGlUniformLocation,
     pub u_background_texture_location: WebGlUniformLocation,
+    pub u_global_alpha_location: WebGlUniformLocation,
     unit_cube_vertex_buffer: WebGlBuffer,
     unit_cube_index_buffer: WebGlBuffer,
     unit_cube_index_count: i32,
@@ -306,6 +308,7 @@ pub struct Renderer {
     u_instanced_time_color_loc: WebGlUniformLocation,
     u_instanced_use_texture_loc: WebGlUniformLocation,
     u_instanced_texture_loc: WebGlUniformLocation,
+    pub u_instanced_global_alpha_loc: WebGlUniformLocation,
     instance_data_buffer: WebGlBuffer,
 
     // Skybox
@@ -359,6 +362,8 @@ impl Renderer {
             .ok_or("Failed to get uCameraPos location")?;
         let u_background_texture_location = gl.get_uniform_location(&program, "uBackgroundTexture")
             .ok_or("Failed to get uBackgroundTexture location")?;
+        let u_global_alpha_location = gl.get_uniform_location(&program, "uGlobalAlpha")
+            .ok_or("Failed to get uGlobalAlpha location")?;
 
         // Instancing setup
         let instanced_ext = gl.get_extension("ANGLE_instanced_arrays")?.map(|e| e.unchecked_into::<AngleInstancedArrays>());
@@ -370,6 +375,7 @@ impl Renderer {
         let u_instanced_time_color_loc = gl.get_uniform_location(&instanced_program, "uTimeColor").ok_or("Failed to get uTimeColor")?;
         let u_instanced_use_texture_loc = gl.get_uniform_location(&instanced_program, "uUseTexture").ok_or("Failed to get uUseTexture instanced")?;
         let u_instanced_texture_loc = gl.get_uniform_location(&instanced_program, "uTexture").ok_or("Failed to get uTexture instanced")?;
+        let u_instanced_global_alpha_loc = gl.get_uniform_location(&instanced_program, "uGlobalAlpha").ok_or("Failed to get uGlobalAlpha instanced")?;
         let instance_data_buffer = gl.create_buffer().ok_or("Failed to create instance buffer")?;
 
         // Skybox setup
@@ -409,6 +415,8 @@ impl Renderer {
         gl.uniform3f(Some(&u_time_color_location), 1.0, 1.0, 1.0);
         // Initialize light pos to 0,0,0
         gl.uniform3f(Some(&u_light_pos_location), 0.0, 0.0, 0.0);
+        // Initialize global alpha to 1.0
+        gl.uniform1f(Some(&u_global_alpha_location), 1.0);
 
         Ok(Renderer {
             gl,
@@ -436,6 +444,7 @@ impl Renderer {
             u_is_frozen_location,
             u_camera_pos_location,
             u_background_texture_location,
+            u_global_alpha_location,
             instanced_ext,
             instanced_program,
             u_instanced_view_loc,
@@ -445,6 +454,7 @@ impl Renderer {
             u_instanced_time_color_loc,
             u_instanced_use_texture_loc,
             u_instanced_texture_loc,
+            u_instanced_global_alpha_loc,
             instance_data_buffer,
             skybox_program,
             u_skybox_view_loc,
@@ -678,6 +688,7 @@ impl Renderer {
         self.gl.uniform3f(Some(&self.u_instanced_light_pos_loc), light_pos.x, light_pos.y, light_pos.z);
         self.gl.uniform1i(Some(&self.u_instanced_use_lighting_loc), 1); // Enable lighting for instanced
         self.gl.uniform3f(Some(&self.u_instanced_time_color_loc), 1.0, 1.0, 1.0);
+        self.gl.uniform1f(Some(&self.u_instanced_global_alpha_loc), 1.0); // Default alpha
 
         if let Some(tex) = texture {
             self.gl.active_texture(WebGlRenderingContext::TEXTURE0);
