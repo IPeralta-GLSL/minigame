@@ -1,17 +1,14 @@
-mod engine;
-mod game;
-
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::JsFuture;
 use web_sys::{WebGlRenderingContext, HtmlCanvasElement, KeyboardEvent, MouseEvent, WheelEvent, Request, RequestInit, RequestMode, Response};
 use std::cell::RefCell;
 use std::rc::Rc;
-use crate::engine::renderer::Renderer;
-use crate::engine::mesh::Mesh;
-use crate::game::{Game, AppConfig};
-use crate::game::solar_system::{SolarSystem, SystemType};
-use crate::game::minecraft::Minecraft;
+use engine::renderer::Renderer;
+use engine::mesh::Mesh;
+use crossy_road::{Game, AppConfig};
+use solar_system::{SolarSystem, SystemType};
+use tinycraft::Minecraft;
 
 enum ActiveGame {
     Crossy(Game),

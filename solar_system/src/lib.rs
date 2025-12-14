@@ -1,5 +1,5 @@
-use crate::engine::renderer::Renderer;
-use crate::engine::mesh::Mesh;
+use engine::renderer::Renderer;
+use engine::mesh::Mesh;
 use nalgebra::{Matrix4, Point3, Vector3, Vector4};
 use js_sys::Date;
 use web_sys::{HtmlElement, WebGlTexture};

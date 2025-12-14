@@ -1,5 +1,5 @@
-use crate::engine::renderer::Renderer;
-use crate::engine::mesh::Mesh;
+use engine::renderer::Renderer;
+use engine::mesh::Mesh;
 use nalgebra::{Matrix4, Vector3, Point3};
 use std::collections::HashMap;
 use web_sys::WebGlTexture;
@@ -100,22 +100,22 @@ impl Minecraft {
         let side_mesh = Mesh::face_sides(1.0);
 
         // Load textures
-        let grass_top_texture = renderer.create_texture("assets/textures/TinyCraft/tiles/grass_top.png").ok();
-        let grass_side_texture = renderer.create_texture("assets/textures/TinyCraft/tiles/dirt_grass.png").ok();
-        let dirt_texture = renderer.create_texture("assets/textures/TinyCraft/tiles/dirt.png").ok();
-        let leaves_texture = renderer.create_texture("assets/textures/TinyCraft/tiles/leaves_transparent.png").ok();
-        let stone_texture = renderer.create_texture("assets/textures/TinyCraft/tiles/stone.png").ok();
-        let wood_side_texture = renderer.create_texture("assets/textures/TinyCraft/tiles/trunk_side.png").ok();
-        let wood_top_texture = renderer.create_texture("assets/textures/TinyCraft/tiles/trunk_top.png").ok();
-        let bedrock_texture = renderer.create_texture("assets/textures/TinyCraft/tiles/greystone.png").ok();
-        let sand_texture = renderer.create_texture("assets/textures/TinyCraft/tiles/sand.png").ok();
-        let water_texture = renderer.create_texture("assets/textures/TinyCraft/tiles/water.png").ok();
-        let glass_texture = renderer.create_texture("assets/textures/TinyCraft/tiles/glass.png").ok();
-        let snow_texture = renderer.create_texture("assets/textures/TinyCraft/tiles/snow.png").ok();
-        let ice_texture = renderer.create_texture("assets/textures/TinyCraft/tiles/ice.png").ok();
+        let grass_top_texture = renderer.create_texture("tinycraft/assets/TinyCraft/tiles/grass_top.png").ok();
+        let grass_side_texture = renderer.create_texture("tinycraft/assets/TinyCraft/tiles/dirt_grass.png").ok();
+        let dirt_texture = renderer.create_texture("tinycraft/assets/TinyCraft/tiles/dirt.png").ok();
+        let leaves_texture = renderer.create_texture("tinycraft/assets/TinyCraft/tiles/leaves_transparent.png").ok();
+        let stone_texture = renderer.create_texture("tinycraft/assets/TinyCraft/tiles/stone.png").ok();
+        let wood_side_texture = renderer.create_texture("tinycraft/assets/TinyCraft/tiles/trunk_side.png").ok();
+        let wood_top_texture = renderer.create_texture("tinycraft/assets/TinyCraft/tiles/trunk_top.png").ok();
+        let bedrock_texture = renderer.create_texture("tinycraft/assets/TinyCraft/tiles/greystone.png").ok();
+        let sand_texture = renderer.create_texture("tinycraft/assets/TinyCraft/tiles/sand.png").ok();
+        let water_texture = renderer.create_texture("tinycraft/assets/TinyCraft/tiles/water.png").ok();
+        let glass_texture = renderer.create_texture("tinycraft/assets/TinyCraft/tiles/glass.png").ok();
+        let snow_texture = renderer.create_texture("tinycraft/assets/TinyCraft/tiles/snow.png").ok();
+        let ice_texture = renderer.create_texture("tinycraft/assets/TinyCraft/tiles/ice.png").ok();
         
         let skybox_texture = renderer.create_texture("assets/textures/cloudy_bright_day.jpg").ok();
-        let sun_texture = renderer.create_texture("assets/textures/TinyCraft/Sky/sun.png").ok();
+        let sun_texture = renderer.create_texture("tinycraft/assets/TinyCraft/Sky/sun.png").ok();
         let moon_texture = renderer.create_texture("assets/textures/2k_moon.jpg").ok();
 
         let size = 64;

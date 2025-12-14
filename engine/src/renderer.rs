@@ -1,7 +1,7 @@
 use wasm_bindgen::prelude::*;
 use web_sys::{WebGlRenderingContext, WebGlProgram, WebGlBuffer, WebGlUniformLocation, HtmlCanvasElement, WebGlTexture, HtmlImageElement, AngleInstancedArrays};
 use nalgebra::{Matrix4, Vector3};
-use crate::engine::mesh::Mesh;
+use crate::mesh::Mesh;
 use wasm_bindgen::JsCast;
 
 const VERTEX_SHADER: &str = r#"
@@ -996,7 +996,7 @@ impl Renderer {
         );
 
         let img = HtmlImageElement::new().unwrap();
-        img.set_cross_origin(Some("anonymous"));
+        // img.set_cross_origin(Some("anonymous"));
         
         let gl = self.gl.clone();
         let texture_clone = texture.clone();
