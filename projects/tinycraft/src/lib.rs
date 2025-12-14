@@ -114,9 +114,9 @@ impl Minecraft {
         let snow_texture = renderer.create_texture("projects/tinycraft/assets/TinyCraft/tiles/snow.png").ok();
         let ice_texture = renderer.create_texture("projects/tinycraft/assets/TinyCraft/tiles/ice.png").ok();
         
-        let skybox_texture = renderer.create_texture("assets/textures/cloudy_bright_day.jpg").ok();
+        let skybox_texture = renderer.create_texture("projects/solar_system/assets/textures/cloudy_bright_day.jpg").ok();
         let sun_texture = renderer.create_texture("projects/tinycraft/assets/TinyCraft/Sky/sun.png").ok();
-        let moon_texture = renderer.create_texture("assets/textures/2k_moon.jpg").ok();
+        let moon_texture = renderer.create_texture("projects/solar_system/assets/textures/2k_moon.jpg").ok();
 
         let size = 64;
         let water_level = 3;
