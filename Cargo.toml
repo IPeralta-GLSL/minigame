@@ -2,9 +2,9 @@
 members = [
     "app",
     "engine",
-    "tinycraft",
-    "solar_system",
-    "crossy_road"
+    "projects/tinycraft",
+    "projects/solar_system",
+    "projects/crossy_road"
 ]
 resolver = "2"
 lto = true
