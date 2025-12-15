@@ -718,7 +718,7 @@
         window.addEventListener('resize', resizeCanvas);
         resizeCanvas();
 
-        init().then(() => {
+        init(`./pkg/app_bg.wasm?ts=${Date.now()}`).then(() => {
             
             const gameover = document.getElementById('gameover');
             const canvas = document.getElementById('canvas');

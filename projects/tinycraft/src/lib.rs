@@ -6,6 +6,7 @@ use nalgebra::{Matrix4, Vector3, Point3};
 use std::collections::HashMap;
 use web_sys::WebGlTexture;
 use wasm_bindgen::JsCast;
+use wasm_bindgen::JsValue;
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub enum BlockType {
@@ -86,8 +87,10 @@ pub struct Minecraft {
     last_shadow_time: f32,
     
     audio_engine: Option<AudioEngine>,
-    footstep_sound: Option<StaticSoundData>,
+    footstep_sounds: HashMap<String, Vec<StaticSoundData>>,
     last_footstep_time: f64,
+    current_ground_type: Option<BlockType>,
+    last_footstep_category: Option<&'static str>,
 }
 
 struct InputState {
@@ -98,6 +101,22 @@ struct InputState {
 }
 
 impl Minecraft {
+    fn block_type_name(block_type: BlockType) -> &'static str {
+        match block_type {
+            BlockType::Grass => "grass",
+            BlockType::Dirt => "dirt",
+            BlockType::Stone => "stone",
+            BlockType::Wood => "wood",
+            BlockType::Leaves => "leaves",
+            BlockType::Bedrock => "bedrock",
+            BlockType::Sand => "sand",
+            BlockType::Water => "water",
+            BlockType::Glass => "glass",
+            BlockType::Snow => "snow",
+            BlockType::Ice => "ice",
+        }
+    }
+
     pub fn new(renderer: Renderer) -> Self {
         let mut blocks = HashMap::new();
         let cube_mesh = Mesh::cube(1.0, 1.0, 1.0, 1.0);
@@ -284,8 +303,10 @@ impl Minecraft {
             is_dirty: true,
             last_shadow_time: -1.0,
             audio_engine: None,
-            footstep_sound: None,
+            footstep_sounds: HashMap::new(),
             last_footstep_time: 0.0,
+            current_ground_type: None,
+            last_footstep_category: None,
         }
     }
         
@@ -337,16 +358,83 @@ impl Minecraft {
         if self.on_ground && (self.velocity.x.abs() > 0.01 || self.velocity.z.abs() > 0.01) {
             let now = js_sys::Date::now();
             if now - self.last_footstep_time > 500.0 { // Play every 500ms
-                if let Some(engine) = &mut self.audio_engine {
-                    if let Some(sound) = &self.footstep_sound {
-                        engine.play(sound);
+                // Use the block type detected during collision resolution
+                let block_type = self.current_ground_type.unwrap_or(BlockType::Grass);
+
+                let sound_category = match block_type {
+                    BlockType::Grass => "grass",
+                    BlockType::Dirt => "gravel",
+                    BlockType::Stone => "stone",
+                    BlockType::Wood => "wood",
+                    BlockType::Leaves => "foliage",
+                    BlockType::Bedrock => "stone",
+                    BlockType::Sand => "sand",
+                    BlockType::Water => "water",
+                    BlockType::Glass => "glass",
+                    BlockType::Snow => "snow",
+                    BlockType::Ice => "ice",
+                };
+
+                if let Some(sounds) = self.footstep_sounds.get(sound_category) {
+                    if self.last_footstep_category != Some(sound_category) {
+                        web_sys::console::log_1(&JsValue::from_str(&format!(
+                            "footstep category={} variants={}",
+                            sound_category,
+                            sounds.len()
+                        )));
+                        self.last_footstep_category = Some(sound_category);
                     }
+
+                    if !sounds.is_empty() {
+                        let idx = (js_sys::Math::random() * sounds.len() as f64) as usize;
+                        if let Some(engine) = &mut self.audio_engine {
+                            engine.play(&sounds[idx]);
+                        }
+                    }
+                } else if self.last_footstep_category != Some("(missing)") {
+                    web_sys::console::log_1(&JsValue::from_str(&format!(
+                        "footstep category={} (missing)",
+                        sound_category
+                    )));
+                    self.last_footstep_category = Some("(missing)");
                 }
                 self.last_footstep_time = now;
             }
         }
 
         self.update_time_ui();
+    }
+
+    fn get_ground_block(&self) -> Option<BlockType> {
+        let y = (self.player_pos.y - 2.0).round() as i32;
+        
+        // Check multiple points around the player's base to find a block
+        // This ensures we detect the block even if standing on the edge
+        let offsets = [
+            (0.0, 0.0),   // Center
+            (0.3, 0.0),   // Right
+            (-0.3, 0.0),  // Left
+            (0.0, 0.3),   // Front
+            (0.0, -0.3),  // Back
+            (0.3, 0.3),   // Corners
+            (0.3, -0.3),
+            (-0.3, 0.3),
+            (-0.3, -0.3),
+        ];
+
+        for (ox, oz) in offsets.iter() {
+            let check_x = (self.player_pos.x + ox).round() as i32;
+            let check_z = (self.player_pos.z + oz).round() as i32;
+            
+            if let Some(block) = self.blocks.get(&(check_x, y, check_z)) {
+                // If we found a solid block, return it
+                if *block != BlockType::Water {
+                    return Some(*block);
+                }
+            }
+        }
+
+        None
     }
 
     fn update_time_ui(&mut self) {
@@ -431,6 +519,15 @@ impl Minecraft {
                                         self.player_pos.y = block_max.y + 1.5; 
                                         self.velocity.y = 0.0;
                                         self.on_ground = true;
+                                        if let Some(block) = self.blocks.get(&(x, y, z)) {
+                                            if self.current_ground_type != Some(*block) {
+                                                web_sys::console::log_1(&JsValue::from_str(&format!(
+                                                    "ground block={}",
+                                                    Self::block_type_name(*block)
+                                                )));
+                                            }
+                                            self.current_ground_type = Some(*block);
+                                        }
                                     }
                                 },
                                 2 => { 
@@ -696,8 +793,52 @@ impl Minecraft {
         if self.audio_engine.is_none() {
             let audio_engine = AudioEngine::new().ok();
             if let Some(engine) = &audio_engine {
-                 let sound_bytes = include_bytes!("../assets/audio/JDSherbert - Footstep Foley SFX Pack - Footstep (Grass - 1).ogg");
-                 self.footstep_sound = engine.create_sound(sound_bytes).ok();
+                // Helper closure to load sounds
+                let mut load_sound = |name: &str, bytes: &[u8]| {
+                    if let Ok(sound) = engine.create_sound(bytes) {
+                        self.footstep_sounds.entry(name.to_string()).or_insert_with(Vec::new).push(sound);
+                    }
+                };
+
+                // Grass
+                load_sound("grass", include_bytes!("../assets/audio/JDSherbert - Footstep Foley SFX Pack - Footstep (Grass - 1).ogg"));
+                load_sound("grass", include_bytes!("../assets/audio/JDSherbert - Footstep Foley SFX Pack - Footstep (Grass - 2).ogg"));
+
+                // Gravel (Dirt)
+                load_sound("gravel", include_bytes!("../assets/audio/JDSherbert - Footstep Foley SFX Pack - Footstep (Gravel - 1).ogg"));
+                load_sound("gravel", include_bytes!("../assets/audio/JDSherbert - Footstep Foley SFX Pack - Footstep (Gravel - 2).ogg"));
+
+                // Stone
+                load_sound("stone", include_bytes!("../assets/audio/JDSherbert - Footstep Foley SFX Pack - Footstep (Stone - 1).ogg"));
+                load_sound("stone", include_bytes!("../assets/audio/JDSherbert - Footstep Foley SFX Pack - Footstep (Stone - 2).ogg"));
+
+                // Wood
+                load_sound("wood", include_bytes!("../assets/audio/JDSherbert - Footstep Foley SFX Pack - Footstep (Wood - 1).ogg"));
+                load_sound("wood", include_bytes!("../assets/audio/JDSherbert - Footstep Foley SFX Pack - Footstep (Wood - 2).ogg"));
+
+                // Foliage (Leaves)
+                load_sound("foliage", include_bytes!("../assets/audio/JDSherbert - Footstep Foley SFX Pack - Footstep (Foliage - 1).ogg"));
+                load_sound("foliage", include_bytes!("../assets/audio/JDSherbert - Footstep Foley SFX Pack - Footstep (Foliage - 2).ogg"));
+
+                // Sand
+                load_sound("sand", include_bytes!("../assets/audio/JDSherbert - Footstep Foley SFX Pack - Footstep (Sand - 1).ogg"));
+                load_sound("sand", include_bytes!("../assets/audio/JDSherbert - Footstep Foley SFX Pack - Footstep (Sand - 2).ogg"));
+
+                // Water
+                load_sound("water", include_bytes!("../assets/audio/JDSherbert - Footstep Foley SFX Pack - Footstep (Water - 1).ogg"));
+                load_sound("water", include_bytes!("../assets/audio/JDSherbert - Footstep Foley SFX Pack - Footstep (Water - 2).ogg"));
+
+                // Snow
+                load_sound("snow", include_bytes!("../assets/audio/JDSherbert - Footstep Foley SFX Pack - Footstep (Snow - 1).ogg"));
+                load_sound("snow", include_bytes!("../assets/audio/JDSherbert - Footstep Foley SFX Pack - Footstep (Snow - 2).ogg"));
+
+                // Ice
+                load_sound("ice", include_bytes!("../assets/audio/JDSherbert - Footstep Foley SFX Pack - Footstep (Ice - 1).ogg"));
+                load_sound("ice", include_bytes!("../assets/audio/JDSherbert - Footstep Foley SFX Pack - Footstep (Ice - 2).ogg"));
+
+                // Glass
+                load_sound("glass", include_bytes!("../assets/audio/JDSherbert - Footstep Foley SFX Pack - Footstep (Broken Glass - 1).ogg"));
+                load_sound("glass", include_bytes!("../assets/audio/JDSherbert - Footstep Foley SFX Pack - Footstep (Broken Glass - 2).ogg"));
             }
             self.audio_engine = audio_engine;
         }
