@@ -11,6 +11,7 @@ Juego 3D estilo Crossy Road desarrollado en Rust con WebGL.
 
 ```bash
 wasm-pack build --target web
+wasm-pack build --target web --out-dir ../pkg --out-name app app
 ```
 
 ## Ejecutar

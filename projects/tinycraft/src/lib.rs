@@ -1,5 +1,7 @@
 use engine::renderer::Renderer;
 use engine::mesh::Mesh;
+use engine::audio::AudioEngine;
+use kira::sound::static_sound::StaticSoundData;
 use nalgebra::{Matrix4, Vector3, Point3};
 use std::collections::HashMap;
 use web_sys::WebGlTexture;
@@ -82,6 +84,10 @@ pub struct Minecraft {
     cached_counts: HashMap<BlockType, i32>,
     is_dirty: bool,
     last_shadow_time: f32,
+    
+    audio_engine: Option<AudioEngine>,
+    footstep_sound: Option<StaticSoundData>,
+    last_footstep_time: f64,
 }
 
 struct InputState {
@@ -100,22 +106,22 @@ impl Minecraft {
         let side_mesh = Mesh::face_sides(1.0);
 
         // Load textures
-        let grass_top_texture = renderer.create_texture("projects/tinycraft/assets/TinyCraft/tiles/grass_top.png").ok();
-        let grass_side_texture = renderer.create_texture("projects/tinycraft/assets/TinyCraft/tiles/dirt_grass.png").ok();
-        let dirt_texture = renderer.create_texture("projects/tinycraft/assets/TinyCraft/tiles/dirt.png").ok();
-        let leaves_texture = renderer.create_texture("projects/tinycraft/assets/TinyCraft/tiles/leaves_transparent.png").ok();
-        let stone_texture = renderer.create_texture("projects/tinycraft/assets/TinyCraft/tiles/stone.png").ok();
-        let wood_side_texture = renderer.create_texture("projects/tinycraft/assets/TinyCraft/tiles/trunk_side.png").ok();
-        let wood_top_texture = renderer.create_texture("projects/tinycraft/assets/TinyCraft/tiles/trunk_top.png").ok();
-        let bedrock_texture = renderer.create_texture("projects/tinycraft/assets/TinyCraft/tiles/greystone.png").ok();
-        let sand_texture = renderer.create_texture("projects/tinycraft/assets/TinyCraft/tiles/sand.png").ok();
-        let water_texture = renderer.create_texture("projects/tinycraft/assets/TinyCraft/tiles/water.png").ok();
-        let glass_texture = renderer.create_texture("projects/tinycraft/assets/TinyCraft/tiles/glass.png").ok();
-        let snow_texture = renderer.create_texture("projects/tinycraft/assets/TinyCraft/tiles/snow.png").ok();
-        let ice_texture = renderer.create_texture("projects/tinycraft/assets/TinyCraft/tiles/ice.png").ok();
+        let grass_top_texture = renderer.create_texture("projects/tinycraft/assets/tiles/grass_top.png").ok();
+        let grass_side_texture = renderer.create_texture("projects/tinycraft/assets/tiles/dirt_grass.png").ok();
+        let dirt_texture = renderer.create_texture("projects/tinycraft/assets/tiles/dirt.png").ok();
+        let leaves_texture = renderer.create_texture("projects/tinycraft/assets/tiles/leaves_transparent.png").ok();
+        let stone_texture = renderer.create_texture("projects/tinycraft/assets/tiles/stone.png").ok();
+        let wood_side_texture = renderer.create_texture("projects/tinycraft/assets/tiles/trunk_side.png").ok();
+        let wood_top_texture = renderer.create_texture("projects/tinycraft/assets/tiles/trunk_top.png").ok();
+        let bedrock_texture = renderer.create_texture("projects/tinycraft/assets/tiles/greystone.png").ok();
+        let sand_texture = renderer.create_texture("projects/tinycraft/assets/tiles/sand.png").ok();
+        let water_texture = renderer.create_texture("projects/tinycraft/assets/tiles/water.png").ok();
+        let glass_texture = renderer.create_texture("projects/tinycraft/assets/tiles/glass.png").ok();
+        let snow_texture = renderer.create_texture("projects/tinycraft/assets/tiles/snow.png").ok();
+        let ice_texture = renderer.create_texture("projects/tinycraft/assets/tiles/ice.png").ok();
         
         let skybox_texture = renderer.create_texture("projects/solar_system/assets/textures/cloudy_bright_day.jpg").ok();
-        let sun_texture = renderer.create_texture("projects/tinycraft/assets/TinyCraft/Sky/sun.png").ok();
+        let sun_texture = renderer.create_texture("projects/tinycraft/assets/Sky/sun.png").ok();
         let moon_texture = renderer.create_texture("projects/solar_system/assets/textures/2k_moon.jpg").ok();
 
         let size = 64;
@@ -277,6 +283,9 @@ impl Minecraft {
             cached_counts: HashMap::new(),
             is_dirty: true,
             last_shadow_time: -1.0,
+            audio_engine: None,
+            footstep_sound: None,
+            last_footstep_time: 0.0,
         }
     }
         
@@ -323,6 +332,19 @@ impl Minecraft {
 
         self.velocity.x *= 0.8;
         self.velocity.z *= 0.8;
+
+        // Footstep Audio Logic
+        if self.on_ground && (self.velocity.x.abs() > 0.01 || self.velocity.z.abs() > 0.01) {
+            let now = js_sys::Date::now();
+            if now - self.last_footstep_time > 500.0 { // Play every 500ms
+                if let Some(engine) = &mut self.audio_engine {
+                    if let Some(sound) = &self.footstep_sound {
+                        engine.play(sound);
+                    }
+                }
+                self.last_footstep_time = now;
+            }
+        }
 
         self.update_time_ui();
     }
@@ -670,7 +692,19 @@ impl Minecraft {
         }
     }
 
+    fn init_audio(&mut self) {
+        if self.audio_engine.is_none() {
+            let audio_engine = AudioEngine::new().ok();
+            if let Some(engine) = &audio_engine {
+                 let sound_bytes = include_bytes!("../assets/audio/JDSherbert - Footstep Foley SFX Pack - Footstep (Grass - 1).ogg");
+                 self.footstep_sound = engine.create_sound(sound_bytes).ok();
+            }
+            self.audio_engine = audio_engine;
+        }
+    }
+
     pub fn handle_input(&mut self, key: &str) {
+        self.init_audio();
         match key {
             "w" | "W" => self.input_state.forward = true,
             "s" | "S" => self.input_state.backward = true,
@@ -746,6 +780,7 @@ impl Minecraft {
     }
 
     pub fn handle_mouse_down(&mut self, _x: i32, _y: i32, button: i32) {
+        self.init_audio();
         if !self.is_locked {
             self.is_locked = true;
             // Request pointer lock in JS side ideally
