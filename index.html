@@ -691,7 +691,12 @@
         </div>
     </div>
     <script type="module">
-        import init, { start_crossy_road, start_solar_system, start_minecraft, load_solar_system, touch_left, touch_right, touch_forward, touch_restart, activate_god_mode, set_solar_time_scale, select_solar_body, toggle_solar_temperature_unit, set_solar_date, pick_solar_body } from './pkg/app.js';
+        import init, { start_crossy_road, start_solar_system, start_minecraft, load_solar_system, touch_left, touch_right, touch_forward, touch_restart, activate_god_mode, set_solar_time_scale, select_solar_body, toggle_solar_temperature_unit, set_solar_date } from './pkg/app.js';
+        let pick_solar_body = null;
+        try {
+            const mod = await import('./pkg/app.js');
+            pick_solar_body = mod.pick_solar_body ?? null;
+        } catch(_) {}
 
         window.selectSolarBody = function(index) {
             select_solar_body(index);
@@ -710,6 +715,7 @@
             _solarMouseDownPos = null;
             if (wasDrag) return;
             if (!document.body.classList.contains('solar-mode')) return;
+            if (!pick_solar_body) return;
             const idx = pick_solar_body(e.clientX, e.clientY, window.innerWidth, window.innerHeight);
             if (idx >= 0) select_solar_body(idx);
         });
