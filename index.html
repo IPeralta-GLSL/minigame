@@ -326,7 +326,6 @@
             box-shadow: none !important;
         }
         body.solar-mode canvas { cursor: grab; }
-        body.solar-mode canvas:active { cursor: grabbing; }
         body.solar-mode .controls, body.solar-mode #score, body.solar-mode #god-mode-btn,
         body.minecraft-mode .controls, body.minecraft-mode #score, body.minecraft-mode #god-mode-btn { display: none !important; }
         
@@ -709,7 +708,7 @@
         const _canvas = document.getElementById('canvas');
         _canvas.addEventListener('mousedown', (e) => {
             _solarMouseDownPos = { x: e.clientX, y: e.clientY };
-            if (document.body.classList.contains('solar-mode')) _canvas.style.cursor = 'grabbing';
+            if (document.body.classList.contains('solar-mode')) _canvas.style.cursor = 'none';
         });
         document.addEventListener('mouseup', () => {
             if (document.body.classList.contains('solar-mode')) _canvas.style.cursor = '';
