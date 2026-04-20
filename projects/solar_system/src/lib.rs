@@ -52,6 +52,7 @@ pub struct SolarSystem {
     camera_distance: f32,
     camera_target_distance: f32,
     camera_rotation: (f32, f32),
+    camera_target_rotation: (f32, f32),
     last_time: f64,
     is_dragging: bool,
     last_mouse_pos: (i32, i32),
@@ -560,6 +561,7 @@ impl SolarSystem {
             camera_distance: 60.0,
             camera_target_distance: 60.0,
             camera_rotation: (0.5, 0.0),
+            camera_target_rotation: (0.5, 0.0),
             last_time: now_ms,
             is_dragging: false,
             last_mouse_pos: (0, 0),
@@ -687,6 +689,11 @@ impl SolarSystem {
         // Smooth zoom: exponential lerp toward target distance
         let zoom_speed = 1.0 - (-10.0_f32 * safe_dt as f32).exp();
         self.camera_distance += (self.camera_target_distance - self.camera_distance) * zoom_speed;
+
+        // Smooth rotation: faster lerp so it feels responsive but still fluid
+        let rot_speed = 1.0 - (-15.0_f32 * safe_dt as f32).exp();
+        self.camera_rotation.0 += (self.camera_target_rotation.0 - self.camera_rotation.0) * rot_speed;
+        self.camera_rotation.1 += (self.camera_target_rotation.1 - self.camera_rotation.1) * rot_speed;
 
         self.current_time += safe_dt * 1000.0 * self.time_scale as f64;
         
@@ -1254,8 +1261,8 @@ impl SolarSystem {
         match key {
             "ArrowUp" => { self.camera_target_distance *= 0.9; self.camera_target_distance = self.camera_target_distance.max(0.0001); },
             "ArrowDown" => { self.camera_target_distance *= 1.1; self.camera_target_distance = self.camera_target_distance.min(100000000.0); },
-            "ArrowLeft" => self.camera_rotation.1 -= 0.1,
-            "ArrowRight" => self.camera_rotation.1 += 0.1,
+            "ArrowLeft" => self.camera_target_rotation.1 -= 0.1,
+            "ArrowRight" => self.camera_target_rotation.1 += 0.1,
             _ => {}
         }
     }
@@ -1273,12 +1280,11 @@ impl SolarSystem {
         if self.is_dragging {
             let dx = x - self.last_mouse_pos.0;
             let dy = y - self.last_mouse_pos.1;
-            
-            self.camera_rotation.1 += dx as f32 * 0.01;
-            self.camera_rotation.0 += dy as f32 * 0.01;
-            
-            self.camera_rotation.0 = self.camera_rotation.0.max(-1.5).min(1.5);
-            
+
+            self.camera_target_rotation.1 += dx as f32 * 0.01;
+            self.camera_target_rotation.0 += dy as f32 * 0.01;
+            self.camera_target_rotation.0 = self.camera_target_rotation.0.max(-1.5).min(1.5);
+
             self.last_mouse_pos = (x, y);
         }
     }
