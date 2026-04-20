@@ -794,7 +794,7 @@
         window.addEventListener('resize', resizeCanvas);
         resizeCanvas();
 
-        init(`./pkg/app_bg.wasm?ts=${Date.now()}`).then(() => {
+        init({ module_or_path: `./pkg/app_bg.wasm?ts=${Date.now()}` }).then(() => {
             // Auto-start game from URL path on load
             const initialType = GAME_ROUTES[location.pathname];
             if (initialType) {
