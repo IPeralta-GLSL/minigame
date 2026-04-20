@@ -542,8 +542,11 @@ impl SolarSystem {
                 let period_seconds = body.rotation_period.abs() * 24.0 * 3600.0;
                 let rotation_speed = (2.0 * std::f32::consts::PI) / period_seconds;
                 if (body.rotation_period - 1.0).abs() < 0.01 {
-                    // Earth: align day/night to UTC time
-                    body.current_rotation = body.orbit_angle - lambda_sun_rad;
+                    // Earth: align day/night to UTC time.
+                    // Greenwich (phi=PI, u=0.5) must face the Sun (world phi = PI + orbit_angle).
+                    // RotY(rot) moves a sphere vertex at phi to world direction phi - rot.
+                    // So: PI - rot = PI + orbit_angle  →  rot = lambda_sun_rad - orbit_angle
+                    body.current_rotation = lambda_sun_rad - body.orbit_angle;
                 } else {
                     body.current_rotation = (rotation_speed * total_seconds_now as f32) % (2.0 * std::f32::consts::PI);
                 }
@@ -655,10 +658,10 @@ impl SolarSystem {
                 let period_seconds = body.rotation_period.abs() * 24.0 * 3600.0;
                 let rotation_speed = (2.0 * std::f32::consts::PI) / period_seconds;
                 if (body.rotation_period - 1.0).abs() < 0.01 {
-                    // Earth: align day/night to UTC time
+                    // Earth: align day/night to UTC time.
                     let utc_sec = (timestamp / 1000.0) as f32 % 86400.0;
                     let lambda_sun = (43200.0 - utc_sec) * 2.0 * std::f32::consts::PI / 86400.0;
-                    body.current_rotation = body.orbit_angle - lambda_sun;
+                    body.current_rotation = lambda_sun - body.orbit_angle;
                 } else {
                     let total_seconds = days_since_j2000 * 24.0 * 3600.0;
                     body.current_rotation = (rotation_speed * total_seconds as f32) % (2.0 * std::f32::consts::PI);
