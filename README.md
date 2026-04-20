@@ -9,10 +9,17 @@ Juego 3D estilo Crossy Road desarrollado en Rust con WebGL.
 
 ## Compilar
 
+Desarrollo (debug, sin optimizaciones):
 ```bash
-wasm-pack build --target web
 wasm-pack build --target web --out-dir ../pkg --out-name app app
 ```
+
+Producción (release, sin wasm-opt para evitar bug con externref):
+```bash
+wasm-pack build app --target web --out-dir ../pkg --release --no-opt
+```
+
+> `--no-opt` es necesario porque wasm-opt corrompe la tabla externref generada por wasm-bindgen ≥ 0.2.100.
 
 ## Ejecutar
 

@@ -527,19 +527,26 @@ impl SolarSystem {
             SystemType::Sirius => Some(0),
         };
 
-        // Initialize current_rotation for each body based on current time
-        // so the day/night side matches the actual time of day.
-        // For Earth, apply GMST correction at J2000 (280.46061837°) to align
-        // the prime meridian (Greenwich) with the astronomical reference frame.
-        let gmst_j2000_rad = 280.46061837_f32.to_radians();
+        // Initialize current_rotation for each body based on current UTC time.
+        // For Earth: at UTC 12:00 (noon), Greenwich (lon=0) faces the Sun.
+        // The sub-solar longitude shifts 15°/hour from Greenwich.
+        // In this sphere mesh, u=0.5 (Greenwich) is at sphere phi=PI.
+        // The Sun direction from Earth is at phi = PI + orbit_angle.
+        // So: current_rotation = orbit_angle - lambda_sun_rad
+        // where lambda_sun_rad = (43200 - utc_sec_today) * 2π/86400
+        let utc_sec_today = (now_ms / 1000.0) as f32 % 86400.0;
+        let lambda_sun_rad = (43200.0 - utc_sec_today) * 2.0 * std::f32::consts::PI / 86400.0;
         let total_seconds_now = days_since_j2000 * 24.0 * 3600.0;
         for body in &mut bodies {
             if body.rotation_period != 0.0 {
                 let period_seconds = body.rotation_period.abs() * 24.0 * 3600.0;
                 let rotation_speed = (2.0 * std::f32::consts::PI) / period_seconds;
-                // Apply GMST correction only for Earth (rotation_period ≈ 1.0 day)
-                let offset = if (body.rotation_period - 1.0).abs() < 0.01 { gmst_j2000_rad } else { 0.0 };
-                body.current_rotation = (offset + rotation_speed * total_seconds_now as f32) % (2.0 * std::f32::consts::PI);
+                if (body.rotation_period - 1.0).abs() < 0.01 {
+                    // Earth: align day/night to UTC time
+                    body.current_rotation = body.orbit_angle - lambda_sun_rad;
+                } else {
+                    body.current_rotation = (rotation_speed * total_seconds_now as f32) % (2.0 * std::f32::consts::PI);
+                }
             }
         }
 
@@ -647,10 +654,15 @@ impl SolarSystem {
             if body.rotation_period != 0.0 {
                 let period_seconds = body.rotation_period.abs() * 24.0 * 3600.0;
                 let rotation_speed = (2.0 * std::f32::consts::PI) / period_seconds;
-                let total_seconds = days_since_j2000 * 24.0 * 3600.0;
-                let gmst_j2000_rad = 280.46061837_f32.to_radians();
-                let offset = if (body.rotation_period - 1.0).abs() < 0.01 { gmst_j2000_rad } else { 0.0 };
-                body.current_rotation = (offset + rotation_speed * total_seconds as f32) % (2.0 * std::f32::consts::PI);
+                if (body.rotation_period - 1.0).abs() < 0.01 {
+                    // Earth: align day/night to UTC time
+                    let utc_sec = (timestamp / 1000.0) as f32 % 86400.0;
+                    let lambda_sun = (43200.0 - utc_sec) * 2.0 * std::f32::consts::PI / 86400.0;
+                    body.current_rotation = body.orbit_angle - lambda_sun;
+                } else {
+                    let total_seconds = days_since_j2000 * 24.0 * 3600.0;
+                    body.current_rotation = (rotation_speed * total_seconds as f32) % (2.0 * std::f32::consts::PI);
+                }
             }
         }
     }
