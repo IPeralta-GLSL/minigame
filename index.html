@@ -564,7 +564,6 @@
                 <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; color: var(--text-main); white-space: nowrap;">
                     <input type="checkbox" id="fps-toggle"> Mostrar FPS
                 </label>
-                <div id="fps-counter" style="color: #0f0; font-family: monospace; display: none; font-size: 12px;">FPS: 0</div>
                 <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; color: var(--text-main); white-space: nowrap;">
                     <input type="checkbox" id="music-toggle" checked> Música
                 </label>
@@ -576,6 +575,7 @@
         </div>
         <button id="god-mode-btn" style="pointer-events: auto; padding: 10px; background: #ffcc00; border: none; border-radius: 5px; font-weight: bold; cursor: pointer;">GOD MODE</button>
     </div>
+    <div id="fps-counter" style="position: absolute; top: 56px; left: 10px; color: #0f0; font-family: monospace; font-size: 13px; background: rgba(0,0,0,0.5); padding: 3px 8px; border-radius: 4px; display: none; pointer-events: none; z-index: 101;">FPS: 0</div>
     <div id="menu">
         <h1 class="menu-title">Select Game</h1>
         <button class="menu-btn" onclick="startGame('road')">Crossy Road</button>
