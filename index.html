@@ -551,6 +551,7 @@
     </style>
 </head>
 <body>
+    <audio id="solar-music" src="projects/solar_system/assets/Audio/1-drone-piano.mp3" loop preload="auto" style="display:none;"></audio>
     <div id="ui-layer" style="position: absolute; top: 0; left: 0; width: 100%; padding: 10px; display: flex; justify-content: space-between; pointer-events: none; z-index: 100;">
         <div style="pointer-events: auto;">
             <label style="color: white; font-family: monospace; background: rgba(0,0,0,0.5); padding: 5px; border-radius: 4px; cursor: pointer;">
@@ -690,22 +691,56 @@
             [`${BASE}/tinycraft`]: 'tinycraft'
         };
 
+        const solarMusic = document.getElementById('solar-music');
+        let musicFadeInterval = null;
+
+        function startSolarMusic() {
+            if (musicFadeInterval) clearInterval(musicFadeInterval);
+            solarMusic.volume = 0;
+            solarMusic.play().catch(() => {});
+            musicFadeInterval = setInterval(() => {
+                if (solarMusic.volume < 0.95) {
+                    solarMusic.volume = Math.min(1, solarMusic.volume + 0.05);
+                } else {
+                    solarMusic.volume = 1;
+                    clearInterval(musicFadeInterval);
+                }
+            }, 100);
+        }
+
+        function stopSolarMusic() {
+            if (musicFadeInterval) clearInterval(musicFadeInterval);
+            musicFadeInterval = setInterval(() => {
+                if (solarMusic.volume > 0.05) {
+                    solarMusic.volume = Math.max(0, solarMusic.volume - 0.05);
+                } else {
+                    solarMusic.volume = 0;
+                    solarMusic.pause();
+                    solarMusic.currentTime = 0;
+                    clearInterval(musicFadeInterval);
+                }
+            }, 100);
+        }
+
         window.startGame = function(type) {
             document.getElementById('menu').style.display = 'none';
             if (type === 'road') {
                 document.body.classList.remove('solar-mode');
                 document.body.classList.remove('minecraft-mode');
+                stopSolarMusic();
                 start_crossy_road();
                 history.pushState(null, '', `${BASE}/crossy_road`);
             } else if (type === 'minecraft') {
                 document.body.classList.remove('solar-mode');
                 document.body.classList.add('minecraft-mode');
+                stopSolarMusic();
                 start_minecraft();
                 history.pushState(null, '', `${BASE}/tinycraft`);
             } else {
                 document.body.classList.remove('minecraft-mode');
                 document.body.classList.add('solar-mode');
                 start_solar_system();
+                startSolarMusic();
                 history.pushState(null, '', `${BASE}/solar_system`);
             }
             resizeCanvas();
@@ -719,6 +754,7 @@
                 startGame(type);
             } else {
                 // Back to menu
+                stopSolarMusic();
                 document.getElementById('menu').style.display = 'flex';
                 document.body.classList.remove('solar-mode', 'minecraft-mode');
                 history.pushState(null, '', `${BASE}/`);
