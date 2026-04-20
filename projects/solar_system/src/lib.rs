@@ -1283,4 +1283,102 @@ impl SolarSystem {
         self.camera_distance *= factor;
         self.camera_distance = self.camera_distance.max(0.0001).min(100000000.0);
     }
+
+    /// Ray-sphere picking. Returns the index of the clicked body, or -1 if none.
+    /// x, y are client pixel coordinates; w, h are canvas dimensions.
+    pub fn pick_body(&self, x: i32, y: i32, width: i32, height: i32) -> i32 {
+        // Recalculate world positions (same logic as render/update)
+        let mut positions = vec![nalgebra::Vector3::<f32>::zeros(); self.bodies.len()];
+        for i in 0..self.bodies.len() {
+            let body = &self.bodies[i];
+            let m = body.orbit_angle;
+            let e = body.eccentricity;
+            let big_e = m + e * m.sin();
+            let x_orb_raw = body.orbit_radius * (big_e.cos() - e);
+            let z_orb_raw = body.orbit_radius * (1.0 - e * e).sqrt() * big_e.sin();
+            let w_ang = body.argument_of_periapsis;
+            let (sin_w, cos_w) = w_ang.sin_cos();
+            let x_orb = x_orb_raw * cos_w + z_orb_raw * sin_w;
+            let z_orb = -x_orb_raw * sin_w + z_orb_raw * cos_w;
+            let y_incl = z_orb * body.orbit_inclination.sin();
+            let z_incl = z_orb * body.orbit_inclination.cos();
+            let omega = body.longitude_of_ascending_node;
+            let (sin_o, cos_o) = omega.sin_cos();
+            let x_final = x_orb * cos_o + z_incl * sin_o;
+            let y_final = y_incl;
+            let z_final = -x_orb * sin_o + z_incl * cos_o;
+            let mut pos = nalgebra::Vector3::new(x_final, y_final, z_final);
+            if let Some(pidx) = body.parent {
+                pos += positions[pidx];
+            }
+            positions[i] = pos;
+        }
+
+        // Scene target (same as render)
+        let target = if let Some(idx) = self.focused_body_index {
+            positions[idx]
+        } else {
+            nalgebra::Vector3::zeros()
+        };
+
+        // Camera (same as render)
+        let rel_cam_x = self.camera_distance * self.camera_rotation.0.cos() * self.camera_rotation.1.sin();
+        let rel_cam_y = self.camera_distance * self.camera_rotation.0.sin();
+        let rel_cam_z = self.camera_distance * self.camera_rotation.0.cos() * self.camera_rotation.1.cos();
+        let cam_origin = nalgebra::Vector3::new(rel_cam_x, rel_cam_y, rel_cam_z);
+
+        let aspect = width as f32 / height as f32;
+        let fov_y = 45.0_f32.to_radians();
+        let projection = nalgebra::Matrix4::new_perspective(aspect, fov_y, 0.001, 200000000.0);
+        let view = nalgebra::Matrix4::look_at_rh(
+            &nalgebra::Point3::new(rel_cam_x, rel_cam_y, rel_cam_z),
+            &nalgebra::Point3::new(0.0, 0.0, 0.0),
+            &nalgebra::Vector3::y(),
+        );
+
+        // Unproject click to ray
+        let ndc_x = (2.0 * x as f32 / width as f32) - 1.0;
+        let ndc_y = 1.0 - (2.0 * y as f32 / height as f32);
+
+        let inv_proj = projection.try_inverse().unwrap();
+        let inv_view = view.try_inverse().unwrap();
+
+        let clip = nalgebra::Vector4::new(ndc_x, ndc_y, -1.0, 1.0);
+        let mut eye = inv_proj * clip;
+        eye.z = -1.0;
+        eye.w = 0.0;
+        let world = inv_view * eye;
+        let ray_dir = nalgebra::Vector3::new(world.x, world.y, world.z).normalize();
+
+        // Ray-sphere intersection for each body
+        let mut best_t = f32::MAX;
+        let mut best_idx: i32 = -1;
+
+        for (i, body) in self.bodies.iter().enumerate() {
+            if body.name.starts_with("Asteroid") || body.name.starts_with("Kuiper") || body.name.starts_with("Oort") {
+                continue;
+            }
+            // Position in render space (relative to target)
+            let center = positions[i] - target;
+            let oc = cam_origin - center;
+
+            // Use a generous pick radius: max(body.radius, dist*0.002) * 3
+            let dist_to_cam = (cam_origin - center).norm();
+            let pick_radius = (body.radius).max(dist_to_cam * 0.002) * 3.0;
+
+            let b = 2.0 * oc.dot(&ray_dir);
+            let c = oc.dot(&oc) - pick_radius * pick_radius;
+            let discriminant = b * b - 4.0 * c;
+
+            if discriminant >= 0.0 {
+                let t = (-b - discriminant.sqrt()) * 0.5;
+                if t > 0.001 && t < best_t {
+                    best_t = t;
+                    best_idx = i as i32;
+                }
+            }
+        }
+
+        best_idx
+    }
 }

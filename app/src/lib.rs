@@ -403,3 +403,15 @@ pub fn toggle_solar_temperature_unit() {
         }
     });
 }
+
+#[wasm_bindgen]
+pub fn pick_solar_body(x: i32, y: i32, width: i32, height: i32) -> i32 {
+    CURRENT_GAME.with(|g| {
+        if let Some(active_game) = g.borrow().as_ref() {
+            if let ActiveGame::Solar(game) = active_game {
+                return game.pick_body(x, y, width, height);
+            }
+        }
+        -1
+    })
+}
