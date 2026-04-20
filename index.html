@@ -683,23 +683,47 @@
         
         window.load_solar_system = load_solar_system;
 
+        const BASE = '/minigame';
+        const GAME_ROUTES = {
+            [`${BASE}/crossy_road`]: 'road',
+            [`${BASE}/solar_system`]: 'solar_system',
+            [`${BASE}/tinycraft`]: 'tinycraft'
+        };
+
         window.startGame = function(type) {
             document.getElementById('menu').style.display = 'none';
             if (type === 'road') {
                 document.body.classList.remove('solar-mode');
                 document.body.classList.remove('minecraft-mode');
                 start_crossy_road();
+                history.pushState(null, '', `${BASE}/crossy_road`);
             } else if (type === 'minecraft') {
                 document.body.classList.remove('solar-mode');
                 document.body.classList.add('minecraft-mode');
                 start_minecraft();
+                history.pushState(null, '', `${BASE}/tinycraft`);
             } else {
                 document.body.classList.remove('minecraft-mode');
                 document.body.classList.add('solar-mode');
                 start_solar_system();
+                history.pushState(null, '', `${BASE}/solar_system`);
             }
             resizeCanvas();
         };
+
+        // Handle back/forward navigation
+        window.addEventListener('popstate', () => {
+            const path = location.pathname;
+            const type = GAME_ROUTES[path];
+            if (type) {
+                startGame(type);
+            } else {
+                // Back to menu
+                document.getElementById('menu').style.display = 'flex';
+                document.body.classList.remove('solar-mode', 'minecraft-mode');
+                history.pushState(null, '', `${BASE}/`);
+            }
+        });
         
         function resizeCanvas() {
             const canvas = document.getElementById('canvas');
@@ -719,7 +743,12 @@
         resizeCanvas();
 
         init(`./pkg/app_bg.wasm?ts=${Date.now()}`).then(() => {
-            
+            // Auto-start game from URL path on load
+            const initialType = GAME_ROUTES[location.pathname];
+            if (initialType) {
+                startGame(initialType);
+            }
+
             const gameover = document.getElementById('gameover');
             const canvas = document.getElementById('canvas');
 
