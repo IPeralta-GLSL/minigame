@@ -50,6 +50,7 @@ pub struct SolarSystem {
     renderer: Renderer,
     bodies: Vec<Body>,
     camera_distance: f32,
+    camera_target_distance: f32,
     camera_rotation: (f32, f32),
     last_time: f64,
     is_dragging: bool,
@@ -557,6 +558,7 @@ impl SolarSystem {
             renderer,
             bodies,
             camera_distance: 60.0,
+            camera_target_distance: 60.0,
             camera_rotation: (0.5, 0.0),
             last_time: now_ms,
             is_dragging: false,
@@ -623,8 +625,8 @@ impl SolarSystem {
             }
 
             let radius = self.bodies[index].radius;
-            self.camera_distance = radius * 5.0;
-            self.camera_distance = self.camera_distance.max(radius * 1.5);
+            self.camera_target_distance = (radius * 5.0).max(radius * 1.5);
+            self.camera_target_distance = self.camera_target_distance.max(0.0001).min(100000000.0);
         } else {
             self.focused_body_index = None;
             let window = web_sys::window().unwrap();
@@ -681,7 +683,11 @@ impl SolarSystem {
         
         // Prevent huge time jumps if dt is too large (e.g. tab inactive)
         let safe_dt = if dt > 0.1 { 0.1 } else { dt };
-        
+
+        // Smooth zoom: exponential lerp toward target distance
+        let zoom_speed = 1.0 - (-10.0_f32 * safe_dt as f32).exp();
+        self.camera_distance += (self.camera_target_distance - self.camera_distance) * zoom_speed;
+
         self.current_time += safe_dt * 1000.0 * self.time_scale as f64;
         
         let date = Date::new(&wasm_bindgen::JsValue::from_f64(self.current_time));
@@ -1246,8 +1252,8 @@ impl SolarSystem {
 
     pub fn handle_input(&mut self, key: &str) {
         match key {
-            "ArrowUp" => self.camera_distance -= 1.0,
-            "ArrowDown" => self.camera_distance += 1.0,
+            "ArrowUp" => { self.camera_target_distance *= 0.9; self.camera_target_distance = self.camera_target_distance.max(0.0001); },
+            "ArrowDown" => { self.camera_target_distance *= 1.1; self.camera_target_distance = self.camera_target_distance.min(100000000.0); },
             "ArrowLeft" => self.camera_rotation.1 -= 0.1,
             "ArrowRight" => self.camera_rotation.1 += 0.1,
             _ => {}
@@ -1280,8 +1286,8 @@ impl SolarSystem {
     pub fn handle_wheel(&mut self, delta: f32) {
         let zoom_sensitivity = 0.001;
         let factor = (delta * zoom_sensitivity).exp();
-        self.camera_distance *= factor;
-        self.camera_distance = self.camera_distance.max(0.0001).min(100000000.0);
+        self.camera_target_distance *= factor;
+        self.camera_target_distance = self.camera_target_distance.max(0.0001).min(100000000.0);
     }
 
     /// Ray-sphere picking. Returns the index of the clicked body, or -1 if none.
