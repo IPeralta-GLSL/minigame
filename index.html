@@ -553,11 +553,26 @@
 <body>
     <audio id="solar-music" src="projects/solar_system/assets/Audio/1-drone-piano.mp3" loop preload="auto" style="display:none;"></audio>
     <div id="ui-layer" style="position: absolute; top: 0; left: 0; width: 100%; padding: 10px; display: flex; justify-content: space-between; pointer-events: none; z-index: 100;">
-        <div style="pointer-events: auto;">
-            <label style="color: white; font-family: monospace; background: rgba(0,0,0,0.5); padding: 5px; border-radius: 4px; cursor: pointer;">
-                <input type="checkbox" id="fps-toggle"> Show FPS
-            </label>
-            <div id="fps-counter" style="color: #0f0; font-family: monospace; display: none; margin-top: 5px; background: rgba(0,0,0,0.5); padding: 5px; border-radius: 4px;">FPS: 0</div>
+        <div style="pointer-events: auto; position: relative;">
+            <button id="settings-btn" title="Settings" style="background: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.15); border-radius: 8px; color: white; width: 36px; height: 36px; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0; transition: background 0.2s;">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="3"/>
+                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                </svg>
+            </button>
+            <div id="settings-panel" class="panel-glass" style="display:none; position: absolute; top: 44px; left: 0; padding: 14px 16px; min-width: 200px; flex-direction: column; gap: 12px;">
+                <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; color: var(--text-main); white-space: nowrap;">
+                    <input type="checkbox" id="fps-toggle"> Mostrar FPS
+                </label>
+                <div id="fps-counter" style="color: #0f0; font-family: monospace; display: none; font-size: 12px;">FPS: 0</div>
+                <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; color: var(--text-main); white-space: nowrap;">
+                    <input type="checkbox" id="music-toggle" checked> Música
+                </label>
+                <div style="display: flex; flex-direction: column; gap: 4px;">
+                    <span style="font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px;">Volumen</span>
+                    <input type="range" id="music-volume" min="0" max="1" step="0.05" value="1" style="width: 100%;">
+                </div>
+            </div>
         </div>
         <button id="god-mode-btn" style="pointer-events: auto; padding: 10px; background: #ffcc00; border: none; border-radius: 5px; font-weight: bold; cursor: pointer;">GOD MODE</button>
     </div>
@@ -695,6 +710,7 @@
         let musicFadeInterval = null;
 
         function startSolarMusic() {
+            if (!document.getElementById('music-toggle')?.checked) return;
             if (musicFadeInterval) clearInterval(musicFadeInterval);
             solarMusic.volume = 0;
             solarMusic.play().catch(() => {});
@@ -787,6 +803,33 @@
 
             const gameover = document.getElementById('gameover');
             const canvas = document.getElementById('canvas');
+
+            // Settings panel toggle
+            const settingsBtn = document.getElementById('settings-btn');
+            const settingsPanel = document.getElementById('settings-panel');
+            settingsBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const open = settingsPanel.style.display === 'flex';
+                settingsPanel.style.display = open ? 'none' : 'flex';
+            });
+            document.addEventListener('click', () => {
+                settingsPanel.style.display = 'none';
+            });
+            settingsPanel.addEventListener('click', (e) => e.stopPropagation());
+
+            // Music controls
+            const musicToggle = document.getElementById('music-toggle');
+            const musicVolume = document.getElementById('music-volume');
+            musicToggle.addEventListener('change', (e) => {
+                if (e.target.checked) {
+                    if (document.body.classList.contains('solar-mode')) startSolarMusic();
+                } else {
+                    stopSolarMusic();
+                }
+            });
+            musicVolume.addEventListener('input', (e) => {
+                solarMusic.volume = parseFloat(e.target.value);
+            });
 
             // FPS Counter
             const fpsCounter = document.getElementById('fps-counter');
