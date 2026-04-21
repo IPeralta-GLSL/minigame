@@ -67,6 +67,8 @@ pub struct SolarSystem {
     system_type: SystemType,
     sun_texture: Option<WebGlTexture>,
     use_celsius: bool,
+    asteroid_belt_label: Option<HtmlElement>,
+    kuiper_belt_label: Option<HtmlElement>,
 }
 
 impl SolarSystem {
@@ -435,6 +437,21 @@ impl SolarSystem {
 
         }
 
+        // Zone labels for Asteroid Belt and Kuiper Belt (only in Solar system)
+        let make_zone_label = |text: &str| -> Option<HtmlElement> {
+            let win = web_sys::window()?;
+            let doc = win.document()?;
+            let container = doc.get_element_by_id("solar-labels")?;
+            let el = doc.create_element("div").ok()?;
+            el.set_class_name("solar-label solar-zone-label");
+            el.set_text_content(Some(text));
+            let _ = el.set_attribute("style", "display:none");
+            container.append_child(&el).ok()?;
+            el.dyn_into::<HtmlElement>().ok()
+        };
+        let asteroid_belt_label = if system_type == SystemType::Solar { make_zone_label("Asteroid Belt") } else { None };
+        let kuiper_belt_label   = if system_type == SystemType::Solar { make_zone_label("Kuiper Belt")   } else { None };
+
         let background_texture = renderer.create_texture("projects/solar_system/assets/textures/8k_stars.jpg").ok();
         let background_mesh = Mesh::sphere(1.0, 40, 40, 1.0, 1.0, 1.0);
 
@@ -576,6 +593,8 @@ impl SolarSystem {
             system_type,
             sun_texture,
             use_celsius: true,
+            asteroid_belt_label,
+            kuiper_belt_label,
         }
     }
 
@@ -1232,13 +1251,52 @@ impl SolarSystem {
             }
             
             if let Some(element) = &self.bodies[data.index].label_element {
-                if is_occluded {
+                if is_occluded || data.radius_px < 1.5 {
                     element.style().set_property("display", "none").unwrap();
                 } else {
                     let style = element.style();
                     style.set_property("display", "block").unwrap();
                     style.set_property("left", &format!("{}px", data.screen_x)).unwrap();
                     style.set_property("top", &format!("{}px", data.label_y)).unwrap();
+                }
+            }
+        }
+
+        // Zone labels for Asteroid Belt and Kuiper Belt
+        for (belt_radius, min_dist, max_dist, label_ref) in [
+            (270.0f32,  150.0f32,   2500.0f32,  self.asteroid_belt_label.as_ref()),
+            (4000.0f32, 1500.0f32, 30000.0f32,  self.kuiper_belt_label.as_ref()),
+        ] {
+            if let Some(element) = label_ref {
+                if self.camera_distance < min_dist || self.camera_distance > max_dist {
+                    element.style().set_property("display", "none").unwrap();
+                    continue;
+                }
+                let mut best_sx = 0.0f32;
+                let mut best_sy = f32::MAX;
+                let mut found = false;
+                for k in 0..8u32 {
+                    let angle = k as f32 * std::f32::consts::PI / 4.0;
+                    let wx = belt_radius * angle.cos();
+                    let wz = belt_radius * angle.sin();
+                    let world_pt = Vector4::new(wx, 0.0f32, wz, 1.0);
+                    let view_pt = view * world_pt;
+                    let clip_pt = projection * view_pt;
+                    if clip_pt.w <= 0.0 { continue; }
+                    let ndcx = clip_pt.x / clip_pt.w;
+                    let ndcy = clip_pt.y / clip_pt.w;
+                    if ndcx < -0.95 || ndcx > 0.95 || ndcy < -0.95 || ndcy > 0.95 { continue; }
+                    let sx = (ndcx + 1.0) * width as f32 / 2.0;
+                    let sy = (1.0 - ndcy) * height as f32 / 2.0;
+                    if sy < best_sy { best_sy = sy; best_sx = sx; found = true; }
+                }
+                if found {
+                    let style = element.style();
+                    style.set_property("display", "block").unwrap();
+                    style.set_property("left", &format!("{}px", best_sx)).unwrap();
+                    style.set_property("top", &format!("{}px", best_sy - 20.0)).unwrap();
+                } else {
+                    element.style().set_property("display", "none").unwrap();
                 }
             }
         }
