@@ -747,13 +747,14 @@
         function startSolarMusic() {
             if (!document.getElementById('music-toggle')?.checked) return;
             if (musicFadeInterval) clearInterval(musicFadeInterval);
+            const targetVol = parseFloat(document.getElementById('music-volume')?.value ?? 0.6);
             solarMusic.volume = 0;
             solarMusic.play().catch(() => {});
             musicFadeInterval = setInterval(() => {
-                if (solarMusic.volume < 0.95) {
-                    solarMusic.volume = Math.min(1, solarMusic.volume + 0.05);
+                if (solarMusic.volume < targetVol - 0.05) {
+                    solarMusic.volume = Math.min(targetVol, solarMusic.volume + 0.05);
                 } else {
-                    solarMusic.volume = 1;
+                    solarMusic.volume = targetVol;
                     clearInterval(musicFadeInterval);
                 }
             }, 100);
@@ -865,6 +866,7 @@
             musicVolume.addEventListener('input', (e) => {
                 solarMusic.volume = parseFloat(e.target.value);
             });
+            solarMusic.volume = 0.6;
 
             // FPS Counter
             const fpsCounter = document.getElementById('fps-counter');
