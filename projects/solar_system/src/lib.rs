@@ -1261,7 +1261,7 @@ impl SolarSystem {
         for (belt_radius, min_dist, max_dist, label_ref) in [
             (270.0f32,    150.0f32,      2_500.0f32,      self.asteroid_belt_label.as_ref()),
             (4000.0f32,   1_500.0f32,   30_000.0f32,      self.kuiper_belt_label.as_ref()),
-            (600_000.0f32, 40_000.0f32, 20_000_000.0f32,  self.oort_cloud_label.as_ref()),
+            (600_000.0f32, 40_000.0f32, f32::MAX,           self.oort_cloud_label.as_ref()),
         ] {
             if let Some(element) = label_ref {
                 if self.camera_distance < min_dist || self.camera_distance > max_dist {
