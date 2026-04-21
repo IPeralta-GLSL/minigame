@@ -69,6 +69,7 @@ pub struct SolarSystem {
     use_celsius: bool,
     asteroid_belt_label: Option<HtmlElement>,
     kuiper_belt_label: Option<HtmlElement>,
+    oort_cloud_label: Option<HtmlElement>,
 }
 
 impl SolarSystem {
@@ -437,7 +438,6 @@ impl SolarSystem {
 
         }
 
-        // Zone labels for Asteroid Belt and Kuiper Belt (only in Solar system)
         let make_zone_label = |text: &str| -> Option<HtmlElement> {
             let win = web_sys::window()?;
             let doc = win.document()?;
@@ -451,6 +451,7 @@ impl SolarSystem {
         };
         let asteroid_belt_label = if system_type == SystemType::Solar { make_zone_label("Asteroid Belt") } else { None };
         let kuiper_belt_label   = if system_type == SystemType::Solar { make_zone_label("Kuiper Belt")   } else { None };
+        let oort_cloud_label    = if system_type == SystemType::Solar { make_zone_label("Oort Cloud")     } else { None };
 
         let background_texture = renderer.create_texture("projects/solar_system/assets/textures/8k_stars.jpg").ok();
         let background_mesh = Mesh::sphere(1.0, 40, 40, 1.0, 1.0, 1.0);
@@ -546,13 +547,6 @@ impl SolarSystem {
             SystemType::Sirius => Some(0),
         };
 
-        // Initialize current_rotation for each body based on current UTC time.
-        // For Earth: at UTC 12:00 (noon), Greenwich (lon=0) faces the Sun.
-        // The sub-solar longitude shifts 15°/hour from Greenwich.
-        // In this sphere mesh, u=0.5 (Greenwich) is at sphere phi=PI.
-        // The Sun direction from Earth is at phi = PI + orbit_angle.
-        // So: current_rotation = orbit_angle - lambda_sun_rad
-        // where lambda_sun_rad = (43200 - utc_sec_today) * 2π/86400
         let utc_sec_today = (now_ms / 1000.0) as f32 % 86400.0;
         let lambda_sun_rad = (43200.0 - utc_sec_today) * 2.0 * std::f32::consts::PI / 86400.0;
         let total_seconds_now = days_since_j2000 * 24.0 * 3600.0;
@@ -561,10 +555,6 @@ impl SolarSystem {
                 let period_seconds = body.rotation_period.abs() * 24.0 * 3600.0;
                 let rotation_speed = (2.0 * std::f32::consts::PI) / period_seconds;
                 if (body.rotation_period - 1.0).abs() < 0.01 {
-                    // Earth: align day/night to UTC time.
-                    // RotY(R) maps sphere phi → world phi−R.
-                    // Sub-solar point: phi_tex = π − λ_sun. Must land at Sun dir = orbit_angle + π.
-                    // (π − λ_sun) − R = orbit_angle + π  →  R = −λ_sun − orbit_angle
                     body.current_rotation = -lambda_sun_rad - body.orbit_angle;
                 } else {
                     body.current_rotation = (rotation_speed * total_seconds_now as f32) % (2.0 * std::f32::consts::PI);
@@ -595,6 +585,7 @@ impl SolarSystem {
             use_celsius: true,
             asteroid_belt_label,
             kuiper_belt_label,
+            oort_cloud_label,
         }
     }
 
@@ -681,7 +672,6 @@ impl SolarSystem {
                 let period_seconds = body.rotation_period.abs() * 24.0 * 3600.0;
                 let rotation_speed = (2.0 * std::f32::consts::PI) / period_seconds;
                 if (body.rotation_period - 1.0).abs() < 0.01 {
-                    // Earth: align day/night to UTC time.
                     let utc_sec = (timestamp / 1000.0) as f32 % 86400.0;
                     let lambda_sun = (43200.0 - utc_sec) * 2.0 * std::f32::consts::PI / 86400.0;
                     body.current_rotation = -lambda_sun - body.orbit_angle;
@@ -1207,14 +1197,13 @@ impl SolarSystem {
                         let radius_px = (screen_cy - screen_ty).abs();
                         let label_y = screen_cy - radius_px - 20.0;
                         
-                        // Store for second pass
                         screen_data.push(BodyScreenData {
                             index: i,
                             screen_x,
                             screen_y: screen_cy,
                             label_y,
                             radius_px,
-                            depth: dist, // dist calculated earlier
+                            depth: dist,
                         });
                     } else {
                         element.style().set_property("display", "none").unwrap();
@@ -1225,24 +1214,15 @@ impl SolarSystem {
             }
         }
 
-        // Second pass: Occlusion Culling for Labels
         for data in &screen_data {
             let mut is_occluded = false;
-            
-            // Check against all other bodies
             for other in &screen_data {
                 if data.index == other.index { continue; }
                 
-                // If other body is closer and overlaps
                 if other.depth < data.depth {
                     let dx = data.screen_x - other.screen_x;
-                    let dy = data.screen_y - other.screen_y; // Use center of planet, not label pos
+                    let dy = data.screen_y - other.screen_y;
                     let dist_sq = dx*dx + dy*dy;
-                    
-                    // Check if label center (approx) is inside the other planet's visual radius
-                    // Actually, we should check if the PLANET center is behind the other planet.
-                    // If the planet is hidden, the label should be hidden too.
-                    
                     if dist_sq < (other.radius_px * other.radius_px) {
                         is_occluded = true;
                         break;
@@ -1250,22 +1230,38 @@ impl SolarSystem {
                 }
             }
             
+            let oort_mode = self.camera_distance > 30_000.0;
             if let Some(element) = &self.bodies[data.index].label_element {
-                if is_occluded || data.radius_px < 1.5 {
-                    element.style().set_property("display", "none").unwrap();
+                let body_name = &self.bodies[data.index].name;
+                let is_sun = body_name == "Sun" && self.system_type == SystemType::Solar;
+                if oort_mode {
+                    if is_sun {
+                        element.set_text_content(Some("Solar System"));
+                        let style = element.style();
+                        style.set_property("display", "block").unwrap();
+                        style.set_property("left", &format!("{}px", data.screen_x)).unwrap();
+                        style.set_property("top", &format!("{}px", data.label_y)).unwrap();
+                    } else {
+                        element.style().set_property("display", "none").unwrap();
+                    }
                 } else {
-                    let style = element.style();
-                    style.set_property("display", "block").unwrap();
-                    style.set_property("left", &format!("{}px", data.screen_x)).unwrap();
-                    style.set_property("top", &format!("{}px", data.label_y)).unwrap();
+                    if is_sun { element.set_text_content(Some("Sun")); }
+                    if is_occluded || data.radius_px < 1.5 {
+                        element.style().set_property("display", "none").unwrap();
+                    } else {
+                        let style = element.style();
+                        style.set_property("display", "block").unwrap();
+                        style.set_property("left", &format!("{}px", data.screen_x)).unwrap();
+                        style.set_property("top", &format!("{}px", data.label_y)).unwrap();
+                    }
                 }
             }
         }
 
-        // Zone labels for Asteroid Belt and Kuiper Belt
         for (belt_radius, min_dist, max_dist, label_ref) in [
-            (270.0f32,  150.0f32,   2500.0f32,  self.asteroid_belt_label.as_ref()),
-            (4000.0f32, 1500.0f32, 30000.0f32,  self.kuiper_belt_label.as_ref()),
+            (270.0f32,    150.0f32,      2_500.0f32,      self.asteroid_belt_label.as_ref()),
+            (4000.0f32,   1_500.0f32,   30_000.0f32,      self.kuiper_belt_label.as_ref()),
+            (600_000.0f32, 40_000.0f32, 20_000_000.0f32,  self.oort_cloud_label.as_ref()),
         ] {
             if let Some(element) = label_ref {
                 if self.camera_distance < min_dist || self.camera_distance > max_dist {
