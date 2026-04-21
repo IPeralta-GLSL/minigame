@@ -1179,7 +1179,7 @@ impl SolarSystem {
                 let center_world = Vector4::new(pos.x, pos.y, pos.z, 1.0);
                 let view_pos = view * center_world;
 
-                let top_view = view_pos + Vector4::new(0.0, render_radius, 0.0, 0.0);
+                let top_view = view_pos + Vector4::new(0.0, body.radius, 0.0, 0.0);
                 
                 let clip_center = projection * view_pos;
                 let clip_top = projection * top_view;
