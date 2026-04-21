@@ -1260,8 +1260,7 @@ impl SolarSystem {
                     }
                 } else {
                     if is_sun { element.set_text_content(Some("Sun")); }
-                    let is_moon = self.bodies[data.index].parent.map_or(false, |p| p != 0);
-                    if is_occluded || (data.radius_px < 1.5 && is_moon) || hide_near_parent {
+                    if is_occluded || hide_near_parent {
                         element.style().set_property("display", "none").unwrap();
                     } else {
                         let style = element.style();
