@@ -1230,6 +1230,20 @@ impl SolarSystem {
                 }
             }
             
+            let hide_near_parent = {
+                let parent_idx_opt = self.bodies[data.index].parent;
+                if let Some(parent_idx) = parent_idx_opt {
+                    if self.bodies[parent_idx].parent.is_some() {
+                        screen_data.iter().any(|d| {
+                            if d.index != parent_idx { return false; }
+                            let dx = data.screen_x - d.screen_x;
+                            let dy = data.label_y - d.label_y;
+                            dx*dx + dy*dy < 40.0*40.0
+                        })
+                    } else { false }
+                } else { false }
+            };
+
             let oort_mode = self.camera_distance > 30_000.0;
             if let Some(element) = &self.bodies[data.index].label_element {
                 let body_name = &self.bodies[data.index].name;
@@ -1246,7 +1260,7 @@ impl SolarSystem {
                     }
                 } else {
                     if is_sun { element.set_text_content(Some("Sun")); }
-                    if is_occluded || data.radius_px < 1.5 {
+                    if is_occluded || data.radius_px < 1.5 || hide_near_parent {
                         element.style().set_property("display", "none").unwrap();
                     } else {
                         let style = element.style();
