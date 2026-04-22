@@ -457,130 +457,26 @@ impl SolarSystem {
 
         let earth_body_index = bodies.iter().position(|b| b.name == "Earth");
 
-        let countries: &[(&str, f32, f32)] = &[
-            // North America
-            ("Canada",          62.0_f32.to_radians(),  (-96.0_f32).to_radians()),
-            ("United States",   39.5_f32.to_radians(),  (-98.4_f32).to_radians()),
-            ("Mexico",          23.6_f32.to_radians(),  (-102.6_f32).to_radians()),
-            // Caribbean
-            ("Cuba",            22.0_f32.to_radians(),  (-79.5_f32).to_radians()),
-            ("Haiti",           19.1_f32.to_radians(),  (-72.3_f32).to_radians()),
-            ("Dominican Rep.",  18.7_f32.to_radians(),  (-70.2_f32).to_radians()),
-            ("Jamaica",         18.1_f32.to_radians(),  (-77.3_f32).to_radians()),
-            ("Puerto Rico",     18.2_f32.to_radians(),  (-66.6_f32).to_radians()),
-            // Central America
-            ("Belize",          17.2_f32.to_radians(),  (-88.5_f32).to_radians()),
-            ("Guatemala",       15.8_f32.to_radians(),  (-90.2_f32).to_radians()),
-            ("Honduras",        15.2_f32.to_radians(),  (-86.2_f32).to_radians()),
-            ("El Salvador",     13.8_f32.to_radians(),  (-88.9_f32).to_radians()),
-            ("Nicaragua",       12.9_f32.to_radians(),  (-85.2_f32).to_radians()),
-            ("Costa Rica",       9.9_f32.to_radians(),  (-84.1_f32).to_radians()),
-            ("Panama",           8.5_f32.to_radians(),  (-80.4_f32).to_radians()),
-            // South America
-            ("Colombia",         4.7_f32.to_radians(),  (-74.1_f32).to_radians()),
-            ("Venezuela",        8.0_f32.to_radians(),  (-66.0_f32).to_radians()),
-            ("Guyana",           5.0_f32.to_radians(),  (-59.0_f32).to_radians()),
-            ("Suriname",         4.0_f32.to_radians(),  (-56.0_f32).to_radians()),
-            ("Ecuador",         (-1.8_f32).to_radians(), (-78.2_f32).to_radians()),
-            ("Peru",           (-10.0_f32).to_radians(), (-76.0_f32).to_radians()),
-            ("Brazil",         (-10.0_f32).to_radians(), (-53.0_f32).to_radians()),
-            ("Bolivia",        (-17.0_f32).to_radians(), (-65.0_f32).to_radians()),
-            ("Paraguay",       (-23.4_f32).to_radians(), (-58.4_f32).to_radians()),
-            ("Uruguay",        (-32.8_f32).to_radians(), (-56.2_f32).to_radians()),
-            ("Chile",          (-35.7_f32).to_radians(), (-71.5_f32).to_radians()),
-            ("Argentina",      (-38.0_f32).to_radians(), (-63.6_f32).to_radians()),
-            // Europe
-            ("United Kingdom",  54.0_f32.to_radians(),  (-2.0_f32).to_radians()),
-            ("Ireland",         53.4_f32.to_radians(),  (-8.2_f32).to_radians()),
-            ("France",          46.2_f32.to_radians(),   2.2_f32.to_radians()),
-            ("Spain",           40.4_f32.to_radians(),  (-3.7_f32).to_radians()),
-            ("Portugal",        39.4_f32.to_radians(),  (-8.2_f32).to_radians()),
-            ("Germany",         51.2_f32.to_radians(),  10.5_f32.to_radians()),
-            ("Italy",           42.8_f32.to_radians(),  12.8_f32.to_radians()),
-            ("Netherlands",     52.1_f32.to_radians(),   5.3_f32.to_radians()),
-            ("Belgium",         50.5_f32.to_radians(),   4.5_f32.to_radians()),
-            ("Switzerland",     46.8_f32.to_radians(),   8.2_f32.to_radians()),
-            ("Austria",         47.5_f32.to_radians(),  14.5_f32.to_radians()),
-            ("Poland",          52.1_f32.to_radians(),  19.4_f32.to_radians()),
-            ("Czech Republic",  49.8_f32.to_radians(),  15.5_f32.to_radians()),
-            ("Hungary",         47.2_f32.to_radians(),  19.5_f32.to_radians()),
-            ("Romania",         45.9_f32.to_radians(),  24.9_f32.to_radians()),
-            ("Sweden",          59.3_f32.to_radians(),  16.5_f32.to_radians()),
-            ("Norway",          64.0_f32.to_radians(),  14.5_f32.to_radians()),
-            ("Finland",         64.0_f32.to_radians(),  26.0_f32.to_radians()),
-            ("Denmark",         56.3_f32.to_radians(),   9.5_f32.to_radians()),
-            ("Ukraine",         49.0_f32.to_radians(),  31.5_f32.to_radians()),
-            ("Greece",          39.1_f32.to_radians(),  22.0_f32.to_radians()),
-            ("Turkey",          39.1_f32.to_radians(),  35.2_f32.to_radians()),
-            ("Russia",          62.0_f32.to_radians(),  94.0_f32.to_radians()),
-            ("Belarus",         53.7_f32.to_radians(),  27.9_f32.to_radians()),
-            ("Serbia",          44.0_f32.to_radians(),  21.0_f32.to_radians()),
-            // Africa
-            ("Morocco",         32.0_f32.to_radians(),  (-5.0_f32).to_radians()),
-            ("Algeria",         28.0_f32.to_radians(),   2.6_f32.to_radians()),
-            ("Libya",           27.0_f32.to_radians(),  17.0_f32.to_radians()),
-            ("Egypt",           26.8_f32.to_radians(),  29.9_f32.to_radians()),
-            ("Sudan",           15.5_f32.to_radians(),  30.2_f32.to_radians()),
-            ("Ethiopia",         9.1_f32.to_radians(),  40.5_f32.to_radians()),
-            ("Nigeria",         10.0_f32.to_radians(),   8.7_f32.to_radians()),
-            ("Ghana",            8.0_f32.to_radians(),  (-1.2_f32).to_radians()),
-            ("Cameroon",         5.7_f32.to_radians(),  12.4_f32.to_radians()),
-            ("DR Congo",        (-4.0_f32).to_radians(), 21.8_f32.to_radians()),
-            ("Kenya",           (-0.1_f32).to_radians(), 37.9_f32.to_radians()),
-            ("Tanzania",        (-6.4_f32).to_radians(), 34.9_f32.to_radians()),
-            ("Mozambique",     (-18.7_f32).to_radians(), 35.5_f32.to_radians()),
-            ("Madagascar",     (-20.3_f32).to_radians(), 46.9_f32.to_radians()),
-            ("South Africa",   (-29.0_f32).to_radians(), 25.0_f32.to_radians()),
-            ("Angola",         (-11.2_f32).to_radians(), 17.9_f32.to_radians()),
-            ("Zimbabwe",       (-20.0_f32).to_radians(), 29.2_f32.to_radians()),
-            // Middle East
-            ("Saudi Arabia",    24.7_f32.to_radians(),  45.1_f32.to_radians()),
-            ("Yemen",           15.6_f32.to_radians(),  48.5_f32.to_radians()),
-            ("Oman",            22.0_f32.to_radians(),  57.0_f32.to_radians()),
-            ("UAE",             24.2_f32.to_radians(),  54.4_f32.to_radians()),
-            ("Iraq",            33.2_f32.to_radians(),  43.7_f32.to_radians()),
-            ("Syria",           35.0_f32.to_radians(),  38.3_f32.to_radians()),
-            ("Lebanon",         33.9_f32.to_radians(),  35.9_f32.to_radians()),
-            ("Israel",          31.5_f32.to_radians(),  34.9_f32.to_radians()),
-            ("Palestine",       31.9_f32.to_radians(),  35.3_f32.to_radians()),
-            ("Jordan",          31.2_f32.to_radians(),  36.8_f32.to_radians()),
-            ("Iran",            32.4_f32.to_radians(),  53.7_f32.to_radians()),
-            ("Afghanistan",     33.9_f32.to_radians(),  67.7_f32.to_radians()),
-            // Asia
-            ("Kazakhstan",      48.0_f32.to_radians(),  66.9_f32.to_radians()),
-            ("Uzbekistan",      41.4_f32.to_radians(),  63.9_f32.to_radians()),
-            ("Pakistan",        30.4_f32.to_radians(),  69.3_f32.to_radians()),
-            ("India",           20.6_f32.to_radians(),  79.0_f32.to_radians()),
-            ("Nepal",           28.4_f32.to_radians(),  84.1_f32.to_radians()),
-            ("Bangladesh",      24.0_f32.to_radians(),  90.3_f32.to_radians()),
-            ("Myanmar",         17.1_f32.to_radians(),  96.0_f32.to_radians()),
-            ("China",           36.0_f32.to_radians(), 103.8_f32.to_radians()),
-            ("Mongolia",        46.9_f32.to_radians(), 103.8_f32.to_radians()),
-            ("North Korea",     40.3_f32.to_radians(), 127.4_f32.to_radians()),
-            ("South Korea",     36.6_f32.to_radians(), 127.9_f32.to_radians()),
-            ("Japan",           37.0_f32.to_radians(), 138.3_f32.to_radians()),
-            ("Thailand",        15.9_f32.to_radians(), 100.9_f32.to_radians()),
-            ("Vietnam",         16.7_f32.to_radians(), 107.0_f32.to_radians()),
-            ("Cambodia",        12.6_f32.to_radians(), 104.8_f32.to_radians()),
-            ("Malaysia",         3.1_f32.to_radians(), 109.5_f32.to_radians()),
-            ("Indonesia",       (-4.0_f32).to_radians(), 117.0_f32.to_radians()),
-            ("Philippines",     12.9_f32.to_radians(), 122.8_f32.to_radians()),
-            // Oceania
-            ("Australia",      (-25.3_f32).to_radians(), 133.8_f32.to_radians()),
-            ("New Zealand",    (-41.3_f32).to_radians(), 174.8_f32.to_radians()),
-            ("Papua New Guinea", (-6.3_f32).to_radians(), 143.9_f32.to_radians()),
-        ];
+        #[derive(serde::Deserialize)]
+        struct CountryEntry { name: String, lat: f32, lon: f32 }
+        let countries_json = include_str!("../assets/countries.json");
+        let country_entries: Vec<CountryEntry> = serde_json::from_str(countries_json)
+            .expect("Failed to parse countries.json");
 
         let mut country_labels: Vec<(f32, f32, HtmlElement)> = Vec::new();
         if let Some(container_el) = &labels_container {
-            for &(name, lat, lon) in countries {
+            for entry in &country_entries {
                 if let Ok(el) = document.create_element("div") {
                     el.set_class_name("solar-label solar-country-label");
-                    el.set_text_content(Some(name));
+                    el.set_text_content(Some(&entry.name));
                     let _ = el.set_attribute("style", "display:none");
                     container_el.append_child(&el).ok();
                     if let Ok(html_el) = el.dyn_into::<HtmlElement>() {
-                        country_labels.push((lat, lon, html_el));
+                        country_labels.push((
+                            entry.lat.to_radians(),
+                            entry.lon.to_radians(),
+                            html_el,
+                        ));
                     }
                 }
             }
