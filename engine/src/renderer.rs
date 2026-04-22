@@ -96,20 +96,24 @@ const FRAGMENT_SHADER: &str = r#"
     uniform bool uIsCloud;
     uniform float uTime;
 
-    float cloudHash(vec2 p) {
-        vec3 q = fract(vec3(p.xyx) * vec3(0.1031, 0.1030, 0.0973));
-        q += dot(q, q.yzx + 33.33);
-        return fract((q.x + q.y) * q.z);
+    // --- 3D noise (seamless on sphere, no UV seam) ---
+    float cloudHash(vec3 p) {
+        p = fract(p * vec3(0.1031, 0.1030, 0.0973));
+        p += dot(p, p.yxz + 33.33);
+        return fract((p.x + p.y) * p.z);
     }
-    float cloudNoise(vec2 p) {
-        vec2 i = floor(p); vec2 f = fract(p);
+    float cloudNoise(vec3 p) {
+        vec3 i = floor(p); vec3 f = fract(p);
         f = f * f * (3.0 - 2.0 * f);
-        return mix(mix(cloudHash(i), cloudHash(i + vec2(1.0, 0.0)), f.x),
-                   mix(cloudHash(i + vec2(0.0, 1.0)), cloudHash(i + vec2(1.0, 1.0)), f.x), f.y);
+        return mix(
+            mix(mix(cloudHash(i),              cloudHash(i+vec3(1,0,0)), f.x),
+                mix(cloudHash(i+vec3(0,1,0)),  cloudHash(i+vec3(1,1,0)), f.x), f.y),
+            mix(mix(cloudHash(i+vec3(0,0,1)),  cloudHash(i+vec3(1,0,1)), f.x),
+                mix(cloudHash(i+vec3(0,1,1)),  cloudHash(i+vec3(1,1,1)), f.x), f.y), f.z);
     }
-    float cloudFbm(vec2 p) {
+    float cloudFbm(vec3 p) {
         float v = 0.0; float a = 0.5;
-        for (int i = 0; i < 6; i++) { v += a * cloudNoise(p); p = p * 2.1 + vec2(1.7, 9.2); a *= 0.5; }
+        for (int i = 0; i < 6; i++) { v += a * cloudNoise(p); p = p * 2.1 + vec3(1.7, 9.2, 4.3); a *= 0.5; }
         return v;
     }
 
@@ -189,45 +193,46 @@ const FRAGMENT_SHADER: &str = r#"
         }
 
         if (uIsCloud) {
-            // --- parallax: clouds float ~1.5% above surface ---
-            vec3 viewDir = normalize(uCameraPos - vFragPos);
             vec3 N = normalize(vNormal);
-            vec3 T = normalize(cross(N, vec3(0.0, 1.0, 0.0)));
-            if (length(T) < 0.001) T = normalize(cross(N, vec3(1.0, 0.0, 0.0)));
-            vec3 B = normalize(cross(T, N));
-            float cosView = max(dot(viewDir, N), 0.08);
-            vec2 cloudUV = texCoord + vec2(dot(viewDir, T), dot(viewDir, B)) * 0.014 / cosView;
+            vec3 sph = normalize(vPos);
 
-            // --- equirectangular correction (uniform cloud scale across lat) ---
-            float lat = (0.5 - cloudUV.y) * 3.14159265;
-            float cosLat = max(abs(cos(lat)), 0.08);
-            vec2 uv = vec2(cloudUV.x * cosLat, cloudUV.y);
+            // latitude band: more clouds in tropics/temperate, sparse at poles
+            float lat = asin(clamp(sph.y, -1.0, 1.0));
+            float band = 0.55 + 0.45 * cos(lat * 3.2);
 
-            // --- 3-layer domain-warped FBM ---
-            float t = uTime * 0.18;
-            // Layer 0: large slow masses, eastward drift
-            vec2 uv0 = uv * 4.2 + vec2(t * 0.38, t * 0.04);
-            vec2 w0 = vec2(cloudFbm(uv0), cloudFbm(uv0 + vec2(5.2, 1.3)));
-            float base = cloudFbm(uv0 + 0.85 * w0);
-            // Layer 1: mid-scale, slight counter-drift
-            vec2 uv1 = uv * 6.5 + vec2(-t * 0.22, t * 0.11) + vec2(3.1, 7.4);
-            vec2 w1 = vec2(cloudFbm(uv1), cloudFbm(uv1 + vec2(1.7, 9.2)));
-            float mid = cloudFbm(uv1 + 0.6 * w1);
-            // Layer 2: fine wisps, faster
-            vec2 uv2 = uv * 10.0 + vec2(t * 0.55, -t * 0.09) + vec2(8.3, 2.9);
-            float detail = cloudFbm(uv2);
+            // parallax: clouds float above surface — shift sample by view tangent
+            vec3 viewDir = normalize(uCameraPos - vFragPos);
+            vec3 tangent = viewDir - N * dot(viewDir, N);
+            float cosV = max(dot(viewDir, N), 0.07);
+            vec3 lifted = sph + tangent * (0.07 / cosV);
 
-            float density = base * 0.52 + mid * 0.30 + detail * 0.18;
+            // 3 independently rotating layers — simulates atmospheric circulation
+            float t = uTime;
 
-            float cloudA = smoothstep(0.43, 0.63, density);
-            if (cloudA < 0.015) discard;
+            // layer 0: large slow masses, eastward (y-axis rotation)
+            float a0 = t * 0.07;
+            vec3 r0 = vec3(lifted.x*cos(a0)-lifted.z*sin(a0), lifted.y, lifted.x*sin(a0)+lifted.z*cos(a0));
+            vec3 w0 = vec3(cloudFbm(r0*2.8), cloudFbm(r0*2.8+vec3(5.2,1.3,2.1)), 0.0);
+            float base = cloudFbm(r0*2.8 + 0.9*w0);
 
-            // height shading: denser = brighter tops, edges bluish-grey
-            float thickness = smoothstep(0.50, 0.78, density);
-            vec3 top    = vec3(0.97, 0.98, 1.00);
-            vec3 shadow = vec3(0.76, 0.80, 0.88);
-            color = mix(shadow, top, thickness);
-            alpha = cloudA * 0.88;
+            // layer 1: mid-scale, counter-drift
+            float a1 = t * 0.048 + 1.7;
+            vec3 r1 = vec3(lifted.x*cos(a1)-lifted.z*sin(a1), lifted.y*0.93, lifted.x*sin(a1)+lifted.z*cos(a1));
+            float mid = cloudFbm(r1*5.0 + vec3(3.1,7.4,2.9));
+
+            // layer 2: fine wisps, faster
+            float a2 = t * 0.14 + 3.5;
+            vec3 r2 = vec3(lifted.x*cos(a2)-lifted.z*sin(a2), lifted.y, lifted.x*sin(a2)+lifted.z*cos(a2));
+            float detail = cloudFbm(r2*9.5 + vec3(8.3,2.9,6.1));
+
+            float density = (base*0.52 + mid*0.30 + detail*0.18) * band;
+            float cloudA = smoothstep(0.40, 0.62, density);
+            if (cloudA < 0.012) discard;
+
+            // volumetric shading: bright tops, blue-grey shadows
+            float thickness = smoothstep(0.48, 0.82, density);
+            color = mix(vec3(0.66, 0.75, 0.88), vec3(0.97, 0.98, 1.00), thickness);
+            alpha = cloudA * 0.87;
         } else if (uUseTexture == 1) {
             vec4 texColor = texture2D(uTexture, texCoord);
             if (texColor.a < 0.1) {
