@@ -251,9 +251,9 @@ impl SolarSystem {
         let p_earth = 365.256;
 
         if system_type == SystemType::BlackHole {
-            bodies.push(create_body("Earth", 0.0042, 100.0, get_orbit_speed(p_earth), 100.46, (0.8, 0.9, 1.0), Some(0), Mesh::sphere, Some("projects/solar_system/assets/textures/2k_earth_daymap.jpg"), None, None, None, 0.0, 1.0, 23.4, 0.0, 0.0, 0.0, 0.017, "5.972 × 10^24 kg", 30.0, "A frozen wasteland orbiting a black hole.", None));
+            bodies.push(create_body("Earth", 0.0042, 100.0, get_orbit_speed(p_earth), 100.46, (0.8, 0.9, 1.0), Some(0), Mesh::sphere, Some("projects/solar_system/assets/textures/8k_earth_daymap.jpg"), None, None, None, 0.0, 1.0, 23.4, 0.0, 0.0, 0.0, 0.017, "5.972 × 10^24 kg", 30.0, "A frozen wasteland orbiting a black hole.", None));
         } else {
-            bodies.push(create_body("Earth", 0.0042, 100.0, get_orbit_speed(p_earth), 100.46, (0.0, 0.0, 1.0), Some(0), Mesh::sphere, Some("projects/solar_system/assets/textures/2k_earth_daymap.jpg"), Some("projects/solar_system/assets/textures/2k_earth_nightmap.jpg"), Some("projects/solar_system/assets/textures/2k_earth_clouds.jpg"), None, 0.0, 1.0, 23.4, 0.0, 0.0, 0.0, 0.017, "5.972 × 10^24 kg", 288.0, "Our home planet, the third from the Sun.", None));
+            bodies.push(create_body("Earth", 0.0042, 100.0, get_orbit_speed(p_earth), 100.46, (0.0, 0.0, 1.0), Some(0), Mesh::sphere, Some("projects/solar_system/assets/textures/8k_earth_daymap.jpg"), Some("projects/solar_system/assets/textures/8k_earth_nightmap.jpg"), Some("projects/solar_system/assets/textures/8k_earth_clouds.jpg"), None, 0.0, 1.0, 23.4, 0.0, 0.0, 0.0, 0.017, "5.972 × 10^24 kg", 288.0, "Our home planet, the third from the Sun.", None));
         }
 
         let p_moon = 27.322;
