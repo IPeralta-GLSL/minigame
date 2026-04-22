@@ -1219,6 +1219,9 @@ impl SolarSystem {
                     if let Some(loc) = &self.renderer.u_time_location {
                         self.renderer.gl.uniform1f(Some(loc), body.cloud_rotation);
                     }
+                    if let Some(loc) = &self.renderer.u_cloud_rot_offset {
+                        self.renderer.gl.uniform1f(Some(loc), body.cloud_rotation);
+                    }
                     self.renderer.gl.enable(web_sys::WebGlRenderingContext::BLEND);
                     self.renderer.gl.blend_func(
                         web_sys::WebGlRenderingContext::SRC_ALPHA,
@@ -1239,8 +1242,8 @@ impl SolarSystem {
                         true,
                         false,
                         body.is_frozen,
-                        None,
-                        None,
+                        Some((rel_cam_x, rel_cam_y, rel_cam_z)),
+                        texture_to_use,
                     );
                     self.renderer.gl.disable(web_sys::WebGlRenderingContext::BLEND);
                     if let Some(loc) = &self.renderer.u_is_cloud_location {

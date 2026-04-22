@@ -95,6 +95,7 @@ const FRAGMENT_SHADER: &str = r#"
     uniform sampler2D uBackgroundTexture;
     uniform bool uIsCloud;
     uniform float uTime;
+    uniform float uCloudRotOffset;
 
     // --- 3D noise (seamless on sphere, no UV seam) ---
     float cloudHash(vec3 p) {
@@ -115,6 +116,10 @@ const FRAGMENT_SHADER: &str = r#"
         float v = 0.0; float a = 0.5;
         for (int i = 0; i < 6; i++) { v += a * cloudNoise(p); p = p * 2.1 + vec3(1.7, 9.2, 4.3); a *= 0.5; }
         return v;
+    }
+    // rotate point around Y axis (east-west wind drift)
+    vec3 rotY(vec3 p, float a) {
+        return vec3(p.x*cos(a)-p.z*sin(a), p.y, p.x*sin(a)+p.z*cos(a));
     }
 
     vec2 dirToUV(vec3 dir) {
@@ -196,54 +201,80 @@ const FRAGMENT_SHADER: &str = r#"
             vec3 N   = normalize(vNormal);
             vec3 sph = normalize(vPos);
 
-            // parallax — nubes visiblemente sobre la superficie
-            vec3 viewDir  = normalize(uCameraPos - vFragPos);
-            vec3 tangent  = viewDir - N * dot(viewDir, N);
-            float cosV    = max(dot(viewDir, N), 0.05);
-            vec3 lifted   = normalize(sph + tangent * (0.25 / cosV));
+            // fuerte parallax – nubes claramente sobre la superficie
+            vec3 viewDir = normalize(uCameraPos - vFragPos);
+            vec3 tangent = viewDir - N * dot(viewDir, N);
+            float cosV   = max(dot(viewDir, N), 0.05);
+            vec3 lifted  = normalize(sph + tangent * (0.25 / cosV));
 
-            float t = uTime;
+            float t      = uTime;
+            float lat    = asin(clamp(lifted.y, -1.0, 1.0));
+            float absLat = abs(lat);
 
-            // banda de latitud: más cobertura en trópicos/templadas
-            float lat  = asin(clamp(sph.y, -1.0, 1.0));
-            float band = 0.72 + 0.28 * cos(lat * 2.0);
+            // ── CIRCULACIÓN ATMOSFÉRICA (3 celdas de Hadley/Ferrel/Polar) ──
+            // Vientos alisios Hadley (0-30°): oeste, lentos
+            float hadleyW  = (1.0 - smoothstep(0.0, 0.52, absLat)) * (-0.55);
+            // Oestes de Ferrel (30-60°): este, fuertes (jet stream)
+            float ferrelW  = smoothstep(0.52, 0.70, absLat) * (1.0 - smoothstep(0.95, 1.10, absLat)) * 1.70;
+            // Polares del este (>60°): oeste, suave
+            float polarWind = smoothstep(1.05, 1.57, absLat) * (-0.40);
+            float drift    = hadleyW + ferrelW + polarWind; // relativo al planeta
 
-            // LIFECYCLE: fase espacial a escala de sistemas de nubes
-            float aP = t * 0.012;
-            vec3 rP  = vec3(lifted.x*cos(aP)-lifted.z*sin(aP), lifted.y, lifted.x*sin(aP)+lifted.z*cos(aP));
+            // ── COBERTURA ZONAL (basada en datos satelitales reales) ──
+            // Cinturón subtropical claro ~25° (anticiclones subtropicales, desiertos)
+            float subtrop  = max(0.0, 1.0 - abs(absLat - 0.44) / 0.19);
+            // Alta cobertura en latitudes medias (frentes extra-tropicales)
+            float midlat   = smoothstep(0.52, 0.78, absLat) * (1.0 - smoothstep(1.10, 1.40, absLat));
+            // Alta cobertura polar (frente polar, ciclones árticos/antárticos)
+            float polarCov = smoothstep(1.05, 1.40, absLat);
+            float band = clamp(0.85 - 0.42 * subtrop + 0.32 * midlat + 0.35 * polarCov, 0.25, 1.15);
+
+            // ── MÁSCARA TIERRA/OCÉANO ──
+            // UV corregido al marco terrestre (descuenta la rotación diferencial de la capa de nubes)
+            vec2 earthUV = vec2(fract(vTexCoord.x - uCloudRotOffset / 6.28318530), vTexCoord.y);
+            vec4 earthSample = texture2D(uBackgroundTexture, earthUV);
+            // Océano: canal azul dominante; tierra: rojo/verde dominantes
+            float oceanness = smoothstep(0.0, 0.25, earthSample.b - max(earthSample.r, earthSample.g * 0.85));
+            float terrainFactor = mix(0.68, 1.0, oceanness); // ~32 % menos nubes sobre tierra
+
+            // ── LIFECYCLE: nacimiento/muerte de sistemas nubosos ──
+            vec3 rP    = rotY(lifted, t * 0.012);
             float phase = cloudFbm(rP * 3.0 + vec3(7.3, 1.5, 4.8));
-            // cada región oscila a distinta velocidad → nacimiento/muerte de sistemas nubosos
             float lifecycle = sin(t * 0.50 + phase * 9.42);
-            float lifeW = smoothstep(-0.3, 0.7, lifecycle); // ~35% regiones suprimidas
+            float lifeW     = smoothstep(-0.3, 0.7, lifecycle);
 
-            // Capa 0: frentes sinópticos grandes, lentos
-            float a0 = t * 0.050;
-            vec3 r0  = vec3(lifted.x*cos(a0)-lifted.z*sin(a0), lifted.y, lifted.x*sin(a0)+lifted.z*cos(a0));
-            vec3 q0  = vec3(cloudFbm(r0*3.0), cloudFbm(r0*3.0+vec3(5.2,1.3,2.1)), cloudFbm(r0*3.0+vec3(3.7,8.1,0.5)));
-            float base = cloudFbm(r0*3.0 + 0.80*q0);
+            // ── CAPA 0: frentes sinópticos – elongados por el viento ──
+            // Cada capa deriva a su velocidad según la celda atmosférica
+            vec3 r0  = rotY(lifted, drift * 0.055 * t);
+            // estira en dirección E-O para simular bandas de frente
+            r0 = vec3(r0.x * 0.68, r0.y, r0.z);
+            vec3 q0a = vec3(cloudFbm(r0*2.8), cloudFbm(r0*2.8+vec3(5.2,1.3,2.1)), cloudFbm(r0*2.8+vec3(3.7,8.1,0.5)));
+            // doble domain-warp para formas orgánicas
+            vec3 q0b = vec3(cloudFbm(r0*2.8 + q0a), cloudFbm(r0*2.8 + q0a.yzx), 0.0);
+            float base = cloudFbm(r0*2.8 + 0.90*q0b);
 
-            // Capa 1: cúmulos dispersos, velocidad media
-            float a1 = t * 0.090;
-            vec3 r1  = vec3(lifted.x*cos(a1)-lifted.z*sin(a1), lifted.y, lifted.x*sin(a1)+lifted.z*cos(a1));
-            vec3 q1  = vec3(cloudFbm(r1*6.0+vec3(3.1,7.4,2.9)), cloudFbm(r1*6.0+vec3(1.8,0.4,6.3)), 0.0);
-            float cumulus = cloudFbm(r1*6.0 + 0.55*q1);
+            // ── CAPA 1: cúmulos y sistemas mesoescala ──
+            vec3 r1  = rotY(lifted, drift * 0.10 * t);
+            r1 = vec3(r1.x * 0.82, r1.y, r1.z);
+            vec3 q1  = vec3(cloudFbm(r1*5.5+vec3(3.1,7.4,2.9)), cloudFbm(r1*5.5+vec3(1.8,0.4,6.3)), 0.0);
+            float cumulus = cloudFbm(r1*5.5 + 0.65*q1);
 
-            // Capa 2: cirros finos, más rápidos
-            float a2 = t * 0.180;
-            vec3 r2  = vec3(lifted.x*cos(a2)-lifted.z*sin(a2), lifted.y, lifted.x*sin(a2)+lifted.z*cos(a2));
+            // ── CAPA 2: cirros – siguen el jet stream ──
+            // Más rápido en latitudes medias (corriente en chorro)
+            float jetBoost = 1.0 + 1.5 * ferrelW;
+            vec3 r2  = rotY(lifted, drift * jetBoost * 0.18 * t);
             float wisp = cloudFbm(r2*11.0 + vec3(8.3,2.9,6.1));
 
-            float density = (base*0.50 + cumulus*0.30 + wisp*0.20) * band;
+            float density = (base*0.50 + cumulus*0.30 + wisp*0.20) * band * terrainFactor;
+            density += (lifeW - 0.5) * 0.13;
 
-            // lifecycle: desplaza ±0.06 → regiones que aparecen y desaparecen con el tiempo
-            density += (lifeW - 0.5) * 0.12;
-
-            // umbral bajo → ~55% cobertura global como la textura 8K
-            float cloudA = smoothstep(0.28, 0.47, density);
+            // ~55% cobertura global como textura 8K
+            float cloudA = smoothstep(0.27, 0.46, density);
             if (cloudA < 0.01) discard;
 
-            float thick = smoothstep(0.36, 0.72, density);
-            color = mix(vec3(0.60, 0.72, 0.87), vec3(0.97, 0.98, 1.00), thick);
+            // sombreado volumétrico: núcleo blanco, bordes azul-gris
+            float thick = smoothstep(0.35, 0.70, density);
+            color = mix(vec3(0.58, 0.71, 0.87), vec3(0.97, 0.98, 1.00), thick);
             alpha = cloudA * 0.85;
         } else if (uUseTexture == 1) {
             vec4 texColor = texture2D(uTexture, texCoord);
@@ -370,6 +401,7 @@ pub struct Renderer {
     pub u_global_alpha_location: WebGlUniformLocation,
     pub u_is_cloud_location: Option<WebGlUniformLocation>,
     pub u_time_location: Option<WebGlUniformLocation>,
+    pub u_cloud_rot_offset: Option<WebGlUniformLocation>,
     unit_cube_vertex_buffer: WebGlBuffer,
     unit_cube_index_buffer: WebGlBuffer,
     unit_cube_index_count: i32,
@@ -444,6 +476,7 @@ impl Renderer {
             .ok_or("Failed to get uGlobalAlpha location")?;
         let u_is_cloud_location = gl.get_uniform_location(&program, "uIsCloud");
         let u_time_location = gl.get_uniform_location(&program, "uTime");
+        let u_cloud_rot_offset = gl.get_uniform_location(&program, "uCloudRotOffset");
 
         // Instancing setup
         let instanced_ext = gl.get_extension("ANGLE_instanced_arrays")?.map(|e| e.unchecked_into::<AngleInstancedArrays>());
@@ -527,6 +560,7 @@ impl Renderer {
             u_global_alpha_location,
             u_is_cloud_location,
             u_time_location,
+            u_cloud_rot_offset,
             instanced_ext,
             instanced_program,
             u_instanced_view_loc,
