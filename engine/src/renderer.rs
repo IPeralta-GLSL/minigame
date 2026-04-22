@@ -189,12 +189,44 @@ const FRAGMENT_SHADER: &str = r#"
         }
 
         if (uIsCloud) {
-            float t = uTime * 0.15;
-            vec2 q = vec2(cloudFbm(texCoord * 3.0 + t), cloudFbm(texCoord * 3.0 + vec2(5.2, 1.3) + t * 0.7));
-            float density = cloudFbm(texCoord * 2.5 + 3.0 * q + t * 0.3);
-            float cloudA = smoothstep(0.42, 0.62, density);
-            if (cloudA < 0.02) discard;
-            color = vec3(0.97, 0.98, 1.0);
+            // --- parallax: clouds float ~1.5% above surface ---
+            vec3 viewDir = normalize(uCameraPos - vFragPos);
+            vec3 N = normalize(vNormal);
+            vec3 T = normalize(cross(N, vec3(0.0, 1.0, 0.0)));
+            if (length(T) < 0.001) T = normalize(cross(N, vec3(1.0, 0.0, 0.0)));
+            vec3 B = normalize(cross(T, N));
+            float cosView = max(dot(viewDir, N), 0.08);
+            vec2 cloudUV = texCoord + vec2(dot(viewDir, T), dot(viewDir, B)) * 0.014 / cosView;
+
+            // --- equirectangular correction (uniform cloud scale across lat) ---
+            float lat = (0.5 - cloudUV.y) * 3.14159265;
+            float cosLat = max(abs(cos(lat)), 0.08);
+            vec2 uv = vec2(cloudUV.x * cosLat, cloudUV.y);
+
+            // --- 3-layer domain-warped FBM ---
+            float t = uTime * 0.18;
+            // Layer 0: large slow masses, eastward drift
+            vec2 uv0 = uv * 4.2 + vec2(t * 0.38, t * 0.04);
+            vec2 w0 = vec2(cloudFbm(uv0), cloudFbm(uv0 + vec2(5.2, 1.3)));
+            float base = cloudFbm(uv0 + 0.85 * w0);
+            // Layer 1: mid-scale, slight counter-drift
+            vec2 uv1 = uv * 6.5 + vec2(-t * 0.22, t * 0.11) + vec2(3.1, 7.4);
+            vec2 w1 = vec2(cloudFbm(uv1), cloudFbm(uv1 + vec2(1.7, 9.2)));
+            float mid = cloudFbm(uv1 + 0.6 * w1);
+            // Layer 2: fine wisps, faster
+            vec2 uv2 = uv * 10.0 + vec2(t * 0.55, -t * 0.09) + vec2(8.3, 2.9);
+            float detail = cloudFbm(uv2);
+
+            float density = base * 0.52 + mid * 0.30 + detail * 0.18;
+
+            float cloudA = smoothstep(0.43, 0.63, density);
+            if (cloudA < 0.015) discard;
+
+            // height shading: denser = brighter tops, edges bluish-grey
+            float thickness = smoothstep(0.50, 0.78, density);
+            vec3 top    = vec3(0.97, 0.98, 1.00);
+            vec3 shadow = vec3(0.76, 0.80, 0.88);
+            color = mix(shadow, top, thickness);
             alpha = cloudA * 0.88;
         } else if (uUseTexture == 1) {
             vec4 texColor = texture2D(uTexture, texCoord);
