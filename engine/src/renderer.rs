@@ -193,61 +193,58 @@ const FRAGMENT_SHADER: &str = r#"
         }
 
         if (uIsCloud) {
-            vec3 N  = normalize(vNormal);
+            vec3 N   = normalize(vNormal);
             vec3 sph = normalize(vPos);
 
-            // --- strong parallax: clouds visibly float above surface ---
-            vec3 viewDir = normalize(uCameraPos - vFragPos);
+            // parallax — nubes visiblemente sobre la superficie
+            vec3 viewDir  = normalize(uCameraPos - vFragPos);
             vec3 tangent  = viewDir - N * dot(viewDir, N);
             float cosV    = max(dot(viewDir, N), 0.05);
-            vec3 lifted   = normalize(sph + tangent * (0.22 / cosV));
+            vec3 lifted   = normalize(sph + tangent * (0.25 / cosV));
 
             float t = uTime;
 
-            // --- lifecycle envelope: very low-freq noise drifts slowly → clouds appear/disappear ---
-            float aL = t * 0.010;
-            vec3 rL = vec3(lifted.x*cos(aL)-lifted.z*sin(aL), lifted.y, lifted.x*sin(aL)+lifted.z*cos(aL));
-            float life = cloudFbm(rL * 1.2 + vec3(1.3, 5.7, 3.1));
-            // 0 = clear, 1 = cloudy region
-            float lifeW = smoothstep(0.38, 0.62, life);
-
-            // --- layer 0: large synoptic masses (fronts, ITCZ), slow eastward ---
-            float a0 = t * 0.055;
-            vec3 r0 = vec3(lifted.x*cos(a0)-lifted.z*sin(a0), lifted.y, lifted.x*sin(a0)+lifted.z*cos(a0));
-            vec3 w0 = vec3(cloudFbm(r0*3.0+vec3(0.0,0.0,0.0)),
-                           cloudFbm(r0*3.0+vec3(5.2,1.3,2.1)),
-                           cloudFbm(r0*3.0+vec3(3.7,8.1,0.5)));
-            float base = cloudFbm(r0*3.0 + 0.75*w0);
-
-            // --- layer 1: cumulus patches, slightly faster ---
-            float a1 = t * 0.095;
-            vec3 r1 = vec3(lifted.x*cos(a1)-lifted.z*sin(a1), lifted.y, lifted.x*sin(a1)+lifted.z*cos(a1));
-            vec3 w1 = vec3(cloudFbm(r1*6.5+vec3(3.1,7.4,2.9)),
-                           cloudFbm(r1*6.5+vec3(1.8,0.4,6.3)), 0.0);
-            float cumulus = cloudFbm(r1*6.5 + 0.55*w1);
-
-            // --- layer 2: cirrus wisps, fast ---
-            float a2 = t * 0.20;
-            vec3 r2 = vec3(lifted.x*cos(a2)-lifted.z*sin(a2), lifted.y, lifted.x*sin(a2)+lifted.z*cos(a2));
-            float wisp = cloudFbm(r2*13.0 + vec3(8.3,2.9,6.1));
-
-            // latitude: suppress polar caps slightly, enhance tropics/mid-lat
+            // banda de latitud: más cobertura en trópicos/templadas
             float lat  = asin(clamp(sph.y, -1.0, 1.0));
-            float band = 0.60 + 0.40 * cos(lat * 2.8);
+            float band = 0.72 + 0.28 * cos(lat * 2.0);
 
-            // combine + modulate by lifecycle
-            float density = (base*0.46 + cumulus*0.34 + wisp*0.20) * band;
-            // lifecycle modulation: multiply to thin/grow clouds over time
-            density *= (0.55 + 0.45 * lifeW);
+            // LIFECYCLE: fase espacial a escala de sistemas de nubes
+            float aP = t * 0.012;
+            vec3 rP  = vec3(lifted.x*cos(aP)-lifted.z*sin(aP), lifted.y, lifted.x*sin(aP)+lifted.z*cos(aP));
+            float phase = cloudFbm(rP * 3.0 + vec3(7.3, 1.5, 4.8));
+            // cada región oscila a distinta velocidad → nacimiento/muerte de sistemas nubosos
+            float lifecycle = sin(t * 0.50 + phase * 9.42);
+            float lifeW = smoothstep(-0.3, 0.7, lifecycle); // ~35% regiones suprimidas
 
-            // sharp-but-smooth threshold → distinct cloud patches like 8K photo
-            float cloudA = smoothstep(0.37, 0.54, density);
+            // Capa 0: frentes sinópticos grandes, lentos
+            float a0 = t * 0.050;
+            vec3 r0  = vec3(lifted.x*cos(a0)-lifted.z*sin(a0), lifted.y, lifted.x*sin(a0)+lifted.z*cos(a0));
+            vec3 q0  = vec3(cloudFbm(r0*3.0), cloudFbm(r0*3.0+vec3(5.2,1.3,2.1)), cloudFbm(r0*3.0+vec3(3.7,8.1,0.5)));
+            float base = cloudFbm(r0*3.0 + 0.80*q0);
+
+            // Capa 1: cúmulos dispersos, velocidad media
+            float a1 = t * 0.090;
+            vec3 r1  = vec3(lifted.x*cos(a1)-lifted.z*sin(a1), lifted.y, lifted.x*sin(a1)+lifted.z*cos(a1));
+            vec3 q1  = vec3(cloudFbm(r1*6.0+vec3(3.1,7.4,2.9)), cloudFbm(r1*6.0+vec3(1.8,0.4,6.3)), 0.0);
+            float cumulus = cloudFbm(r1*6.0 + 0.55*q1);
+
+            // Capa 2: cirros finos, más rápidos
+            float a2 = t * 0.180;
+            vec3 r2  = vec3(lifted.x*cos(a2)-lifted.z*sin(a2), lifted.y, lifted.x*sin(a2)+lifted.z*cos(a2));
+            float wisp = cloudFbm(r2*11.0 + vec3(8.3,2.9,6.1));
+
+            float density = (base*0.50 + cumulus*0.30 + wisp*0.20) * band;
+
+            // lifecycle: desplaza ±0.06 → regiones que aparecen y desaparecen con el tiempo
+            density += (lifeW - 0.5) * 0.12;
+
+            // umbral bajo → ~55% cobertura global como la textura 8K
+            float cloudA = smoothstep(0.28, 0.47, density);
             if (cloudA < 0.01) discard;
 
-            // volumetric shading: thick core = bright white, thin edges = blue-grey
-            float thick = smoothstep(0.42, 0.82, density);
-            color = mix(vec3(0.58, 0.70, 0.86), vec3(0.97, 0.98, 1.00), thick);
-            alpha = cloudA * 0.86;
+            float thick = smoothstep(0.36, 0.72, density);
+            color = mix(vec3(0.60, 0.72, 0.87), vec3(0.97, 0.98, 1.00), thick);
+            alpha = cloudA * 0.85;
         } else if (uUseTexture == 1) {
             vec4 texColor = texture2D(uTexture, texCoord);
             if (texColor.a < 0.1) {
