@@ -70,6 +70,8 @@ pub struct SolarSystem {
     asteroid_belt_label: Option<HtmlElement>,
     kuiper_belt_label: Option<HtmlElement>,
     oort_cloud_label: Option<HtmlElement>,
+    earth_body_index: Option<usize>,
+    country_labels: Vec<(f32, f32, HtmlElement)>,
 }
 
 impl SolarSystem {
@@ -453,6 +455,64 @@ impl SolarSystem {
         let kuiper_belt_label   = if system_type == SystemType::Solar { make_zone_label("Kuiper Belt")   } else { None };
         let oort_cloud_label    = if system_type == SystemType::Solar { make_zone_label("Oort Cloud")     } else { None };
 
+        let earth_body_index = bodies.iter().position(|b| b.name == "Earth");
+
+        let countries: &[(&str, f32, f32)] = &[
+            ("United States",   38.9_f32.to_radians(), (-77.0_f32).to_radians()),
+            ("Canada",          45.4_f32.to_radians(), (-75.7_f32).to_radians()),
+            ("Mexico",          19.4_f32.to_radians(), (-99.1_f32).to_radians()),
+            ("Brazil",         (-15.8_f32).to_radians(), (-47.9_f32).to_radians()),
+            ("Argentina",      (-34.6_f32).to_radians(), (-58.4_f32).to_radians()),
+            ("Colombia",         4.7_f32.to_radians(), (-74.1_f32).to_radians()),
+            ("Chile",          (-33.5_f32).to_radians(), (-70.7_f32).to_radians()),
+            ("United Kingdom",  51.5_f32.to_radians(), (-0.1_f32).to_radians()),
+            ("France",          48.9_f32.to_radians(),   2.3_f32.to_radians()),
+            ("Germany",         52.5_f32.to_radians(),  13.4_f32.to_radians()),
+            ("Spain",           40.4_f32.to_radians(),  (-3.7_f32).to_radians()),
+            ("Italy",           41.9_f32.to_radians(),  12.5_f32.to_radians()),
+            ("Portugal",        38.7_f32.to_radians(),  (-9.1_f32).to_radians()),
+            ("Poland",          52.2_f32.to_radians(),  21.0_f32.to_radians()),
+            ("Sweden",          59.3_f32.to_radians(),  18.1_f32.to_radians()),
+            ("Ukraine",         50.4_f32.to_radians(),  30.5_f32.to_radians()),
+            ("Greece",          37.9_f32.to_radians(),  23.7_f32.to_radians()),
+            ("Turkey",          39.9_f32.to_radians(),  32.9_f32.to_radians()),
+            ("Russia",          55.8_f32.to_radians(),  37.6_f32.to_radians()),
+            ("Egypt",           30.1_f32.to_radians(),  31.2_f32.to_radians()),
+            ("Morocco",         34.0_f32.to_radians(),  (-6.9_f32).to_radians()),
+            ("Nigeria",          9.1_f32.to_radians(),   7.5_f32.to_radians()),
+            ("Ethiopia",         9.0_f32.to_radians(),  38.7_f32.to_radians()),
+            ("Kenya",           (-1.3_f32).to_radians(), 36.8_f32.to_radians()),
+            ("South Africa",   (-25.7_f32).to_radians(), 28.2_f32.to_radians()),
+            ("Saudi Arabia",    24.7_f32.to_radians(),  46.7_f32.to_radians()),
+            ("Iran",            35.7_f32.to_radians(),  51.4_f32.to_radians()),
+            ("Pakistan",        33.7_f32.to_radians(),  73.1_f32.to_radians()),
+            ("India",           28.6_f32.to_radians(),  77.2_f32.to_radians()),
+            ("China",           39.9_f32.to_radians(), 116.4_f32.to_radians()),
+            ("Japan",           35.7_f32.to_radians(), 139.7_f32.to_radians()),
+            ("South Korea",     37.6_f32.to_radians(), 127.0_f32.to_radians()),
+            ("Thailand",        13.8_f32.to_radians(), 100.5_f32.to_radians()),
+            ("Vietnam",         21.0_f32.to_radians(), 105.8_f32.to_radians()),
+            ("Indonesia",       (-6.2_f32).to_radians(), 106.8_f32.to_radians()),
+            ("Philippines",     14.6_f32.to_radians(), 121.0_f32.to_radians()),
+            ("Australia",      (-35.3_f32).to_radians(), 149.1_f32.to_radians()),
+            ("New Zealand",    (-41.3_f32).to_radians(), 174.8_f32.to_radians()),
+        ];
+
+        let mut country_labels: Vec<(f32, f32, HtmlElement)> = Vec::new();
+        if let Some(container_el) = &labels_container {
+            for &(name, lat, lon) in countries {
+                if let Ok(el) = document.create_element("div") {
+                    el.set_class_name("solar-label solar-country-label");
+                    el.set_text_content(Some(name));
+                    let _ = el.set_attribute("style", "display:none");
+                    container_el.append_child(&el).ok();
+                    if let Ok(html_el) = el.dyn_into::<HtmlElement>() {
+                        country_labels.push((lat, lon, html_el));
+                    }
+                }
+            }
+        }
+
         let background_texture = renderer.create_texture("projects/solar_system/assets/textures/8k_stars.jpg").ok();
         let background_mesh = Mesh::sphere(1.0, 40, 40, 1.0, 1.0, 1.0);
 
@@ -586,6 +646,8 @@ impl SolarSystem {
             asteroid_belt_label,
             kuiper_belt_label,
             oort_cloud_label,
+            earth_body_index,
+            country_labels,
         }
     }
 
@@ -1315,6 +1377,57 @@ impl SolarSystem {
                     style.set_property("left", &format!("{}px", best_sx)).unwrap();
                     style.set_property("top", &format!("{}px", best_sy - 20.0)).unwrap();
                 } else {
+                    element.style().set_property("display", "none").unwrap();
+                }
+            }
+        }
+
+        if let Some(ei) = self.earth_body_index {
+            let show = self.focused_body_index == Some(ei) && self.camera_distance < 0.05;
+            if show {
+                let earth_rel_pos = positions[ei] - target;
+                let cr = self.bodies[ei].current_rotation;
+                let at = self.bodies[ei].axial_tilt;
+                let earth_radius = self.bodies[ei].radius;
+                let (scr, ccr) = cr.sin_cos();
+                let (sat, cat) = at.sin_cos();
+                for (lat, lon, element) in &self.country_labels {
+                    let px = lat.cos() * lon.sin();
+                    let py = lat.sin();
+                    let pz = lat.cos() * lon.cos();
+                    let x1 = px * ccr + pz * scr;
+                    let y1 = py;
+                    let z1 = -px * scr + pz * ccr;
+                    let x2 = x1;
+                    let y2 = y1 * cat - z1 * sat;
+                    let z2 = y1 * sat + z1 * cat;
+                    if x2 * rel_cam_x + y2 * rel_cam_y + z2 * rel_cam_z <= 0.0 {
+                        element.style().set_property("display", "none").unwrap();
+                        continue;
+                    }
+                    let wx = earth_rel_pos.x + earth_radius * x2;
+                    let wy = earth_rel_pos.y + earth_radius * y2;
+                    let wz = earth_rel_pos.z + earth_radius * z2;
+                    let clip_pt = projection * view * Vector4::new(wx, wy, wz, 1.0);
+                    if clip_pt.w <= 0.0 {
+                        element.style().set_property("display", "none").unwrap();
+                        continue;
+                    }
+                    let ndcx = clip_pt.x / clip_pt.w;
+                    let ndcy = clip_pt.y / clip_pt.w;
+                    if ndcx < -1.0 || ndcx > 1.0 || ndcy < -1.0 || ndcy > 1.0 {
+                        element.style().set_property("display", "none").unwrap();
+                        continue;
+                    }
+                    let sx = (ndcx + 1.0) * width as f32 / 2.0;
+                    let sy = (1.0 - ndcy) * height as f32 / 2.0;
+                    let style = element.style();
+                    style.set_property("display", "block").unwrap();
+                    style.set_property("left", &format!("{}px", sx)).unwrap();
+                    style.set_property("top", &format!("{}px", sy)).unwrap();
+                }
+            } else {
+                for (_, _, element) in &self.country_labels {
                     element.style().set_property("display", "none").unwrap();
                 }
             }
