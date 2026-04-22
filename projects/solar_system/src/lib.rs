@@ -1227,7 +1227,7 @@ impl SolarSystem {
                     self.renderer.draw_mesh(
                         &body.mesh,
                         pos.x, pos.y, pos.z,
-                        render_radius * 1.004, render_radius * 1.004, render_radius * 1.004,
+                        render_radius * 1.025, render_radius * 1.025, render_radius * 1.025,
                         body.axial_tilt, body.current_rotation + body.cloud_rotation, 0.0,
                         &projection,
                         &view,
