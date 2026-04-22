@@ -21,6 +21,7 @@ pub struct Body {
     pub night_texture: Option<WebGlTexture>,
     pub cloud_texture: Option<WebGlTexture>,
     pub cloud_rotation: f32,
+    pub proc_clouds: bool,
     pub rotation_period: f32,
     pub axial_tilt: f32,
     pub current_rotation: f32,
@@ -208,6 +209,7 @@ impl SolarSystem {
                 night_texture,
                 cloud_texture,
                 cloud_rotation: 0.0,
+                proc_clouds: false,
                 rotation_period,
                 axial_tilt: axial_tilt.to_radians(),
                 current_rotation: 0.0,
@@ -255,7 +257,8 @@ impl SolarSystem {
         if system_type == SystemType::BlackHole {
             bodies.push(create_body("Earth", 0.0042, 100.0, get_orbit_speed(p_earth), 100.46, (0.8, 0.9, 1.0), Some(0), Mesh::sphere, Some("projects/solar_system/assets/textures/8k_earth_daymap.jpg"), None, None, None, 0.0, 1.0, 23.4, 0.0, 0.0, 0.0, 0.017, "5.972 × 10^24 kg", 30.0, "A frozen wasteland orbiting a black hole.", None));
         } else {
-            bodies.push(create_body("Earth", 0.0042, 100.0, get_orbit_speed(p_earth), 100.46, (0.0, 0.0, 1.0), Some(0), Mesh::sphere, Some("projects/solar_system/assets/textures/8k_earth_daymap.jpg"), Some("projects/solar_system/assets/textures/8k_earth_nightmap.jpg"), Some("projects/solar_system/assets/textures/8k_earth_clouds.jpg"), None, 0.0, 1.0, 23.4, 0.0, 0.0, 0.0, 0.017, "5.972 × 10^24 kg", 288.0, "Our home planet, the third from the Sun.", None));
+            bodies.push(create_body("Earth", 0.0042, 100.0, get_orbit_speed(p_earth), 100.46, (0.0, 0.0, 1.0), Some(0), Mesh::sphere, Some("projects/solar_system/assets/textures/8k_earth_daymap.jpg"), Some("projects/solar_system/assets/textures/8k_earth_nightmap.jpg"), None, None, 0.0, 1.0, 23.4, 0.0, 0.0, 0.0, 0.017, "5.972 × 10^24 kg", 288.0, "Our home planet, the third from the Sun.", None));
+            bodies.last_mut().unwrap().proc_clouds = true;
         }
 
         let p_moon = 27.322;
@@ -817,7 +820,7 @@ impl SolarSystem {
                 body.current_rotation += rotation_speed * safe_dt as f32 * self.time_scale;
                 body.current_rotation %= 2.0 * std::f32::consts::PI;
 
-                if body.cloud_texture.is_some() {
+                if body.cloud_texture.is_some() || body.proc_clouds {
 
                     body.cloud_rotation += rotation_speed * 0.2 * safe_dt as f32 * self.time_scale;
                     body.cloud_rotation %= 2.0 * std::f32::consts::PI;
@@ -1189,9 +1192,7 @@ impl SolarSystem {
 
                 if let Some(cloud_tex) = &body.cloud_texture {
                     self.renderer.gl.enable(web_sys::WebGlRenderingContext::BLEND);
-
                     self.renderer.gl.blend_func(web_sys::WebGlRenderingContext::ONE, web_sys::WebGlRenderingContext::ONE);
-                    
                     self.renderer.draw_mesh(
                         &body.mesh,
                         pos.x, pos.y, pos.z,
@@ -1210,8 +1211,41 @@ impl SolarSystem {
                         None,
                         None
                     );
-                    
                     self.renderer.gl.disable(web_sys::WebGlRenderingContext::BLEND);
+                } else if body.proc_clouds {
+                    if let Some(loc) = &self.renderer.u_is_cloud_location {
+                        self.renderer.gl.uniform1i(Some(loc), 1);
+                    }
+                    if let Some(loc) = &self.renderer.u_time_location {
+                        self.renderer.gl.uniform1f(Some(loc), body.cloud_rotation);
+                    }
+                    self.renderer.gl.enable(web_sys::WebGlRenderingContext::BLEND);
+                    self.renderer.gl.blend_func(
+                        web_sys::WebGlRenderingContext::SRC_ALPHA,
+                        web_sys::WebGlRenderingContext::ONE_MINUS_SRC_ALPHA,
+                    );
+                    self.renderer.draw_mesh(
+                        &body.mesh,
+                        pos.x, pos.y, pos.z,
+                        render_radius * 1.004, render_radius * 1.004, render_radius * 1.004,
+                        body.axial_tilt, body.current_rotation + body.cloud_rotation, 0.0,
+                        &projection,
+                        &view,
+                        None,
+                        None,
+                        None,
+                        false,
+                        None,
+                        true,
+                        false,
+                        body.is_frozen,
+                        None,
+                        None,
+                    );
+                    self.renderer.gl.disable(web_sys::WebGlRenderingContext::BLEND);
+                    if let Some(loc) = &self.renderer.u_is_cloud_location {
+                        self.renderer.gl.uniform1i(Some(loc), 0);
+                    }
                 }
             }
             

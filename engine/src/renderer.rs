@@ -93,6 +93,25 @@ const FRAGMENT_SHADER: &str = r#"
     uniform bool uIsFrozen;
     uniform vec3 uCameraPos;
     uniform sampler2D uBackgroundTexture;
+    uniform bool uIsCloud;
+    uniform float uTime;
+
+    float cloudHash(vec2 p) {
+        vec3 q = fract(vec3(p.xyx) * vec3(0.1031, 0.1030, 0.0973));
+        q += dot(q, q.yzx + 33.33);
+        return fract((q.x + q.y) * q.z);
+    }
+    float cloudNoise(vec2 p) {
+        vec2 i = floor(p); vec2 f = fract(p);
+        f = f * f * (3.0 - 2.0 * f);
+        return mix(mix(cloudHash(i), cloudHash(i + vec2(1.0, 0.0)), f.x),
+                   mix(cloudHash(i + vec2(0.0, 1.0)), cloudHash(i + vec2(1.0, 1.0)), f.x), f.y);
+    }
+    float cloudFbm(vec2 p) {
+        float v = 0.0; float a = 0.5;
+        for (int i = 0; i < 6; i++) { v += a * cloudNoise(p); p = p * 2.1 + vec2(1.7, 9.2); a *= 0.5; }
+        return v;
+    }
 
     vec2 dirToUV(vec3 dir) {
         float u = 0.5 + atan(dir.z, dir.x) / (2.0 * 3.14159265);
@@ -169,7 +188,15 @@ const FRAGMENT_SHADER: &str = r#"
             texCoord = vec2((dist - inner) / (0.5 - inner), 0.5);
         }
 
-        if (uUseTexture == 1) {
+        if (uIsCloud) {
+            float t = uTime * 0.15;
+            vec2 q = vec2(cloudFbm(texCoord * 3.0 + t), cloudFbm(texCoord * 3.0 + vec2(5.2, 1.3) + t * 0.7));
+            float density = cloudFbm(texCoord * 2.5 + 3.0 * q + t * 0.3);
+            float cloudA = smoothstep(0.42, 0.62, density);
+            if (cloudA < 0.02) discard;
+            color = vec3(0.97, 0.98, 1.0);
+            alpha = cloudA * 0.88;
+        } else if (uUseTexture == 1) {
             vec4 texColor = texture2D(uTexture, texCoord);
             if (texColor.a < 0.1) {
                 discard;
@@ -292,6 +319,8 @@ pub struct Renderer {
     pub u_camera_pos_location: WebGlUniformLocation,
     pub u_background_texture_location: WebGlUniformLocation,
     pub u_global_alpha_location: WebGlUniformLocation,
+    pub u_is_cloud_location: Option<WebGlUniformLocation>,
+    pub u_time_location: Option<WebGlUniformLocation>,
     unit_cube_vertex_buffer: WebGlBuffer,
     unit_cube_index_buffer: WebGlBuffer,
     unit_cube_index_count: i32,
@@ -364,6 +393,8 @@ impl Renderer {
             .ok_or("Failed to get uBackgroundTexture location")?;
         let u_global_alpha_location = gl.get_uniform_location(&program, "uGlobalAlpha")
             .ok_or("Failed to get uGlobalAlpha location")?;
+        let u_is_cloud_location = gl.get_uniform_location(&program, "uIsCloud");
+        let u_time_location = gl.get_uniform_location(&program, "uTime");
 
         // Instancing setup
         let instanced_ext = gl.get_extension("ANGLE_instanced_arrays")?.map(|e| e.unchecked_into::<AngleInstancedArrays>());
@@ -445,6 +476,8 @@ impl Renderer {
             u_camera_pos_location,
             u_background_texture_location,
             u_global_alpha_location,
+            u_is_cloud_location,
+            u_time_location,
             instanced_ext,
             instanced_program,
             u_instanced_view_loc,
