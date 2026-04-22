@@ -699,6 +699,15 @@ impl SolarSystem {
         let zoom_speed = 1.0 - (-10.0_f32 * safe_dt as f32).exp();
         self.camera_distance += (self.camera_target_distance - self.camera_distance) * zoom_speed;
 
+        let min_cam_dist = self.focused_body_index
+            .map(|i| self.bodies[i].radius * 1.1)
+            .unwrap_or(0.0001)
+            .max(0.0001);
+        if self.camera_distance < min_cam_dist {
+            self.camera_distance = min_cam_dist;
+            self.camera_target_distance = min_cam_dist;
+        }
+
         // Smooth rotation: faster lerp so it feels responsive but still fluid
         let rot_speed = 1.0 - (-15.0_f32 * safe_dt as f32).exp();
         self.camera_rotation.0 += (self.camera_target_rotation.0 - self.camera_rotation.0) * rot_speed;
