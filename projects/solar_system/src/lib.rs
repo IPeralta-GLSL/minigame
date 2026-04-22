@@ -700,7 +700,7 @@ impl SolarSystem {
         self.camera_distance += (self.camera_target_distance - self.camera_distance) * zoom_speed;
 
         let min_cam_dist = self.focused_body_index
-            .map(|i| self.bodies[i].radius * 1.1)
+            .map(|i| self.bodies[i].radius * 1.5)
             .unwrap_or(0.0001)
             .max(0.0001);
         if self.camera_distance < min_cam_dist {
