@@ -1391,17 +1391,31 @@ impl SolarSystem {
                 let earth_radius = self.bodies[ei].radius;
                 let (scr, ccr) = cr.sin_cos();
                 let (sat, cat) = at.sin_cos();
+                // Camera position relative to Earth center (Earth is focused so rel_cam == cam from earth)
+                let cam_ex = rel_cam_x - earth_rel_pos.x;
+                let cam_ey = rel_cam_y - earth_rel_pos.y;
+                let cam_ez = rel_cam_z - earth_rel_pos.z;
                 for (lat, lon, element) in &self.country_labels {
-                    let px = lat.cos() * lon.sin();
+                    // Sphere UV: phi = PI - lon, theta = PI/2 - lat
+                    // x = cos(phi)*sin(theta) = -cos(lon)*cos(lat)
+                    // y = cos(theta)          =  sin(lat)
+                    // z = sin(phi)*sin(theta) =  sin(lon)*cos(lat)
+                    let px = -(lat.cos() * lon.cos());
                     let py = lat.sin();
-                    let pz = lat.cos() * lon.cos();
+                    let pz = lat.cos() * lon.sin();
+                    // Apply Ry(current_rotation)
                     let x1 = px * ccr + pz * scr;
                     let y1 = py;
                     let z1 = -px * scr + pz * ccr;
+                    // Apply Rx(axial_tilt)
                     let x2 = x1;
                     let y2 = y1 * cat - z1 * sat;
                     let z2 = y1 * sat + z1 * cat;
-                    if x2 * rel_cam_x + y2 * rel_cam_y + z2 * rel_cam_z <= 0.0 {
+                    // Geometrically correct limb culling:
+                    // A surface point (n = unit outward normal) is visible from camera C when
+                    // dot(n, C - earth_pos) > earth_radius, plus a small margin.
+                    let dot = x2 * cam_ex + y2 * cam_ey + z2 * cam_ez;
+                    if dot < earth_radius * 1.5 {
                         element.style().set_property("display", "none").unwrap();
                         continue;
                     }
