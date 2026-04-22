@@ -458,17 +458,35 @@ impl SolarSystem {
         let earth_body_index = bodies.iter().position(|b| b.name == "Earth");
 
         let countries: &[(&str, f32, f32)] = &[
-            // Americas
-            ("United States",   39.5_f32.to_radians(),  (-98.4_f32).to_radians()),
+            // North America
             ("Canada",          62.0_f32.to_radians(),  (-96.0_f32).to_radians()),
+            ("United States",   39.5_f32.to_radians(),  (-98.4_f32).to_radians()),
             ("Mexico",          23.6_f32.to_radians(),  (-102.6_f32).to_radians()),
+            // Caribbean
             ("Cuba",            22.0_f32.to_radians(),  (-79.5_f32).to_radians()),
+            ("Haiti",           19.1_f32.to_radians(),  (-72.3_f32).to_radians()),
+            ("Dominican Rep.",  18.7_f32.to_radians(),  (-70.2_f32).to_radians()),
+            ("Jamaica",         18.1_f32.to_radians(),  (-77.3_f32).to_radians()),
+            ("Puerto Rico",     18.2_f32.to_radians(),  (-66.6_f32).to_radians()),
+            // Central America
+            ("Belize",          17.2_f32.to_radians(),  (-88.5_f32).to_radians()),
             ("Guatemala",       15.8_f32.to_radians(),  (-90.2_f32).to_radians()),
+            ("Honduras",        15.2_f32.to_radians(),  (-86.2_f32).to_radians()),
+            ("El Salvador",     13.8_f32.to_radians(),  (-88.9_f32).to_radians()),
+            ("Nicaragua",       12.9_f32.to_radians(),  (-85.2_f32).to_radians()),
+            ("Costa Rica",       9.9_f32.to_radians(),  (-84.1_f32).to_radians()),
+            ("Panama",           8.5_f32.to_radians(),  (-80.4_f32).to_radians()),
+            // South America
             ("Colombia",         4.7_f32.to_radians(),  (-74.1_f32).to_radians()),
             ("Venezuela",        8.0_f32.to_radians(),  (-66.0_f32).to_radians()),
+            ("Guyana",           5.0_f32.to_radians(),  (-59.0_f32).to_radians()),
+            ("Suriname",         4.0_f32.to_radians(),  (-56.0_f32).to_radians()),
+            ("Ecuador",         (-1.8_f32).to_radians(), (-78.2_f32).to_radians()),
             ("Peru",           (-10.0_f32).to_radians(), (-76.0_f32).to_radians()),
             ("Brazil",         (-10.0_f32).to_radians(), (-53.0_f32).to_radians()),
             ("Bolivia",        (-17.0_f32).to_radians(), (-65.0_f32).to_radians()),
+            ("Paraguay",       (-23.4_f32).to_radians(), (-58.4_f32).to_radians()),
+            ("Uruguay",        (-32.8_f32).to_radians(), (-56.2_f32).to_radians()),
             ("Chile",          (-35.7_f32).to_radians(), (-71.5_f32).to_radians()),
             ("Argentina",      (-38.0_f32).to_radians(), (-63.6_f32).to_radians()),
             // Europe
@@ -522,6 +540,10 @@ impl SolarSystem {
             ("UAE",             24.2_f32.to_radians(),  54.4_f32.to_radians()),
             ("Iraq",            33.2_f32.to_radians(),  43.7_f32.to_radians()),
             ("Syria",           35.0_f32.to_radians(),  38.3_f32.to_radians()),
+            ("Lebanon",         33.9_f32.to_radians(),  35.9_f32.to_radians()),
+            ("Israel",          31.5_f32.to_radians(),  34.9_f32.to_radians()),
+            ("Palestine",       31.9_f32.to_radians(),  35.3_f32.to_radians()),
+            ("Jordan",          31.2_f32.to_radians(),  36.8_f32.to_radians()),
             ("Iran",            32.4_f32.to_radians(),  53.7_f32.to_radians()),
             ("Afghanistan",     33.9_f32.to_radians(),  67.7_f32.to_radians()),
             // Asia
