@@ -1412,45 +1412,56 @@
             }, 820);
         }
 
-        function startSolarWithLoading(simType) {
-            showSolarLoading();
-            const total = SOLAR_TEXTURES.length;
-
-            requestAnimationFrame(() => requestAnimationFrame(() => {
-                function loadNext(index) {
-                    if (index >= total) {
-                        document.getElementById('loading-text').textContent = 'Launching…';
-                        document.getElementById('loading-bar').style.width = '100%';
-                        document.getElementById('loading-pct').textContent = '100%';
-                        setTimeout(() => {
-                            start_solar_system();
-                            // if (load_aquarius_satellite) load_aquarius_satellite().catch(console.error);
-                            startSolarMusic();
-                            hideSolarLoading();
-                            showSystemIntro('sun');
-                        }, 300);
-                        return;
-                    }
-
-                    const url = SOLAR_TEXTURES[index];
-                    const fname = url.split('/').pop();
-                    const label = TEXTURE_NAMES[fname] || fname.replace(/\.[^.]+$/, '').replace(/_/g, ' ');
-                    const pct = Math.round((index / total) * 100);
-
-                    document.getElementById('loading-text').textContent = label;
-                    document.getElementById('loading-bar').style.width = pct + '%';
-                    document.getElementById('loading-pct').textContent =
-                        `${index + 1} / ${total}  (${pct}%)`;
-
-                    const img = new Image();
-                    img.onload = img.onerror = () => {
-                        requestAnimationFrame(() => loadNext(index + 1));
-                    };
-                    img.src = url;
+        async function loadAllTextures() {
+            const results = [];
+            for (let i = 0; i < SOLAR_TEXTURES.length; i++) {
+                const url = SOLAR_TEXTURES[i];
+                const fname = url.split('/').pop();
+                const pct = Math.round(((i + 1) / SOLAR_TEXTURES.length) * 100);
+                
+                document.getElementById('loading-text').textContent = TEXTURE_NAMES[fname] || fname.replace(/\.[^.]+$/, '').replace(/_/g, ' ');
+                document.getElementById('loading-bar').style.width = pct + '%';
+                document.getElementById('loading-pct').textContent = `${i + 1} / ${SOLAR_TEXTURES.length} (${pct}%)`;
+                
+                try {
+                    await new Promise((resolve, reject) => {
+                        const img = new Image();
+                        img.onload = () => {
+                            results.push({ url, loaded: true });
+                            resolve();
+                        };
+                        img.onerror = () => {
+                            results.push({ url, loaded: false });
+                            resolve();
+                        };
+                        img.src = url;
+                    });
+                } catch (e) {
+                    results.push({ url, loaded: false });
                 }
+            }
+            return results;
+        }
 
-                loadNext(0);
-            }));
+        async function startSolarWithLoading(simType) {
+            showSolarLoading();
+            
+            document.getElementById('loading-text').textContent = 'Loading textures…';
+            document.getElementById('loading-bar').style.width = '0%';
+            document.getElementById('loading-pct').textContent = '0%';
+            
+            await loadAllTextures();
+            
+            document.getElementById('loading-text').textContent = 'Initializing system…';
+            document.getElementById('loading-bar').style.width = '100%';
+            document.getElementById('loading-pct').textContent = '100%';
+            
+            await new Promise(resolve => setTimeout(resolve, 200));
+            
+            start_solar_system();
+            startSolarMusic();
+            hideSolarLoading();
+            showSystemIntro('sun');
         }
 
         window.addEventListener('popstate', () => {
