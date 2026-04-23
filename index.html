@@ -772,13 +772,19 @@
             </div>
             
             <div class="time-controls panel-glass">
-                <div style="margin-right: 20px; display: flex; flex-direction: column; gap: 5px;">
-                    <span id="solar-date" style="font-family: 'Roboto Mono', monospace; color: var(--accent-color); font-size: 14px; white-space: nowrap;">--</span>
-                    <div style="display: flex; gap: 5px; align-items: center;">
-                        <input type="datetime-local" id="datetime-picker" step="1" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: var(--text-main); border-radius: 4px; padding: 2px 5px; font-family: var(--font-main); font-size: 12px;">
-                        <button id="set-date-btn" style="background: var(--accent-color); border: none; color: white; border-radius: 4px; cursor: pointer; font-size: 12px; padding: 2px 8px;">Go</button>
+                <div id="datetime-block" style="margin-right: 20px; display: flex; flex-direction: column; gap: 4px; min-width: 200px;">
+                    <div id="datetime-display" title="Click to edit" style="cursor: pointer; display: flex; flex-direction: column; gap: 1px; padding: 5px 8px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.04); transition: border-color 0.2s;" onmouseover="this.style.borderColor='rgba(74,158,255,0.5)'" onmouseout="this.style.borderColor='rgba(255,255,255,0.08)'">
+                        <span id="solar-date" style="font-family: 'Roboto Mono', monospace; color: var(--accent-color); font-size: 13px; white-space: nowrap; letter-spacing: 0.5px;">--</span>
+                        <span id="solar-tz" style="font-size: 10px; color: rgba(180,210,255,0.5); letter-spacing: 0.5px;">--</span>
                     </div>
-                    <select id="timezone-select" style="background: rgba(20,30,50,0.9); border: 1px solid rgba(255,255,255,0.2); color: var(--text-main); border-radius: 4px; padding: 2px 5px; font-family: var(--font-main); font-size: 12px; cursor: pointer;"></select>
+                    <div id="datetime-edit" style="display: none; flex-direction: column; gap: 4px;">
+                        <input type="datetime-local" id="datetime-picker" step="1" style="background: rgba(10,20,40,0.95); border: 1px solid rgba(74,158,255,0.5); color: #e8f4ff; border-radius: 4px; padding: 4px 6px; font-family: 'Roboto Mono', monospace; font-size: 12px; width: 100%; box-sizing: border-box; color-scheme: dark;">
+                        <select id="timezone-select" style="background: rgba(10,20,40,0.95); border: 1px solid rgba(74,158,255,0.3); color: #e8f4ff; border-radius: 4px; padding: 3px 6px; font-family: var(--font-main); font-size: 11px; cursor: pointer; width: 100%; color-scheme: dark;"></select>
+                        <div style="display: flex; gap: 4px;">
+                            <button id="set-date-btn" style="flex: 1; background: var(--accent-color); border: none; color: white; border-radius: 4px; cursor: pointer; font-size: 12px; padding: 4px 0;">Apply</button>
+                            <button id="cancel-date-btn" style="flex: 1; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); color: rgba(255,255,255,0.6); border-radius: 4px; cursor: pointer; font-size: 12px; padding: 4px 0;">Cancel</button>
+                        </div>
+                    </div>
                 </div>
                 <button id="time-toggle" class="control-btn" style="display: flex; align-items: center; gap: 5px; min-width: 90px; justify-content: center;">
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" stroke="none"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
@@ -1071,6 +1077,8 @@
                             start_solar_system();
                             startSolarMusic();
                             hideSolarLoading();
+                            const sdEl = document.getElementById('solar-date');
+                            if (sdEl) sdEl.dataset.ts = Date.now();
                             showSystemIntro('sun');
                         }, 300);
                         return;
@@ -1195,6 +1203,8 @@
                     setTimeout(() => {
                         load_solar_system(e.target.value);
                         hideSolarLoading();
+                        const sdEl = document.getElementById('solar-date');
+                        if (sdEl) sdEl.dataset.ts = Date.now();
                         showSystemIntro(e.target.value);
                         currentSpeed = 1.0;
                         isPaused = false;
@@ -1313,12 +1323,9 @@
 
             const datetimePicker = document.getElementById('datetime-picker');
             const setDateBtn = document.getElementById('set-date-btn');
-
-            setDateBtn.addEventListener('click', () => {
-                if (datetimePicker.value) {
-                    set_solar_date(new Date(datetimePicker.value).getTime());
-                }
-            });
+            const cancelDateBtn = document.getElementById('cancel-date-btn');
+            const datetimeDisplay = document.getElementById('datetime-display');
+            const datetimeEdit = document.getElementById('datetime-edit');
 
             const detectedTZ = Intl.DateTimeFormat().resolvedOptions().timeZone;
             let selectedTimezone = detectedTZ;
@@ -1338,8 +1345,42 @@
             })();
             tzSelect.addEventListener('change', () => { selectedTimezone = tzSelect.value; });
 
-            setInterval(() => {
+            function openDateEdit() {
                 const el = document.getElementById('solar-date');
+                const ts = parseFloat(el.dataset.ts || Date.now());
+                const d = isNaN(ts) ? new Date() : new Date(ts);
+                const pad = n => String(n).padStart(2, '0');
+                datetimePicker.value = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+                datetimeDisplay.style.display = 'none';
+                datetimeEdit.style.display = 'flex';
+                datetimePicker.focus();
+            }
+
+            function closeDateEdit() {
+                datetimeEdit.style.display = 'none';
+                datetimeDisplay.style.display = 'flex';
+            }
+
+            datetimeDisplay.addEventListener('click', openDateEdit);
+
+            setDateBtn.addEventListener('click', () => {
+                if (datetimePicker.value) {
+                    set_solar_date(new Date(datetimePicker.value).getTime());
+                }
+                closeDateEdit();
+            });
+
+            cancelDateBtn.addEventListener('click', closeDateEdit);
+
+            datetimePicker.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') { setDateBtn.click(); }
+                if (e.key === 'Escape') { closeDateEdit(); }
+            });
+
+            setInterval(() => {
+                if (datetimeEdit.style.display !== 'none') return;
+                const el = document.getElementById('solar-date');
+                const tzEl = document.getElementById('solar-tz');
                 if (!el) return;
                 const ts = parseFloat(el.dataset.ts);
                 if (isNaN(ts)) return;
@@ -1350,12 +1391,11 @@
                         hour: '2-digit', minute: '2-digit', second: '2-digit',
                         hour12: false
                     }).format(new Date(ts));
+                    if (tzEl) {
+                        const offset = new Intl.DateTimeFormat('en-US', { timeZone: selectedTimezone, timeZoneName: 'short' }).formatToParts(new Date(ts)).find(p => p.type === 'timeZoneName');
+                        tzEl.textContent = selectedTimezone + (offset ? ' (' + offset.value + ')' : '');
+                    }
                 } catch(e) {}
-                if (document.activeElement !== datetimePicker) {
-                    const d = new Date(ts);
-                    const pad = n => String(n).padStart(2, '0');
-                    datetimePicker.value = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-                }
             }, 200);
 
             let touchStartX = 0;
