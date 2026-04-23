@@ -948,13 +948,34 @@
         ];
 
         const TEXTURE_NAMES = {
-            '8k_earth_daymap.jpg':   'Earth surface',
-            '8k_earth_nightmap.jpg': 'Earth (night)',
-            '8k_earth_clouds.jpg':   'Cloud layer',
-            '8k_stars.jpg':          'Starfield',
-            '2k_sun.jpg':            'Sun',
-            '2k_saturn.jpg':         'Saturn',
-            '2k_jupiter.jpg':        'Jupiter',
+            '2k_sun.jpg':                'Sun',
+            '2k_mercury.jpg':            'Mercury',
+            '2k_venus_surface.jpg':      'Venus surface',
+            '2k_venus_atmosphere.jpg':   'Venus atmosphere',
+            '8k_earth_daymap.jpg':       'Earth (day) — 8K',
+            '8k_earth_nightmap.jpg':     'Earth (night) — 8K',
+            '8k_earth_clouds.jpg':       'Earth clouds — 8K',
+            '2k_moon.jpg':               'Moon',
+            '2k_mars.jpg':               'Mars',
+            'phobos.webp':               'Phobos',
+            'deimos.webp':               'Deimos',
+            '2k_ceres_fictional.jpg':    'Ceres',
+            '2k_jupiter.jpg':            'Jupiter',
+            'io.webp':                   'Io',
+            'Europa.webp':               'Europa',
+            'Ganymede.webp':             'Ganymede',
+            'Callisto.webp':             'Callisto',
+            '2k_saturn.jpg':             'Saturn',
+            '2k_saturn_ring_alpha.png':  'Saturn rings',
+            'chariklo.webp':             'Chariklo',
+            '2k_uranus.jpg':             'Uranus',
+            '2k_neptune.jpg':            'Neptune',
+            'Pluto.webp':                'Pluto',
+            'Charon.webp':               'Charon',
+            '2k_haumea_fictional.jpg':   'Haumea',
+            '2k_makemake_fictional.jpg': 'Makemake',
+            '2k_eris_fictional.jpg':     'Eris',
+            '8k_stars.jpg':              'Starfield — 8K',
         };
 
         let starsAnimId = null;
@@ -1008,42 +1029,44 @@
 
         function startSolarWithLoading(simType) {
             showSolarLoading();
-            const showStart = Date.now();
-            const MIN_MS = 1200; // siempre visible al menos 1.2 s
+            const total = SOLAR_TEXTURES.length;
 
-            // Esperar 2 frames para garantizar que el browser pinte la pantalla
-            // antes de disparar las cargas (fix para texturas 100% cacheadas)
+            // Load textures one-by-one, yielding an animation frame between each
+            // so the browser repaints and the user sees real per-texture progress.
             requestAnimationFrame(() => requestAnimationFrame(() => {
-                let loaded = 0;
-                const total = SOLAR_TEXTURES.length;
-
-                function onOne(url) {
-                    loaded++;
-                    const pct = Math.round((loaded / total) * 100);
-                    document.getElementById('loading-bar').style.width = pct + '%';
-                    document.getElementById('loading-pct').textContent = pct + '%';
-                    // Show friendly name for notable textures
-                    const fname = url.split('/').pop();
-                    const label = TEXTURE_NAMES[fname] || null;
-                    if (label) document.getElementById('loading-text').textContent = 'Loading: ' + label;
-                    if (loaded === total) {
+                function loadNext(index) {
+                    if (index >= total) {
                         document.getElementById('loading-text').textContent = 'Launching…';
-                        const elapsed = Date.now() - showStart;
-                        const wait = Math.max(200, MIN_MS - elapsed);
+                        document.getElementById('loading-bar').style.width = '100%';
+                        document.getElementById('loading-pct').textContent = '100%';
                         setTimeout(() => {
                             start_solar_system();
                             startSolarMusic();
                             hideSolarLoading();
-                        }, wait);
+                        }, 300);
+                        return;
                     }
+
+                    const url = SOLAR_TEXTURES[index];
+                    const fname = url.split('/').pop();
+                    const label = TEXTURE_NAMES[fname] || fname.replace(/\.[^.]+$/, '').replace(/_/g, ' ');
+                    const pct = Math.round((index / total) * 100);
+
+                    // Update UI before loading so user sees what's being fetched
+                    document.getElementById('loading-text').textContent = label;
+                    document.getElementById('loading-bar').style.width = pct + '%';
+                    document.getElementById('loading-pct').textContent =
+                        `${index + 1} / ${total}  (${pct}%)`;
+
+                    const img = new Image();
+                    img.onload = img.onerror = () => {
+                        // Yield one frame so browser repaints the progress update
+                        requestAnimationFrame(() => loadNext(index + 1));
+                    };
+                    img.src = url;
                 }
 
-                SOLAR_TEXTURES.forEach(url => {
-                    const img = new Image();
-                    img.onload  = () => onOne(url);
-                    img.onerror = () => onOne(url); // count errors too so we never hang
-                    img.src = url;
-                });
+                loadNext(0);
             }));
         }
 
