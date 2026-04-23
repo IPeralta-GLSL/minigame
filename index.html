@@ -44,7 +44,6 @@
             display: block;
         }
 
-        /* UI Panels Common Styles */
         .panel-glass {
             background: var(--bg-glass);
             backdrop-filter: blur(12px);
@@ -171,7 +170,7 @@
             font-family: monospace;
             font-size: 18px;
             pointer-events: none;
-            display: none; /* Hidden by default, shown in minecraft mode */
+            display: none;
             z-index: 100;
             transition: transform 0.2s;
         }
@@ -294,7 +293,6 @@
             }
         }
         
-        /* Crosshair */
         #crosshair {
             position: absolute;
             top: 50%;
@@ -316,7 +314,6 @@
 
         body.minecraft-mode #crosshair { display: block; }
 
-        /* Full screen mode for Solar System & Minecraft */
         body.solar-mode .game-container, body.minecraft-mode .game-container { width: 100vw; height: 100vh; }
         body.solar-mode canvas, body.minecraft-mode canvas {
             width: 100% !important;
@@ -329,7 +326,6 @@
         body.solar-mode .controls, body.solar-mode #score, body.solar-mode #god-mode-btn,
         body.minecraft-mode .controls, body.minecraft-mode #score, body.minecraft-mode #god-mode-btn { display: none !important; }
         
-        /* Solar System UI */
         #solar-ui {
             display: none;
             pointer-events: none;
@@ -519,7 +515,6 @@
             transform: translate(-50%, -50%);
         }
         
-        /* Custom Select */
         select#sim-type {
             width: 100%;
             padding: 10px;
@@ -542,7 +537,6 @@
             padding: 10px;
         }
 
-        /* Category Buttons */
         .cat-btn {
             background: rgba(255, 255, 255, 0.05);
             border: 1px solid rgba(255, 255, 255, 0.1);
@@ -565,7 +559,6 @@
             color: white;
         }
 
-        /* ───────── SOLAR LOADING SCREEN ───────── */
         #solar-loading {
             display: none;
             position: fixed;
@@ -606,7 +599,6 @@
             animation: spin 8s linear infinite;
             flex-shrink: 0;
         }
-        /* thin cloud band on the planet */
         .loading-planet::after {
             content: '';
             position: absolute;
@@ -663,7 +655,6 @@
     </style>
 </head>
 <body>
-    <!-- Solar System Loading Screen -->
     <div id="solar-loading">
         <canvas id="stars-canvas"></canvas>
         <div class="loading-content">
@@ -827,7 +818,6 @@
             select_solar_body(index);
         };
 
-        // Selección de planetas por click directo en el canvas
         let _solarMouseDownPos = null;
         const _canvas = document.getElementById('canvas');
         _canvas.addEventListener('mousedown', (e) => {
@@ -915,7 +905,6 @@
             resizeCanvas();
         };
 
-        // ─── Solar loading screen helpers ───
         const SOLAR_TEXTURES = [
             'projects/solar_system/assets/textures/2k_sun.jpg',
             'projects/solar_system/assets/textures/2k_mercury.jpg',
@@ -1031,8 +1020,6 @@
             showSolarLoading();
             const total = SOLAR_TEXTURES.length;
 
-            // Load textures one-by-one, yielding an animation frame between each
-            // so the browser repaints and the user sees real per-texture progress.
             requestAnimationFrame(() => requestAnimationFrame(() => {
                 function loadNext(index) {
                     if (index >= total) {
@@ -1052,7 +1039,6 @@
                     const label = TEXTURE_NAMES[fname] || fname.replace(/\.[^.]+$/, '').replace(/_/g, ' ');
                     const pct = Math.round((index / total) * 100);
 
-                    // Update UI before loading so user sees what's being fetched
                     document.getElementById('loading-text').textContent = label;
                     document.getElementById('loading-bar').style.width = pct + '%';
                     document.getElementById('loading-pct').textContent =
@@ -1060,7 +1046,6 @@
 
                     const img = new Image();
                     img.onload = img.onerror = () => {
-                        // Yield one frame so browser repaints the progress update
                         requestAnimationFrame(() => loadNext(index + 1));
                     };
                     img.src = url;
@@ -1070,14 +1055,12 @@
             }));
         }
 
-        // Handle back/forward navigation
         window.addEventListener('popstate', () => {
             const path = location.pathname;
             const type = GAME_ROUTES[path];
             if (type) {
                 startGame(type);
             } else {
-                // Back to menu
                 stopSolarMusic();
                 document.getElementById('menu').style.display = 'flex';
                 document.body.classList.remove('solar-mode', 'minecraft-mode');
@@ -1103,7 +1086,6 @@
         resizeCanvas();
 
         init({ module_or_path: `./pkg/app_bg.wasm?ts=${Date.now()}` }).then(() => {
-            // Auto-start game from URL path on load
             const initialType = GAME_ROUTES[location.pathname];
             if (initialType) {
                 startGame(initialType);
@@ -1112,7 +1094,6 @@
             const gameover = document.getElementById('gameover');
             const canvas = document.getElementById('canvas');
 
-            // Settings panel toggle
             const settingsBtn = document.getElementById('settings-btn');
             const settingsPanel = document.getElementById('settings-panel');
             settingsBtn.addEventListener('click', (e) => {
@@ -1125,7 +1106,6 @@
             });
             settingsPanel.addEventListener('click', (e) => e.stopPropagation());
 
-            // Music controls
             const musicToggle = document.getElementById('music-toggle');
             const musicVolume = document.getElementById('music-volume');
             musicToggle.addEventListener('change', (e) => {
@@ -1140,7 +1120,6 @@
             });
             solarMusic.volume = 0.6;
 
-            // FPS Counter
             const fpsCounter = document.getElementById('fps-counter');
             const fpsToggle = document.getElementById('fps-toggle');
             let lastTime = performance.now();
@@ -1166,7 +1145,6 @@
             }
             requestAnimationFrame(updateFps);
 
-            // Solar System Time Controls
             const simTypeSelect = document.getElementById('sim-type');
             if (simTypeSelect) {
                 simTypeSelect.addEventListener('change', (e) => {
@@ -1174,7 +1152,6 @@
                     setTimeout(() => {
                         load_solar_system(e.target.value);
                         hideSolarLoading();
-                        // Reset time controls
                         currentSpeed = 1.0;
                         isPaused = false;
                         timeSpeedInput.value = 0;
@@ -1186,7 +1163,7 @@
             const tempToggleBtn = document.getElementById('temp-unit-toggle');
             if (tempToggleBtn) {
                 tempToggleBtn.addEventListener('click', (e) => {
-                    e.stopPropagation(); // Prevent closing panel if we add click-outside logic later
+                    e.stopPropagation();
                     toggle_solar_temperature_unit();
                 });
             }
@@ -1199,7 +1176,6 @@
             let currentSpeed = 1.0;
             let isPaused = false;
             
-            // Discrete speed steps
             const speedSteps = [
                 { val: 1, label: "1 sec/sec" },
                 { val: 60, label: "1 min/sec" },
@@ -1214,14 +1190,12 @@
                 { val: 31536000 * 100, label: "100 years/sec" }
             ];
             
-            // Set max of slider to match steps
             timeSpeedInput.max = speedSteps.length - 1;
             
             function updateTimeScale() {
                 const scale = isPaused ? 0 : currentSpeed;
                 set_solar_time_scale(scale);
                 
-                // Update toggle button
                 if (isPaused) {
                     toggleBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="5 3 19 12 5 21 5 3"/></svg> Play';
                     toggleBtn.style.background = 'rgba(76, 175, 80, 0.2)';
@@ -1234,12 +1208,10 @@
                     toggleBtn.style.color = '';
                 }
 
-                // Find label
                 const step = speedSteps.find(s => Math.abs(s.val - currentSpeed) < 0.1);
                 if (step) {
                     speedVal.textContent = step.label;
                 } else {
-                    // Fallback if custom speed
                     if (currentSpeed === 1) speedVal.textContent = "Real Time";
                     else speedVal.textContent = currentSpeed.toFixed(1) + "x";
                 }
@@ -1266,7 +1238,6 @@
                 updateTimeScale();
             });
 
-            // Date Picker Logic
             const datePicker = document.getElementById('date-picker');
             const setDateBtn = document.getElementById('set-date-btn');
 
@@ -1274,7 +1245,6 @@
                 const dateStr = datePicker.value;
                 if (dateStr) {
                     const date = new Date(dateStr);
-                    // Set time to 12:00 UTC to avoid timezone issues shifting the day
                     date.setUTCHours(12, 0, 0, 0);
                     const timestamp = date.getTime();
                     set_solar_date(timestamp);
@@ -1306,7 +1276,6 @@
                         touch_right();
                     }
                 } else {
-                    // Tap (small movement)
                     touch_forward();
                 }
             }, { passive: false });
@@ -1329,17 +1298,13 @@
                 activate_god_mode();
             });
 
-            // Temperature Toggle
             document.body.addEventListener('click', (e) => {
                 if (e.target && e.target.id === 'temp-unit-toggle') {
                     toggle_solar_temperature_unit();
                 }
                 
-                // Category Filter Logic
                 if (e.target && e.target.classList.contains('cat-btn')) {
-                    // Remove active class from all
                     document.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('active'));
-                    // Add active to clicked
                     e.target.classList.add('active');
                     
                     const cat = e.target.dataset.cat;
@@ -1355,7 +1320,6 @@
                 }
             });
 
-            // Pointer Lock for Minecraft
             canvas.addEventListener('click', () => {
                 if (document.body.classList.contains('minecraft-mode')) {
                     canvas.requestPointerLock();
