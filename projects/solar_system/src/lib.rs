@@ -1386,7 +1386,7 @@ impl SolarSystem {
             let cam_ez = rel_cam_z - earth_rel_pos.z;
             let dist_to_earth = (cam_ex*cam_ex + cam_ey*cam_ey + cam_ez*cam_ez).sqrt();
             let earth_radius = self.bodies[ei].radius;
-            let show = dist_to_earth < earth_radius * 40.0;
+            let show = dist_to_earth < earth_radius * 20.0;
             if show {
                 let cr = self.bodies[ei].current_rotation;
                 let at = self.bodies[ei].axial_tilt;
