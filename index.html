@@ -799,11 +799,13 @@
         </div>
     </div>
     <script type="module">
-        import init, { start_crossy_road, start_solar_system, start_minecraft, load_solar_system, touch_left, touch_right, touch_forward, touch_restart, activate_god_mode, set_solar_time_scale, select_solar_body, toggle_solar_temperature_unit, set_solar_date, get_solar_time, load_aquarius_satellite } from './pkg/app.js';
+        import init, { start_crossy_road, start_solar_system, start_minecraft, load_solar_system, touch_left, touch_right, touch_forward, touch_restart, activate_god_mode, set_solar_time_scale, select_solar_body, toggle_solar_temperature_unit, set_solar_date, get_solar_time } from './pkg/app.js';
         let pick_solar_body = null;
+        let load_aquarius_satellite = null;
         try {
             const mod = await import('./pkg/app.js');
             pick_solar_body = mod.pick_solar_body ?? null;
+            load_aquarius_satellite = mod.load_aquarius_satellite ?? null;
         } catch(_) {}
 
         function highlightBodyListItem(index) {
@@ -1074,7 +1076,7 @@
                         document.getElementById('loading-pct').textContent = '100%';
                         setTimeout(() => {
                             start_solar_system();
-                            load_aquarius_satellite().catch(console.error);
+                            if (load_aquarius_satellite) load_aquarius_satellite().catch(console.error);
                             startSolarMusic();
                             hideSolarLoading();
                             showSystemIntro('sun');
