@@ -267,7 +267,7 @@ pub async fn load_aquarius_satellite() -> Result<JsValue, JsValue> {
     opts.mode(RequestMode::Cors);
 
     let request = Request::new_with_str_and_init(
-        "projects/solar_system/assets/Models/Aquarius%20(A).glb",
+        "assets/models/voyager/Voyager.glb",
         &opts,
     )?;
     let resp_value = JsFuture::from(window.fetch_with_request(&request)).await?;
@@ -278,6 +278,8 @@ pub async fn load_aquarius_satellite() -> Result<JsValue, JsValue> {
         let buffer = JsFuture::from(buffer_promise).await?;
         let array = js_sys::Uint8Array::new(&buffer);
         let bytes = array.to_vec();
+
+        web_sys::console::log_1(&format!("Aquarius fetch ok, bytes len: {}", bytes.len()).into());
 
         CURRENT_GAME.with(|g| {
             if let Some(ActiveGame::Solar(game)) = g.borrow_mut().as_mut() {

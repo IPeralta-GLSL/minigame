@@ -1546,7 +1546,10 @@ impl SolarSystem {
     }
 
     pub fn load_satellite(&mut self, bytes: &[u8]) {
-        let mesh = Mesh::from_gltf(bytes).unwrap_or_else(|_| Mesh::sphere(1.0, 10, 10, 0.8, 0.8, 0.9));
+        let mesh = Mesh::from_gltf(bytes).unwrap_or_else(|e| {
+            web_sys::console::error_1(&format!("GLTF Load Error: {}", e).into());
+            Mesh::sphere(1.0, 10, 10, 0.8, 0.8, 0.9)
+        });
 
         let window = web_sys::window().unwrap();
         let document = window.document().unwrap();
@@ -1555,7 +1558,7 @@ impl SolarSystem {
         let label_element = if let Some(container) = &labels_container {
             let el = document.create_element("div").unwrap();
             el.set_class_name("solar-label");
-            el.set_text_content(Some("Aquarius"));
+            el.set_text_content(Some("Voyager"));
             container.append_child(&el).unwrap();
             el.dyn_into::<HtmlElement>().ok()
         } else {
@@ -1567,7 +1570,7 @@ impl SolarSystem {
         if let Ok(Some(list)) = document.query_selector(".body-list") {
             let li = document.create_element("li").unwrap();
             let icon_svg = r#"<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="6" height="6" rx="1"/><line x1="3" y1="12" x2="9" y2="12"/><line x1="15" y1="12" x2="21" y2="12"/><line x1="12" y1="3" x2="12" y2="9"/><line x1="12" y1="15" x2="12" y2="21"/></svg>"#;
-            li.set_inner_html(&format!("{}<span>Aquarius</span>", icon_svg));
+            li.set_inner_html(&format!("{}<span>Voyager</span>", icon_svg));
             li.set_attribute("data-category", "satellite").unwrap();
             li.set_attribute("onclick", &format!("selectSolarBody({})", idx)).unwrap();
             list.append_child(&li).unwrap();
@@ -1593,7 +1596,7 @@ impl SolarSystem {
             mean_longitude_at_epoch: 0.0,
             color: (0.8, 0.8, 0.9),
             parent: Some(earth_idx),
-            name: "Aquarius".to_string(),
+            name: "Voyager".to_string(),
             trail: Vec::new(),
             label_element,
             texture: None,
@@ -1609,9 +1612,9 @@ impl SolarSystem {
             argument_of_periapsis: 0.0,
             last_trail_angle: orbit_angle,
             eccentricity: 0.0001,
-            mass: "2,900 kg".to_string(),
+            mass: "722 kg".to_string(),
             temperature: 260.0,
-            description: "Joint NASA/CONAE ocean-observing satellite. Measures sea surface salinity from a sun-synchronous polar orbit at 657 km altitude.".to_string(),
+            description: "A space probe tasked with studying the outer Solar System. Using it instead of Aquarius because the Aquarius model is Draco compressed.".to_string(),
             ring_texture: None,
             ring_radius: 0.0,
             ring_inner_radius: None,
