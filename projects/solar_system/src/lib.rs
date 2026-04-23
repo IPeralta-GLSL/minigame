@@ -1096,12 +1096,6 @@ impl SolarSystem {
                 None
             };
 
-            let mesh_to_use = if !use_texture {
-                &self.sphere_mesh
-            } else {
-                &body.mesh
-            };
-
             let should_use_lighting = use_texture && body.name != "Sun" && body.name != "Black Hole";
             let is_black_hole = body.name == "Black Hole";
             
@@ -1109,7 +1103,7 @@ impl SolarSystem {
             let final_render_radius = if is_black_hole { 0.3 } else { render_radius };
 
             self.renderer.draw_mesh(
-                mesh_to_use,
+                &body.mesh,
                 pos.x, pos.y, pos.z,
                 final_render_radius, final_render_radius, final_render_radius,
                 body.axial_tilt, body.current_rotation, 0.0,
