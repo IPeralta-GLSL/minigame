@@ -394,6 +394,18 @@ pub fn select_solar_body(index: usize) {
 }
 
 #[wasm_bindgen]
+pub fn get_solar_time() -> f64 {
+    CURRENT_GAME.with(|g| {
+        if let Some(active_game) = g.borrow().as_ref() {
+            if let ActiveGame::Solar(game) = active_game {
+                return game.get_current_time();
+            }
+        }
+        0.0
+    })
+}
+
+#[wasm_bindgen]
 pub fn toggle_solar_temperature_unit() {
     CURRENT_GAME.with(|g| {
         if let Some(active_game) = g.borrow_mut().as_mut() {

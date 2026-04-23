@@ -800,7 +800,7 @@
         </div>
     </div>
     <script type="module">
-        import init, { start_crossy_road, start_solar_system, start_minecraft, load_solar_system, touch_left, touch_right, touch_forward, touch_restart, activate_god_mode, set_solar_time_scale, select_solar_body, toggle_solar_temperature_unit, set_solar_date } from './pkg/app.js';
+        import init, { start_crossy_road, start_solar_system, start_minecraft, load_solar_system, touch_left, touch_right, touch_forward, touch_restart, activate_god_mode, set_solar_time_scale, select_solar_body, toggle_solar_temperature_unit, set_solar_date, get_solar_time } from './pkg/app.js';
         let pick_solar_body = null;
         try {
             const mod = await import('./pkg/app.js');
@@ -1077,8 +1077,6 @@
                             start_solar_system();
                             startSolarMusic();
                             hideSolarLoading();
-                            const sdEl = document.getElementById('solar-date');
-                            if (sdEl) sdEl.dataset.ts = Date.now();
                             showSystemIntro('sun');
                         }, 300);
                         return;
@@ -1203,8 +1201,6 @@
                     setTimeout(() => {
                         load_solar_system(e.target.value);
                         hideSolarLoading();
-                        const sdEl = document.getElementById('solar-date');
-                        if (sdEl) sdEl.dataset.ts = Date.now();
                         showSystemIntro(e.target.value);
                         currentSpeed = 1.0;
                         isPaused = false;
@@ -1346,9 +1342,9 @@
             tzSelect.addEventListener('change', () => { selectedTimezone = tzSelect.value; });
 
             function openDateEdit() {
-                const el = document.getElementById('solar-date');
-                const ts = parseFloat(el.dataset.ts || Date.now());
-                const d = isNaN(ts) ? new Date() : new Date(ts);
+                let ts = 0;
+                try { ts = get_solar_time(); } catch(e) {}
+                const d = ts ? new Date(ts) : new Date();
                 const pad = n => String(n).padStart(2, '0');
                 datetimePicker.value = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
                 datetimeDisplay.style.display = 'none';
@@ -1379,11 +1375,12 @@
 
             setInterval(() => {
                 if (datetimeEdit.style.display !== 'none') return;
+                let ts = 0;
+                try { ts = get_solar_time(); } catch(e) { return; }
+                if (!ts) return;
                 const el = document.getElementById('solar-date');
                 const tzEl = document.getElementById('solar-tz');
                 if (!el) return;
-                const ts = parseFloat(el.dataset.ts);
-                if (isNaN(ts)) return;
                 try {
                     el.textContent = new Intl.DateTimeFormat('en-US', {
                         timeZone: selectedTimezone,

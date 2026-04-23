@@ -721,6 +721,10 @@ impl SolarSystem {
         self.time_scale = scale;
     }
 
+    pub fn get_current_time(&self) -> f64 {
+        self.current_time
+    }
+
     pub fn update(&mut self) {
         let now = Date::now();
         let dt = (now - self.last_time) / 1000.0;
@@ -751,17 +755,12 @@ impl SolarSystem {
         
         let window = web_sys::window().unwrap();
         let document = window.document().unwrap();
-        if let Some(element) = document.get_element_by_id("solar-date") {
-            let _ = element.set_attribute("data-ts", &self.current_time.to_string());
-        }
 
-        // Update speed info if a body is selected
         if let Some(idx) = self.focused_body_index {
             if idx < self.bodies.len() {
                 let body = &self.bodies[idx];
                 if let Some(el) = document.get_element_by_id("info-speed") {
                     let speed_kmh = if body.orbit_radius > 0.0 {
-                        // Calculate current distance r
                         let m = body.orbit_angle;
                         let e = body.eccentricity;
                         let big_e = m + e * m.sin();
@@ -769,16 +768,11 @@ impl SolarSystem {
                         let z_orb = body.orbit_radius * (1.0 - e*e).sqrt() * big_e.sin();
                         let r = (x_orb*x_orb + z_orb*z_orb).sqrt();
 
-                        // Vis-viva equation: v = sqrt(mu * (2/r - 1/a))
-                        // mu = n^2 * a^3
-                        // v = n * a * sqrt(2a/r - 1)
                         let n = body.orbit_speed.abs();
                         let a = body.orbit_radius;
                         
                         if r > 0.0 {
                             let v_sim = n * a * ((2.0 * a / r) - 1.0).abs().sqrt();
-                            // Convert to km/h
-                            // Scale: 1 unit = 6371.0 / 0.0042 km
                             let scale = 6371.0 / 0.0042;
                             v_sim * scale * 3600.0
                         } else {
@@ -819,32 +813,22 @@ impl SolarSystem {
                 }
             }
 
-            // Calculate position using Kepler's equation approximation
-            // M = orbit_angle (Mean Anomaly)
-            // E approx M + e*sin(M) (Eccentric Anomaly)
-            // x = a * (cos(E) - e)
-            // z = a * sqrt(1 - e^2) * sin(E)
             
             let m = body.orbit_angle;
             let e = body.eccentricity;
-            // Simple approximation for E (Eccentric Anomaly)
             let big_e = m + e * m.sin(); 
             
             let x_orb_raw = body.orbit_radius * (big_e.cos() - e);
             let z_orb_raw = body.orbit_radius * (1.0 - e*e).sqrt() * big_e.sin();
             
-            // Apply Argument of Periapsis
             let w = body.argument_of_periapsis;
             let (sin_w, cos_w) = w.sin_cos();
             let x_orb = x_orb_raw * cos_w + z_orb_raw * sin_w;
             let z_orb = -x_orb_raw * sin_w + z_orb_raw * cos_w;
             
-            // Apply inclination
-            // Rotate around X axis by inclination
             let y_incl = z_orb * body.orbit_inclination.sin();
             let z_incl = z_orb * body.orbit_inclination.cos();
             
-            // Apply Longitude of Ascending Node (Rotation around Y axis)
             let omega = body.longitude_of_ascending_node;
             let (sin_o, cos_o) = omega.sin_cos();
             
@@ -864,7 +848,7 @@ impl SolarSystem {
                 if body.name.starts_with("Asteroid") || body.name.starts_with("Kuiper") || body.name.starts_with("Oort") { continue; }
 
                 let two_pi = 2.0 * std::f32::consts::PI;
-                let angle_step = two_pi / 1000.0; // 1000 points per orbit
+                let angle_step = two_pi / 1000.0;
                 
 
                 let current_angle = body.orbit_angle % two_pi;
@@ -886,14 +870,12 @@ impl SolarSystem {
                     for k in 1..=steps_to_add {
                         let a_angle = body.last_trail_angle + (k as f32 * angle_step);
                         
-                        // Same Kepler calculation for trail
                         let m_t = a_angle;
                         let big_e_t = m_t + e * m_t.sin();
                         
                         let x_t_raw = body.orbit_radius * (big_e_t.cos() - e);
                         let z_t_raw = body.orbit_radius * (1.0 - e*e).sqrt() * big_e_t.sin();
                         
-                        // Apply Argument of Periapsis
                         let w = body.argument_of_periapsis;
                         let (sin_w, cos_w) = w.sin_cos();
                         let x_t = x_t_raw * cos_w + z_t_raw * sin_w;
@@ -902,7 +884,6 @@ impl SolarSystem {
                         let y_incl = z_t * body.orbit_inclination.sin();
                         let z_incl = z_t * body.orbit_inclination.cos();
                         
-                        // Apply Longitude of Ascending Node
                         let omega = body.longitude_of_ascending_node;
                         let (sin_o, cos_o) = omega.sin_cos();
                         
