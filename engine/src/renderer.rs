@@ -197,13 +197,7 @@ const FRAGMENT_SHADER: &str = r#"
             texCoord = vec2((dist - inner) / (0.5 - inner), 0.5);
         }
 
-        if (uIsCloud && uUseTexture == 1) {
-            vec4 texColor = texture2D(uTexture, texCoord);
-            float lum = dot(texColor.rgb, vec3(0.299, 0.587, 0.114));
-            if (lum < 0.05) discard;
-            color = vec3(0.95, 0.97, 1.0);
-            alpha = lum;
-        } else if (uIsCloud) {
+        if (uIsCloud) {
             vec3 N   = normalize(vNormal);
             vec3 sph = normalize(vPos);
 
