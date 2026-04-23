@@ -6,15 +6,15 @@
     <title>Games</title>
     <style>
         :root {
-            --bg-glass: rgba(0, 0, 0, 0.75);
-            --bg-glass-hover: rgba(20, 20, 20, 0.85);
-            --border-glass: rgba(255, 255, 255, 0.08);
+            --bg-glass: rgba(45, 45, 45, 0.75);
+            --bg-glass-hover: rgba(60, 60, 60, 0.85);
+            --border-glass: rgba(255, 255, 255, 0.1);
             --accent-color: #4CAF50;
             --accent-glow: rgba(76, 175, 80, 0.3);
             --accent-hover: #66BB6A;
-            --text-main: #f0f0f0;
-            --text-muted: #888888;
-            --text-dim: #555555;
+            --text-main: #e8e8e8;
+            --text-muted: #999999;
+            --text-dim: #666666;
             --success: #4CAF50;
             --warning: #FFA726;
             --danger: #EF5350;
@@ -335,12 +335,12 @@
         
         .solar-sidebar {
             position: absolute;
-            top: 16px;
+            top: 70px;
             left: 16px;
-            width: 200px;
-            padding: 14px;
+            width: 240px;
+            padding: 16px;
             pointer-events: auto;
-            max-height: calc(100vh - 100px);
+            max-height: calc(100vh - 140px);
             overflow-y: auto;
         }
         
@@ -349,13 +349,13 @@
         .solar-sidebar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
 
         .solar-sidebar h3 {
-            margin-bottom: 12px;
+            margin-bottom: 16px;
             border-bottom: 1px solid var(--border-glass);
-            padding-bottom: 8px;
+            padding-bottom: 12px;
             font-weight: 500;
-            letter-spacing: 1px;
+            letter-spacing: 1.5px;
             color: var(--accent-color);
-            font-size: 11px;
+            font-size: 12px;
             text-transform: uppercase;
         }
 
@@ -373,21 +373,36 @@
 
         .body-list { list-style: none; }
         .body-list li {
-            padding: 10px 12px;
-            font-size: 13px;
+            padding: 14px 16px;
+            font-size: 14px;
             cursor: pointer;
-            transition: background 0.15s;
-            border-radius: var(--radius-sm);
-            margin-bottom: 2px;
+            transition: background 0.2s;
+            border-radius: var(--radius-md);
+            margin-bottom: 6px;
             color: var(--text-muted);
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 14px;
+            background: rgba(255, 255, 255, 0.03);
         }
         .body-list li:hover {
-            background: rgba(76, 175, 80, 0.15);
+            background: rgba(76, 175, 80, 0.2);
             color: var(--text-main);
         }
+        .body-list li svg {
+            opacity: 0.6;
+            flex-shrink: 0;
+        }
+        .body-list li:hover svg {
+            opacity: 1;
+            color: var(--accent-color);
+        }
+        .body-list li.active {
+            background: rgba(76, 175, 80, 0.25);
+            color: var(--text-main);
+            border-left: 3px solid var(--accent-color);
+        }
+        .body-list li.active svg { opacity: 1; color: var(--accent-color); }
         .body-list li svg {
             opacity: 0.5;
         }
@@ -637,11 +652,13 @@
             top: 0;
             left: 0;
             width: 100%;
-            padding: 10px;
+            padding: 16px 20px;
             display: flex;
             justify-content: space-between;
+            align-items: flex-start;
             pointer-events: none;
             z-index: 100;
+            box-sizing: border-box;
         }
 
         .settings-wrapper {
@@ -650,18 +667,20 @@
         }
 
         #settings-btn {
-            background: rgba(0, 0, 0, 0.4);
+            background: var(--bg-glass);
             border: 1px solid var(--border-glass);
-            border-radius: var(--radius-sm);
+            border-radius: var(--radius-md);
             color: var(--text-main);
-            width: 32px;
-            height: 32px;
+            width: 36px;
+            height: 36px;
             cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: center;
             padding: 0;
             transition: background 0.2s;
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
         }
 
         #settings-btn:hover {
@@ -671,12 +690,12 @@
         #settings-panel {
             display: none;
             position: absolute;
-            top: 40px;
+            top: 44px;
             left: 0;
-            padding: 12px 14px;
-            min-width: 180px;
+            padding: 14px 16px;
+            min-width: 200px;
             flex-direction: column;
-            gap: 10px;
+            gap: 12px;
             background: var(--bg-glass);
             border: 1px solid var(--border-glass);
             border-radius: var(--radius-md);
