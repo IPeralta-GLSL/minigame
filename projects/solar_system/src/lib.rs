@@ -1072,7 +1072,7 @@ impl SolarSystem {
             let scale_factor = 0.002;
             let min_size = dist * scale_factor; 
             
-            let (render_radius, use_texture) = if min_size > body.radius {
+            let (render_radius, use_texture) = if min_size > body.radius && body.radius >= 0.001 {
                 (min_size, false)
             } else {
                 (body.radius, true)
