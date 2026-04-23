@@ -1264,6 +1264,7 @@
             ];
             
             timeSpeedInput.max = speedSteps.length - 1;
+            updateTimeScale();
             
             function updateTimeScale() {
                 const scale = isPaused ? 0 : currentSpeed;

@@ -1186,8 +1186,11 @@ impl SolarSystem {
                 }
 
                 if let Some(cloud_tex) = &body.cloud_texture {
+                    if let Some(loc) = &self.renderer.u_is_cloud_location {
+                        self.renderer.gl.uniform1i(Some(loc), 1);
+                    }
                     self.renderer.gl.enable(web_sys::WebGlRenderingContext::BLEND);
-                    self.renderer.gl.blend_func(web_sys::WebGlRenderingContext::ONE, web_sys::WebGlRenderingContext::ONE);
+                    self.renderer.gl.blend_func(web_sys::WebGlRenderingContext::SRC_ALPHA, web_sys::WebGlRenderingContext::ONE_MINUS_SRC_ALPHA);
                     self.renderer.draw_mesh(
                         &body.mesh,
                         pos.x, pos.y, pos.z,
@@ -1203,10 +1206,13 @@ impl SolarSystem {
                         true,
                         false,
                         body.is_frozen,
-                        None,
+                        Some((rel_cam_x, rel_cam_y, rel_cam_z)),
                         None
                     );
                     self.renderer.gl.disable(web_sys::WebGlRenderingContext::BLEND);
+                    if let Some(loc) = &self.renderer.u_is_cloud_location {
+                        self.renderer.gl.uniform1i(Some(loc), 0);
+                    }
                 } else if body.proc_clouds {
                     if let Some(loc) = &self.renderer.u_is_cloud_location {
                         self.renderer.gl.uniform1i(Some(loc), 1);
