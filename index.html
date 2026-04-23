@@ -778,12 +778,9 @@
                         <span id="solar-tz" style="font-size: 10px; color: rgba(180,210,255,0.5); letter-spacing: 0.5px;">--</span>
                     </div>
                     <div id="datetime-edit" style="display: none; flex-direction: column; gap: 4px;">
-                        <input type="datetime-local" id="datetime-picker" step="1" style="background: rgba(10,20,40,0.95); border: 1px solid rgba(74,158,255,0.5); color: #e8f4ff; border-radius: 4px; padding: 4px 6px; font-family: 'Roboto Mono', monospace; font-size: 12px; width: 100%; box-sizing: border-box; color-scheme: dark;">
+                        <input type="text" id="datetime-input" autocomplete="off" spellcheck="false" placeholder="YYYY-MM-DD HH:MM:SS" style="background: transparent; border: none; border-bottom: 1px solid rgba(74,158,255,0.7); color: var(--accent-color); border-radius: 0; padding: 2px 0; font-family: 'Roboto Mono', monospace; font-size: 13px; width: 100%; box-sizing: border-box; outline: none; letter-spacing: 0.5px;">
                         <select id="timezone-select" style="background: rgba(10,20,40,0.95); border: 1px solid rgba(74,158,255,0.3); color: #e8f4ff; border-radius: 4px; padding: 3px 6px; font-family: var(--font-main); font-size: 11px; cursor: pointer; width: 100%; color-scheme: dark;"></select>
-                        <div style="display: flex; gap: 4px;">
-                            <button id="set-date-btn" style="flex: 1; background: var(--accent-color); border: none; color: white; border-radius: 4px; cursor: pointer; font-size: 12px; padding: 4px 0;">Apply</button>
-                            <button id="cancel-date-btn" style="flex: 1; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); color: rgba(255,255,255,0.6); border-radius: 4px; cursor: pointer; font-size: 12px; padding: 4px 0;">Cancel</button>
-                        </div>
+                        <span style="font-size: 10px; color: rgba(180,210,255,0.35); letter-spacing: 0.3px;">↵ aplicar &nbsp;·&nbsp; Esc cancelar</span>
                     </div>
                 </div>
                 <button id="time-toggle" class="control-btn" style="display: flex; align-items: center; gap: 5px; min-width: 90px; justify-content: center;">
@@ -1319,9 +1316,7 @@
                 });
             }
 
-            const datetimePicker = document.getElementById('datetime-picker');
-            const setDateBtn = document.getElementById('set-date-btn');
-            const cancelDateBtn = document.getElementById('cancel-date-btn');
+            const datetimeInput = document.getElementById('datetime-input');
             const datetimeDisplay = document.getElementById('datetime-display');
             const datetimeEdit = document.getElementById('datetime-edit');
 
@@ -1343,15 +1338,31 @@
             })();
             tzSelect.addEventListener('change', () => { selectedTimezone = tzSelect.value; });
 
+            const pad = n => String(n).padStart(2, '0');
+
+            function tsToInputStr(ts) {
+                const d = new Date(ts);
+                return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+            }
+
+            function applyDateEdit() {
+                const raw = datetimeInput.value.trim();
+                const m = raw.match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?$/);
+                if (m) {
+                    const d = new Date(+m[1], +m[2]-1, +m[3], +m[4], +m[5], +(m[6]||0));
+                    set_solar_date(d.getTime());
+                }
+                closeDateEdit();
+            }
+
             function openDateEdit() {
                 let ts = 0;
                 try { ts = get_solar_time(); } catch(e) {}
-                const d = ts ? new Date(ts) : new Date();
-                const pad = n => String(n).padStart(2, '0');
-                datetimePicker.value = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+                datetimeInput.value = tsToInputStr(ts || Date.now());
                 datetimeDisplay.style.display = 'none';
                 datetimeEdit.style.display = 'flex';
-                datetimePicker.focus();
+                datetimeInput.focus();
+                datetimeInput.select();
             }
 
             function closeDateEdit() {
@@ -1361,18 +1372,15 @@
 
             datetimeDisplay.addEventListener('click', openDateEdit);
 
-            setDateBtn.addEventListener('click', () => {
-                if (datetimePicker.value) {
-                    set_solar_date(new Date(datetimePicker.value).getTime());
-                }
-                closeDateEdit();
+            datetimeInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') { e.preventDefault(); applyDateEdit(); }
+                if (e.key === 'Escape') { closeDateEdit(); }
             });
 
-            cancelDateBtn.addEventListener('click', closeDateEdit);
-
-            datetimePicker.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter') { setDateBtn.click(); }
-                if (e.key === 'Escape') { closeDateEdit(); }
+            datetimeInput.addEventListener('blur', () => {
+                setTimeout(() => {
+                    if (!datetimeEdit.contains(document.activeElement)) closeDateEdit();
+                }, 100);
             });
 
             setInterval(() => {
