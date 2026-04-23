@@ -1574,7 +1574,7 @@ impl SolarSystem {
             let li = document.create_element("li").unwrap();
             let icon_svg = r#"<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="6" height="6" rx="1"/><line x1="3" y1="12" x2="9" y2="12"/><line x1="15" y1="12" x2="21" y2="12"/><line x1="12" y1="3" x2="12" y2="9"/><line x1="12" y1="15" x2="12" y2="21"/></svg>"#;
             li.set_inner_html(&format!("{}<span>Aquarius</span>", icon_svg));
-            li.set_attribute("data-category", "moon").unwrap();
+            li.set_attribute("data-category", "satellite").unwrap();
             li.set_attribute("onclick", &format!("selectSolarBody({})", idx)).unwrap();
             list.append_child(&li).unwrap();
         }

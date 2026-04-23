@@ -267,7 +267,7 @@ pub async fn load_aquarius_satellite() -> Result<JsValue, JsValue> {
     opts.mode(RequestMode::Cors);
 
     let request = Request::new_with_str_and_init(
-        "/projects/solar_system/assets/Models/Aquarius%20(A).glb",
+        "projects/solar_system/assets/Models/Aquarius%20(A).glb",
         &opts,
     )?;
     let resp_value = JsFuture::from(window.fetch_with_request(&request)).await?;
