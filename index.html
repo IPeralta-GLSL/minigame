@@ -647,15 +647,6 @@
         </div>
     </div>
 
-    <div id="system-intro" style="display:none; position:fixed; inset:0; z-index:9000; align-items:center; justify-content:center; background:rgba(0,0,0,0.55); backdrop-filter:blur(3px);">
-        <div class="panel-glass" style="max-width:480px; width:90%; padding:36px 36px 28px; text-align:center; position:relative;">
-            <div id="intro-icon" style="font-size:48px; margin-bottom:16px;"></div>
-            <h2 id="intro-title" style="margin:0 0 10px; font-weight:300; letter-spacing:4px; text-transform:uppercase; color:#e8f4ff; font-size:clamp(18px,3vw,24px);"></h2>
-            <p id="intro-subtitle" style="margin:0 0 6px; font-size:11px; letter-spacing:2px; text-transform:uppercase; color:rgba(180,210,255,0.6);"></p>
-            <p id="intro-desc" style="margin:18px 0 28px; font-size:14px; line-height:1.75; color:rgba(220,235,255,0.85);"></p>
-            <button id="intro-explore-btn" style="background:linear-gradient(135deg,rgba(74,158,255,0.25),rgba(74,158,255,0.1)); border:1px solid rgba(74,158,255,0.5); color:#a8d4ff; border-radius:8px; padding:10px 32px; font-size:14px; letter-spacing:2px; text-transform:uppercase; cursor:pointer; transition:all 0.2s;" onmouseover="this.style.background='linear-gradient(135deg,rgba(74,158,255,0.4),rgba(74,158,255,0.2))';this.style.color='#e8f4ff'" onmouseout="this.style.background='linear-gradient(135deg,rgba(74,158,255,0.25),rgba(74,158,255,0.1))';this.style.color='#a8d4ff'">Explore &rarr;</button>
-        </div>
-    </div>
     <audio id="solar-music" src="projects/solar_system/assets/Audio/1-drone-piano.mp3" loop preload="auto" style="display:none;"></audio>
     <div id="ui-layer" style="position: absolute; top: 0; left: 0; width: 100%; padding: 10px; display: flex; justify-content: space-between; pointer-events: none; z-index: 100;">
         <div style="pointer-events: auto; position: relative;">
@@ -756,10 +747,17 @@
 
             <div id="solar-info-panel" class="panel-glass" style="position: absolute; top: 20px; right: 20px; width: 280px; display: none; pointer-events: auto; padding: 20px;">
                 <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px;">
-                    <h3 id="info-name" style="margin: 0; color: var(--accent-color); font-weight: 400; letter-spacing: 1px; text-transform: uppercase;">Planet Name</h3>
+                    <h3 id="info-name" style="margin: 0; color: var(--accent-color); font-weight: 400; letter-spacing: 1px; text-transform: uppercase;"></h3>
                     <button id="info-panel-close" style="background: none; border: none; color: rgba(255,255,255,0.4); cursor: pointer; font-size: 18px; line-height: 1; padding: 0 0 0 10px; transition: color 0.2s;" onmouseover="this.style.color='rgba(255,255,255,0.9)'" onmouseout="this.style.color='rgba(255,255,255,0.4)'">&#x2715;</button>
                 </div>
-                <div style="font-size: 13px; line-height: 1.8; color: var(--text-main);">
+                <!-- System overview info (shown when no body is focused) -->
+                <div id="system-info-content" style="display: none;">
+                    <p id="system-info-subtitle" style="margin: 0 0 14px; font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: rgba(180,210,255,0.6);"></p>
+                    <p id="system-info-desc" style="margin: 0 0 20px; font-size: 13px; line-height: 1.75; color: rgba(220,235,255,0.85);"></p>
+                    <button id="system-explore-btn" style="width: 100%; background: linear-gradient(135deg,rgba(74,158,255,0.2),rgba(74,158,255,0.08)); border: 1px solid rgba(74,158,255,0.4); color: #a8d4ff; border-radius: 6px; padding: 8px 0; font-size: 12px; letter-spacing: 2px; text-transform: uppercase; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.background='linear-gradient(135deg,rgba(74,158,255,0.35),rgba(74,158,255,0.15))';this.style.color='#e8f4ff'" onmouseout="this.style.background='linear-gradient(135deg,rgba(74,158,255,0.2),rgba(74,158,255,0.08))';this.style.color='#a8d4ff'">Explore &rarr;</button>
+                </div>
+                <!-- Body info (shown when a body is selected) -->
+                <div id="body-info-content" style="display: none; font-size: 13px; line-height: 1.8; color: var(--text-main);">
                     <p><strong style="color: var(--text-muted); font-weight: 500;">Mass:</strong> <span id="info-mass" style="float: right;">-</span></p>
                     <p><strong style="color: var(--text-muted); font-weight: 500;">Radius:</strong> <span id="info-radius" style="float: right;">-</span></p>
                     <p style="display: flex; justify-content: space-between; align-items: center;">
@@ -841,33 +839,23 @@
 
         function showSystemIntro(simType) {
             const info = SYSTEM_INFO[simType] || SYSTEM_INFO.sun;
-            document.getElementById('intro-icon').textContent = info.icon;
-            document.getElementById('intro-title').textContent = info.title;
-            document.getElementById('intro-subtitle').textContent = info.subtitle;
-            document.getElementById('intro-desc').textContent = info.desc;
-            const el = document.getElementById('system-intro');
-            el.dataset.focusIndex = info.defaultFocus;
-            el.style.display = 'flex';
-            el.style.opacity = '0';
-            requestAnimationFrame(() => {
-                el.style.transition = 'opacity 0.4s ease';
-                el.style.opacity = '1';
-            });
+            document.getElementById('info-name').textContent = info.title;
+            document.getElementById('system-info-subtitle').textContent = info.subtitle;
+            document.getElementById('system-info-desc').textContent = info.desc;
+            const exploreBtn = document.getElementById('system-explore-btn');
+            exploreBtn.dataset.focusIndex = info.defaultFocus;
+            document.getElementById('system-info-content').style.display = 'block';
+            document.getElementById('body-info-content').style.display = 'none';
+            const panel = document.getElementById('solar-info-panel');
+            panel.style.cssText = 'position: absolute; top: 20px; right: 20px; width: 280px; display: block; pointer-events: auto; padding: 20px;';
+            panel.className = 'panel-glass';
+            highlightBodyListItem(-1);
         }
 
-        function hideSystemIntro() {
-            const el = document.getElementById('system-intro');
-            el.style.transition = 'opacity 0.35s ease';
-            el.style.opacity = '0';
-            const idx = parseInt(el.dataset.focusIndex ?? '0');
-            setTimeout(() => {
-                el.style.display = 'none';
-                select_solar_body(idx);
-                highlightBodyListItem(idx);
-            }, 360);
-        }
-
-        document.getElementById('intro-explore-btn').addEventListener('click', hideSystemIntro);
+        document.getElementById('system-explore-btn').addEventListener('click', function() {
+            const idx = parseInt(this.dataset.focusIndex ?? '0');
+            window.selectSolarBody(idx);
+        });
 
         window.selectSolarBody = function(index) {
             select_solar_body(index);
@@ -900,7 +888,7 @@
             if (!document.body.classList.contains('solar-mode')) return;
             if (!pick_solar_body) return;
             const idx = pick_solar_body(e.clientX, e.clientY, window.innerWidth, window.innerHeight);
-            if (idx >= 0) { select_solar_body(idx); highlightBodyListItem(idx); }
+            if (idx >= 0) { window.selectSolarBody(idx); }
         });
         
         window.load_solar_system = load_solar_system;
@@ -1229,7 +1217,7 @@
             const infoPanelCloseBtn = document.getElementById('info-panel-close');
             if (infoPanelCloseBtn) {
                 infoPanelCloseBtn.addEventListener('click', () => {
-                    document.getElementById('solar-info-panel').style.display = 'none';
+                    showSystemIntro(document.getElementById('sim-type').value || 'sun');
                 });
             }
 
@@ -1326,6 +1314,7 @@
                     currentSpeed = 1.0;
                     isPaused = false;
                     timeSpeedInput.value = 0;
+                    set_solar_date(Date.now());
                     updateTimeScale();
                 });
             }
