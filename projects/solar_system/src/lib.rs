@@ -572,13 +572,10 @@ impl SolarSystem {
 
         let sun_texture = if system_type == SystemType::Solar { bodies[0].texture.clone() } else { None };
 
-        // Start focused on the central body (index 0 = Sun/star) so lighting is correct,
-        // but override camera_distance to overview_distance so the whole system is visible.
-        let focused_body_index: Option<usize> = Some(0);
-
-        let overview_distance: f32 = match system_type {
-            SystemType::Sirius => 3000.0,
-            _ => 650.0,
+        let focused_body_index = match system_type {
+            SystemType::Solar => Some(3),
+            SystemType::BlackHole => Some(1),
+            SystemType::Sirius => Some(0),
         };
 
         let utc_sec_today = (now_ms / 1000.0) as f32 % 86400.0;
@@ -599,8 +596,8 @@ impl SolarSystem {
         SolarSystem {
             renderer,
             bodies,
-            camera_distance: overview_distance,
-            camera_target_distance: overview_distance,
+            camera_distance: 60.0,
+            camera_target_distance: 60.0,
             camera_rotation: (0.5, 0.0),
             camera_target_rotation: (0.5, 0.0),
             last_time: now_ms,
@@ -636,14 +633,7 @@ impl SolarSystem {
             if let Some(panel) = document.get_element_by_id("solar-info-panel") {
                 panel.set_attribute("style", "position: absolute; top: 20px; right: 20px; width: 280px; display: block; pointer-events: auto; padding: 20px;").unwrap();
                 panel.set_class_name("panel-glass");
-
-                if let Some(el) = document.get_element_by_id("system-info-content") {
-                    el.set_attribute("style", "display: none;").unwrap();
-                }
-                if let Some(el) = document.get_element_by_id("body-info-content") {
-                    el.set_attribute("style", "display: block;").unwrap();
-                }
-
+                
                 if let Some(el) = document.get_element_by_id("info-name") { el.set_text_content(Some(&body.name)); }
                 if let Some(el) = document.get_element_by_id("info-mass") { el.set_text_content(Some(&body.mass)); }
                 if let Some(el) = document.get_element_by_id("info-radius") { el.set_text_content(Some(&format!("{:.1} km", body.radius * 6371.0 / 0.0042))); } // Approx scale based on Earth
@@ -1140,7 +1130,7 @@ impl SolarSystem {
                 &body.mesh
             };
 
-            let should_use_lighting = body.name != "Sun" && body.name != "Black Hole" && !body.name.starts_with("Sirius");
+            let should_use_lighting = use_texture && body.name != "Sun" && body.name != "Black Hole";
             let is_black_hole = body.name == "Black Hole";
             
             // If black hole, we want it to be visible despite its tiny physical radius.
