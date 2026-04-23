@@ -1388,37 +1388,28 @@ impl SolarSystem {
         }
 
         if let Some(ei) = self.earth_body_index {
-            let show = self.focused_body_index == Some(ei);
+            let earth_rel_pos = positions[ei] - target;
+            let cam_ex = rel_cam_x - earth_rel_pos.x;
+            let cam_ey = rel_cam_y - earth_rel_pos.y;
+            let cam_ez = rel_cam_z - earth_rel_pos.z;
+            let dist_to_earth = (cam_ex*cam_ex + cam_ey*cam_ey + cam_ez*cam_ez).sqrt();
+            let earth_radius = self.bodies[ei].radius;
+            let show = dist_to_earth < earth_radius * 80.0;
             if show {
-                let earth_rel_pos = positions[ei] - target;
                 let cr = self.bodies[ei].current_rotation;
                 let at = self.bodies[ei].axial_tilt;
-                let earth_radius = self.bodies[ei].radius;
                 let (scr, ccr) = cr.sin_cos();
                 let (sat, cat) = at.sin_cos();
-                // Camera position relative to Earth center (Earth is focused so rel_cam == cam from earth)
-                let cam_ex = rel_cam_x - earth_rel_pos.x;
-                let cam_ey = rel_cam_y - earth_rel_pos.y;
-                let cam_ez = rel_cam_z - earth_rel_pos.z;
                 for (lat, lon, element) in &self.country_labels {
-                    // Sphere UV: phi = PI - lon, theta = PI/2 - lat
-                    // x = cos(phi)*sin(theta) = -cos(lon)*cos(lat)
-                    // y = cos(theta)          =  sin(lat)
-                    // z = sin(phi)*sin(theta) =  sin(lon)*cos(lat)
                     let px = -(lat.cos() * lon.cos());
                     let py = lat.sin();
                     let pz = lat.cos() * lon.sin();
-                    // Apply Ry(current_rotation)
                     let x1 = px * ccr + pz * scr;
                     let y1 = py;
                     let z1 = -px * scr + pz * ccr;
-                    // Apply Rx(axial_tilt)
                     let x2 = x1;
                     let y2 = y1 * cat - z1 * sat;
                     let z2 = y1 * sat + z1 * cat;
-                    // Geometrically correct limb culling:
-                    // A surface point (n = unit outward normal) is visible from camera C when
-                    // dot(n, C - earth_pos) > earth_radius, plus a small margin.
                     let dot = x2 * cam_ex + y2 * cam_ey + z2 * cam_ez;
                     if dot < earth_radius * 1.5 {
                         element.style().set_property("display", "none").unwrap();
@@ -1505,10 +1496,7 @@ impl SolarSystem {
         self.camera_target_distance = self.camera_target_distance.max(0.0001).min(100000000.0);
     }
 
-    /// Ray-sphere picking. Returns the index of the clicked body, or -1 if none.
-    /// x, y are client pixel coordinates; w, h are canvas dimensions.
     pub fn pick_body(&self, x: i32, y: i32, width: i32, height: i32) -> i32 {
-        // Recalculate world positions (same logic as render/update)
         let mut positions = vec![nalgebra::Vector3::<f32>::zeros(); self.bodies.len()];
         for i in 0..self.bodies.len() {
             let body = &self.bodies[i];
@@ -1535,14 +1523,12 @@ impl SolarSystem {
             positions[i] = pos;
         }
 
-        // Scene target (same as render)
         let target = if let Some(idx) = self.focused_body_index {
             positions[idx]
         } else {
             nalgebra::Vector3::zeros()
         };
 
-        // Camera (same as render)
         let rel_cam_x = self.camera_distance * self.camera_rotation.0.cos() * self.camera_rotation.1.sin();
         let rel_cam_y = self.camera_distance * self.camera_rotation.0.sin();
         let rel_cam_z = self.camera_distance * self.camera_rotation.0.cos() * self.camera_rotation.1.cos();
@@ -1557,7 +1543,6 @@ impl SolarSystem {
             &nalgebra::Vector3::y(),
         );
 
-        // Unproject click to ray
         let ndc_x = (2.0 * x as f32 / width as f32) - 1.0;
         let ndc_y = 1.0 - (2.0 * y as f32 / height as f32);
 
@@ -1571,7 +1556,6 @@ impl SolarSystem {
         let world = inv_view * eye;
         let ray_dir = nalgebra::Vector3::new(world.x, world.y, world.z).normalize();
 
-        // Ray-sphere intersection for each body
         let mut best_t = f32::MAX;
         let mut best_idx: i32 = -1;
 
@@ -1579,11 +1563,9 @@ impl SolarSystem {
             if body.name.starts_with("Asteroid") || body.name.starts_with("Kuiper") || body.name.starts_with("Oort") {
                 continue;
             }
-            // Position in render space (relative to target)
             let center = positions[i] - target;
             let oc = cam_origin - center;
 
-            // Use a generous pick radius: max(body.radius, dist*0.002) * 3
             let dist_to_cam = (cam_origin - center).norm();
             let pick_radius = (body.radius).max(dist_to_cam * 0.002) * 3.0;
 
