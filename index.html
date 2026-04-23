@@ -750,13 +750,10 @@
                     <h3 id="info-name" style="margin: 0; color: var(--accent-color); font-weight: 400; letter-spacing: 1px; text-transform: uppercase;"></h3>
                     <button id="info-panel-close" style="background: none; border: none; color: rgba(255,255,255,0.4); cursor: pointer; font-size: 18px; line-height: 1; padding: 0 0 0 10px; transition: color 0.2s;" onmouseover="this.style.color='rgba(255,255,255,0.9)'" onmouseout="this.style.color='rgba(255,255,255,0.4)'">&#x2715;</button>
                 </div>
-                <!-- System overview info (shown when no body is focused) -->
                 <div id="system-info-content" style="display: none;">
                     <p id="system-info-subtitle" style="margin: 0 0 14px; font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: rgba(180,210,255,0.6);"></p>
                     <p id="system-info-desc" style="margin: 0 0 20px; font-size: 13px; line-height: 1.75; color: rgba(220,235,255,0.85);"></p>
-                    <button id="system-explore-btn" style="width: 100%; background: linear-gradient(135deg,rgba(74,158,255,0.2),rgba(74,158,255,0.08)); border: 1px solid rgba(74,158,255,0.4); color: #a8d4ff; border-radius: 6px; padding: 8px 0; font-size: 12px; letter-spacing: 2px; text-transform: uppercase; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.background='linear-gradient(135deg,rgba(74,158,255,0.35),rgba(74,158,255,0.15))';this.style.color='#e8f4ff'" onmouseout="this.style.background='linear-gradient(135deg,rgba(74,158,255,0.2),rgba(74,158,255,0.08))';this.style.color='#a8d4ff'">Explore &rarr;</button>
                 </div>
-                <!-- Body info (shown when a body is selected) -->
                 <div id="body-info-content" style="display: none; font-size: 13px; line-height: 1.8; color: var(--text-main);">
                     <p><strong style="color: var(--text-muted); font-weight: 500;">Mass:</strong> <span id="info-mass" style="float: right;">-</span></p>
                     <p><strong style="color: var(--text-muted); font-weight: 500;">Radius:</strong> <span id="info-radius" style="float: right;">-</span></p>
@@ -776,14 +773,12 @@
             
             <div class="time-controls panel-glass">
                 <div style="margin-right: 20px; display: flex; flex-direction: column; gap: 5px;">
-                    <div style="font-family: 'Roboto Mono', monospace; color: var(--accent-color); font-size: 14px; white-space: nowrap;">
-                        <span id="solar-date">Loading...</span>
-                    </div>
-                    <div style="display: flex; gap: 5px;">
-                        <input type="date" id="date-picker" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: var(--text-main); border-radius: 4px; padding: 2px 5px; font-family: var(--font-main); font-size: 12px;">
-                        <input type="time" id="time-picker" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: var(--text-main); border-radius: 4px; padding: 2px 5px; font-family: var(--font-main); font-size: 12px; width: 80px;">
+                    <span id="solar-date" style="font-family: 'Roboto Mono', monospace; color: var(--accent-color); font-size: 14px; white-space: nowrap;">--</span>
+                    <div style="display: flex; gap: 5px; align-items: center;">
+                        <input type="datetime-local" id="datetime-picker" step="1" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: var(--text-main); border-radius: 4px; padding: 2px 5px; font-family: var(--font-main); font-size: 12px;">
                         <button id="set-date-btn" style="background: var(--accent-color); border: none; color: white; border-radius: 4px; cursor: pointer; font-size: 12px; padding: 2px 8px;">Go</button>
                     </div>
+                    <select id="timezone-select" style="background: rgba(20,30,50,0.9); border: 1px solid rgba(255,255,255,0.2); color: var(--text-main); border-radius: 4px; padding: 2px 5px; font-family: var(--font-main); font-size: 12px; cursor: pointer;"></select>
                 </div>
                 <button id="time-toggle" class="control-btn" style="display: flex; align-items: center; gap: 5px; min-width: 90px; justify-content: center;">
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" stroke="none"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
@@ -842,8 +837,6 @@
             document.getElementById('info-name').textContent = info.title;
             document.getElementById('system-info-subtitle').textContent = info.subtitle;
             document.getElementById('system-info-desc').textContent = info.desc;
-            const exploreBtn = document.getElementById('system-explore-btn');
-            exploreBtn.dataset.focusIndex = info.defaultFocus;
             document.getElementById('system-info-content').style.display = 'block';
             document.getElementById('body-info-content').style.display = 'none';
             const panel = document.getElementById('solar-info-panel');
@@ -852,13 +845,10 @@
             highlightBodyListItem(-1);
         }
 
-        document.getElementById('system-explore-btn').addEventListener('click', function() {
-            const idx = parseInt(this.dataset.focusIndex ?? '0');
-            window.selectSolarBody(idx);
-        });
-
         window.selectSolarBody = function(index) {
             select_solar_body(index);
+            document.getElementById('system-info-content').style.display = 'none';
+            document.getElementById('body-info-content').style.display = 'block';
             highlightBodyListItem(index);
         };
 
@@ -1217,7 +1207,9 @@
             const infoPanelCloseBtn = document.getElementById('info-panel-close');
             if (infoPanelCloseBtn) {
                 infoPanelCloseBtn.addEventListener('click', () => {
-                    showSystemIntro(document.getElementById('sim-type').value || 'sun');
+                    document.getElementById('solar-info-panel').style.display = 'none';
+                    select_solar_body(9999);
+                    highlightBodyListItem(-1);
                 });
             }
 
@@ -1319,24 +1311,52 @@
                 });
             }
 
-            const datePicker = document.getElementById('date-picker');
+            const datetimePicker = document.getElementById('datetime-picker');
             const setDateBtn = document.getElementById('set-date-btn');
 
             setDateBtn.addEventListener('click', () => {
-                const dateStr = datePicker.value;
-                if (dateStr) {
-                    const date = new Date(dateStr);
-                    const timeStr = document.getElementById('time-picker').value;
-                    if (timeStr) {
-                        const [h, m] = timeStr.split(':').map(Number);
-                        date.setUTCHours(h, m, 0, 0);
-                    } else {
-                        date.setUTCHours(12, 0, 0, 0);
-                    }
-                    const timestamp = date.getTime();
-                    set_solar_date(timestamp);
+                if (datetimePicker.value) {
+                    set_solar_date(new Date(datetimePicker.value).getTime());
                 }
             });
+
+            const detectedTZ = Intl.DateTimeFormat().resolvedOptions().timeZone;
+            let selectedTimezone = detectedTZ;
+            const tzSelect = document.getElementById('timezone-select');
+            (function() {
+                let zones = [];
+                try { zones = Intl.supportedValuesOf('timeZone'); } catch(e) {
+                    zones = ['UTC','America/New_York','America/Chicago','America/Denver','America/Los_Angeles','America/Sao_Paulo','Europe/London','Europe/Paris','Europe/Berlin','Europe/Moscow','Asia/Dubai','Asia/Kolkata','Asia/Bangkok','Asia/Singapore','Asia/Tokyo','Australia/Sydney','Pacific/Auckland'];
+                }
+                zones.forEach(tz => {
+                    const opt = document.createElement('option');
+                    opt.value = tz;
+                    opt.textContent = tz;
+                    if (tz === detectedTZ) opt.selected = true;
+                    tzSelect.appendChild(opt);
+                });
+            })();
+            tzSelect.addEventListener('change', () => { selectedTimezone = tzSelect.value; });
+
+            setInterval(() => {
+                const el = document.getElementById('solar-date');
+                if (!el) return;
+                const ts = parseFloat(el.dataset.ts);
+                if (isNaN(ts)) return;
+                try {
+                    el.textContent = new Intl.DateTimeFormat('en-US', {
+                        timeZone: selectedTimezone,
+                        year: 'numeric', month: '2-digit', day: '2-digit',
+                        hour: '2-digit', minute: '2-digit', second: '2-digit',
+                        hour12: false
+                    }).format(new Date(ts));
+                } catch(e) {}
+                if (document.activeElement !== datetimePicker) {
+                    const d = new Date(ts);
+                    const pad = n => String(n).padStart(2, '0');
+                    datetimePicker.value = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+                }
+            }, 200);
 
             let touchStartX = 0;
             let touchStartY = 0;

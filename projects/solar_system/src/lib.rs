@@ -633,10 +633,11 @@ impl SolarSystem {
             if let Some(panel) = document.get_element_by_id("solar-info-panel") {
                 panel.set_attribute("style", "position: absolute; top: 20px; right: 20px; width: 280px; display: block; pointer-events: auto; padding: 20px;").unwrap();
                 panel.set_class_name("panel-glass");
-                
+                if let Some(el) = document.get_element_by_id("system-info-content") { let _ = el.set_attribute("style", "display: none;"); }
+                if let Some(el) = document.get_element_by_id("body-info-content") { let _ = el.set_attribute("style", "display: block; font-size: 13px; line-height: 1.8; color: var(--text-main);"); }
                 if let Some(el) = document.get_element_by_id("info-name") { el.set_text_content(Some(&body.name)); }
                 if let Some(el) = document.get_element_by_id("info-mass") { el.set_text_content(Some(&body.mass)); }
-                if let Some(el) = document.get_element_by_id("info-radius") { el.set_text_content(Some(&format!("{:.1} km", body.radius * 6371.0 / 0.0042))); } // Approx scale based on Earth
+                if let Some(el) = document.get_element_by_id("info-radius") { el.set_text_content(Some(&format!("{:.1} km", body.radius * 6371.0 / 0.0042))); }
                 if let Some(el) = document.get_element_by_id("info-temp") {
                     let temp_str = if self.use_celsius {
                         format!("{:.0} °C", body.temperature - 273.15)
@@ -748,19 +749,11 @@ impl SolarSystem {
 
         self.current_time += safe_dt * 1000.0 * self.time_scale as f64;
         
-        let date = Date::new(&wasm_bindgen::JsValue::from_f64(self.current_time));
         let window = web_sys::window().unwrap();
         let document = window.document().unwrap();
-            if let Some(element) = document.get_element_by_id("solar-date") {
-                let year = date.get_full_year();
-                let month = date.get_month() + 1;
-                let day = date.get_date();
-                let hours = date.get_hours();
-                let minutes = date.get_minutes();
-                let seconds = date.get_seconds();
-                let date_str = format!("{:02}/{:02}/{} {:02}:{:02}:{:02}", month, day, year, hours, minutes, seconds);
-                element.set_text_content(Some(&date_str));
-            }
+        if let Some(element) = document.get_element_by_id("solar-date") {
+            let _ = element.set_attribute("data-ts", &self.current_time.to_string());
+        }
 
         // Update speed info if a body is selected
         if let Some(idx) = self.focused_body_index {
