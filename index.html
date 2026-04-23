@@ -403,6 +403,13 @@
             opacity: 1;
             color: var(--accent-color);
         }
+        .body-list li.active {
+            background: rgba(74,158,255,0.15);
+            color: white;
+            border-left: 2px solid var(--accent-color);
+            padding-left: 10px;
+        }
+        .body-list li.active svg { opacity: 1; color: var(--accent-color); }
         .body-list li:last-child { border-bottom: none; }
         
         .time-controls {
@@ -639,6 +646,16 @@
             <div class="loading-pct" id="loading-pct">0%</div>
         </div>
     </div>
+
+    <div id="system-intro" style="display:none; position:fixed; inset:0; z-index:9000; align-items:center; justify-content:center; background:rgba(0,0,0,0.55); backdrop-filter:blur(3px);">
+        <div class="panel-glass" style="max-width:480px; width:90%; padding:36px 36px 28px; text-align:center; position:relative;">
+            <div id="intro-icon" style="font-size:48px; margin-bottom:16px;"></div>
+            <h2 id="intro-title" style="margin:0 0 10px; font-weight:300; letter-spacing:4px; text-transform:uppercase; color:#e8f4ff; font-size:clamp(18px,3vw,24px);"></h2>
+            <p id="intro-subtitle" style="margin:0 0 6px; font-size:11px; letter-spacing:2px; text-transform:uppercase; color:rgba(180,210,255,0.6);"></p>
+            <p id="intro-desc" style="margin:18px 0 28px; font-size:14px; line-height:1.75; color:rgba(220,235,255,0.85);"></p>
+            <button id="intro-explore-btn" style="background:linear-gradient(135deg,rgba(74,158,255,0.25),rgba(74,158,255,0.1)); border:1px solid rgba(74,158,255,0.5); color:#a8d4ff; border-radius:8px; padding:10px 32px; font-size:14px; letter-spacing:2px; text-transform:uppercase; cursor:pointer; transition:all 0.2s;" onmouseover="this.style.background='linear-gradient(135deg,rgba(74,158,255,0.4),rgba(74,158,255,0.2))';this.style.color='#e8f4ff'" onmouseout="this.style.background='linear-gradient(135deg,rgba(74,158,255,0.25),rgba(74,158,255,0.1))';this.style.color='#a8d4ff'">Explore &rarr;</button>
+        </div>
+    </div>
     <audio id="solar-music" src="projects/solar_system/assets/Audio/1-drone-piano.mp3" loop preload="auto" style="display:none;"></audio>
     <div id="ui-layer" style="position: absolute; top: 0; left: 0; width: 100%; padding: 10px; display: flex; justify-content: space-between; pointer-events: none; z-index: 100;">
         <div style="pointer-events: auto; position: relative;">
@@ -766,6 +783,7 @@
                     </div>
                     <div style="display: flex; gap: 5px;">
                         <input type="date" id="date-picker" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: var(--text-main); border-radius: 4px; padding: 2px 5px; font-family: var(--font-main); font-size: 12px;">
+                        <input type="time" id="time-picker" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: var(--text-main); border-radius: 4px; padding: 2px 5px; font-family: var(--font-main); font-size: 12px; width: 80px;">
                         <button id="set-date-btn" style="background: var(--accent-color); border: none; color: white; border-radius: 4px; cursor: pointer; font-size: 12px; padding: 2px 8px;">Go</button>
                     </div>
                 </div>
@@ -778,6 +796,7 @@
                     <input type="range" id="time-speed" min="0" max="10" step="1" value="0">
                 </div>
                 <button id="time-reset" class="control-btn">Reset</button>
+                <button id="realtime-btn" class="control-btn" style="border-color: rgba(76,175,80,0.4);">Real Time</button>
             </div>
         </div>
     </div>
@@ -789,8 +808,70 @@
             pick_solar_body = mod.pick_solar_body ?? null;
         } catch(_) {}
 
+        function highlightBodyListItem(index) {
+            document.querySelectorAll('.body-list li').forEach(li => {
+                const m = (li.getAttribute('onclick') || '').match(/\((\d+)\)/);
+                li.classList.toggle('active', !!(m && parseInt(m[1]) === index));
+            });
+        }
+
+        const SYSTEM_INFO = {
+            sun: {
+                icon: '☀️',
+                title: 'Solar System',
+                subtitle: 'Our Cosmic Neighborhood',
+                desc: 'Eight planets orbit our Sun across a span of over 100 AU. From the rocky inner worlds to the gas giants, the asteroid belt, and the icy Kuiper Belt — this simulation reflects real orbital mechanics and current planetary positions.',
+                defaultFocus: 3,
+            },
+            black_hole: {
+                icon: '⚫',
+                title: 'Black Hole Scenario',
+                subtitle: 'What if the Sun were a black hole?',
+                desc: 'A hypothetical scenario where a ~10 solar-mass stellar black hole replaces the Sun at the center of the solar system. The planets would maintain similar orbits while being gravitationally bound to an invisible singularity.',
+                defaultFocus: 1,
+            },
+            sirius: {
+                icon: '✦',
+                title: 'Sirius System',
+                subtitle: 'α Canis Majoris · 8.6 Light-Years Away',
+                desc: 'The brightest star in the night sky. A binary system consisting of Sirius A, a white A-type main-sequence star roughly twice the mass of our Sun, and Sirius B — a dense white dwarf — orbiting each other every ~50 years.',
+                defaultFocus: 0,
+            },
+        };
+
+        function showSystemIntro(simType) {
+            const info = SYSTEM_INFO[simType] || SYSTEM_INFO.sun;
+            document.getElementById('intro-icon').textContent = info.icon;
+            document.getElementById('intro-title').textContent = info.title;
+            document.getElementById('intro-subtitle').textContent = info.subtitle;
+            document.getElementById('intro-desc').textContent = info.desc;
+            const el = document.getElementById('system-intro');
+            el.dataset.focusIndex = info.defaultFocus;
+            el.style.display = 'flex';
+            el.style.opacity = '0';
+            requestAnimationFrame(() => {
+                el.style.transition = 'opacity 0.4s ease';
+                el.style.opacity = '1';
+            });
+        }
+
+        function hideSystemIntro() {
+            const el = document.getElementById('system-intro');
+            el.style.transition = 'opacity 0.35s ease';
+            el.style.opacity = '0';
+            const idx = parseInt(el.dataset.focusIndex ?? '0');
+            setTimeout(() => {
+                el.style.display = 'none';
+                select_solar_body(idx);
+                highlightBodyListItem(idx);
+            }, 360);
+        }
+
+        document.getElementById('intro-explore-btn').addEventListener('click', hideSystemIntro);
+
         window.selectSolarBody = function(index) {
             select_solar_body(index);
+            highlightBodyListItem(index);
         };
 
         let _solarMouseDownPos = null;
@@ -798,6 +879,13 @@
         _canvas.addEventListener('mousedown', (e) => {
             _solarMouseDownPos = { x: e.clientX, y: e.clientY };
             if (document.body.classList.contains('solar-mode')) _canvas.style.cursor = 'none';
+        });
+        _canvas.addEventListener('mousemove', (e) => {
+            if (!document.body.classList.contains('solar-mode')) return;
+            if (_solarMouseDownPos) return;
+            if (!pick_solar_body) return;
+            const idx = pick_solar_body(e.clientX, e.clientY, window.innerWidth, window.innerHeight);
+            _canvas.style.cursor = idx >= 0 ? 'pointer' : '';
         });
         document.addEventListener('mouseup', () => {
             if (document.body.classList.contains('solar-mode')) _canvas.style.cursor = '';
@@ -812,7 +900,7 @@
             if (!document.body.classList.contains('solar-mode')) return;
             if (!pick_solar_body) return;
             const idx = pick_solar_body(e.clientX, e.clientY, window.innerWidth, window.innerHeight);
-            if (idx >= 0) select_solar_body(idx);
+            if (idx >= 0) { select_solar_body(idx); highlightBodyListItem(idx); }
         });
         
         window.load_solar_system = load_solar_system;
@@ -1003,9 +1091,9 @@
                         document.getElementById('loading-pct').textContent = '100%';
                         setTimeout(() => {
                             start_solar_system();
-                            select_solar_body(3);
                             startSolarMusic();
                             hideSolarLoading();
+                            showSystemIntro('sun');
                         }, 300);
                         return;
                     }
@@ -1128,8 +1216,8 @@
                     showSolarLoading();
                     setTimeout(() => {
                         load_solar_system(e.target.value);
-                        select_solar_body(INITIAL_FOCUS_INDEX[e.target.value] ?? 0);
                         hideSolarLoading();
+                        showSystemIntro(e.target.value);
                         currentSpeed = 1.0;
                         isPaused = false;
                         timeSpeedInput.value = 0;
@@ -1200,6 +1288,14 @@
                     if (currentSpeed === 1) speedVal.textContent = "Real Time";
                     else speedVal.textContent = currentSpeed.toFixed(1) + "x";
                 }
+
+                const rtBtn = document.getElementById('realtime-btn');
+                if (rtBtn) {
+                    const isRt = !isPaused && currentSpeed === 1.0;
+                    rtBtn.style.background = isRt ? 'rgba(76,175,80,0.25)' : '';
+                    rtBtn.style.borderColor = isRt ? '#4CAF50' : 'rgba(76,175,80,0.4)';
+                    rtBtn.style.color = isRt ? '#4CAF50' : '';
+                }
             }
             
             timeSpeedInput.addEventListener('input', (e) => {
@@ -1223,6 +1319,16 @@
                 updateTimeScale();
             });
 
+            const realtimeBtn = document.getElementById('realtime-btn');
+            if (realtimeBtn) {
+                realtimeBtn.addEventListener('click', () => {
+                    currentSpeed = 1.0;
+                    isPaused = false;
+                    timeSpeedInput.value = 0;
+                    updateTimeScale();
+                });
+            }
+
             const datePicker = document.getElementById('date-picker');
             const setDateBtn = document.getElementById('set-date-btn');
 
@@ -1230,7 +1336,13 @@
                 const dateStr = datePicker.value;
                 if (dateStr) {
                     const date = new Date(dateStr);
-                    date.setUTCHours(12, 0, 0, 0);
+                    const timeStr = document.getElementById('time-picker').value;
+                    if (timeStr) {
+                        const [h, m] = timeStr.split(':').map(Number);
+                        date.setUTCHours(h, m, 0, 0);
+                    } else {
+                        date.setUTCHours(12, 0, 0, 0);
+                    }
                     const timestamp = date.getTime();
                     set_solar_date(timestamp);
                 }

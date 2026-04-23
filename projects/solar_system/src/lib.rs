@@ -572,11 +572,7 @@ impl SolarSystem {
 
         let sun_texture = if system_type == SystemType::Solar { bodies[0].texture.clone() } else { None };
 
-        let focused_body_index = match system_type {
-            SystemType::Solar => Some(3),
-            SystemType::BlackHole => Some(1),
-            SystemType::Sirius => Some(0),
-        };
+        let focused_body_index: Option<usize> = None;
 
         let utc_sec_today = (now_ms / 1000.0) as f32 % 86400.0;
         let lambda_sun_rad = (43200.0 - utc_sec_today) * 2.0 * std::f32::consts::PI / 86400.0;
@@ -1388,7 +1384,7 @@ impl SolarSystem {
         }
 
         if let Some(ei) = self.earth_body_index {
-            let show = self.focused_body_index == Some(ei) && self.camera_distance < 0.05;
+            let show = self.focused_body_index == Some(ei);
             if show {
                 let earth_rel_pos = positions[ei] - target;
                 let cr = self.bodies[ei].current_rotation;
