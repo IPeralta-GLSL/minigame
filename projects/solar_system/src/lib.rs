@@ -1140,7 +1140,7 @@ impl SolarSystem {
                 &body.mesh
             };
 
-            let should_use_lighting = use_texture && body.name != "Sun" && body.name != "Black Hole";
+            let should_use_lighting = body.name != "Sun" && body.name != "Black Hole" && !body.name.starts_with("Sirius");
             let is_black_hole = body.name == "Black Hole";
             
             // If black hole, we want it to be visible despite its tiny physical radius.
