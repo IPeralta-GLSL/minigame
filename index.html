@@ -1298,13 +1298,15 @@
                 isPaused = !isPaused;
                 updateTimeScale();
             });
-            
-            resetBtn.addEventListener('click', () => {
-                currentSpeed = 1.0;
-                isPaused = false;
-                timeSpeedInput.value = 0;
-                updateTimeScale();
-            });
+
+            if (resetBtn) {
+                resetBtn.addEventListener('click', () => {
+                    currentSpeed = 1.0;
+                    isPaused = false;
+                    timeSpeedInput.value = 0;
+                    updateTimeScale();
+                });
+            }
 
             const realtimeBtn = document.getElementById('realtime-btn');
             if (realtimeBtn) {
