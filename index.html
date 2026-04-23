@@ -163,20 +163,6 @@
 
         #score {
             position: absolute;
-            bottom: 20px;
-            right: 20px;
-            padding: 15px;
-            color: white;
-            font-family: monospace;
-            font-size: 18px;
-            pointer-events: none;
-            display: none;
-            z-index: 100;
-            transition: transform 0.2s;
-        }
-
-        #score {
-            position: absolute;
             top: 20px;
             left: 20px;
             font-size: 28px;
@@ -632,6 +618,310 @@
             color: rgba(180,210,255,0.5);
             letter-spacing: 1px;
         }
+
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            padding: 10px;
+            display: flex;
+            justify-content: space-between;
+            pointer-events: none;
+            z-index: 100;
+        }
+
+        .settings-wrapper {
+            pointer-events: auto;
+            position: relative;
+        }
+
+        #settings-btn {
+            background: rgba(0,0,0,0.5);
+            border: 1px solid rgba(255,255,255,0.15);
+            border-radius: 8px;
+            color: white;
+            width: 36px;
+            height: 36px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0;
+            transition: background 0.2s;
+        }
+
+        #settings-btn:hover {
+            background: rgba(255,255,255,0.1);
+        }
+
+        #settings-panel {
+            display: none;
+            position: absolute;
+            top: 44px;
+            left: 0;
+            padding: 14px 16px;
+            min-width: 200px;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        #settings-panel label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            cursor: pointer;
+            color: var(--text-main);
+            white-space: nowrap;
+        }
+
+        .volume-control {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .volume-control span {
+            font-size: 11px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        #god-mode-btn {
+            pointer-events: auto;
+            padding: 10px;
+            background: #ffcc00;
+            border: none;
+            border-radius: 5px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        #fps-counter {
+            position: absolute;
+            top: 56px;
+            left: 10px;
+            color: #0f0;
+            font-family: monospace;
+            font-size: 13px;
+            background: rgba(0,0,0,0.5);
+            padding: 3px 8px;
+            border-radius: 4px;
+            display: none;
+            pointer-events: none;
+            z-index: 101;
+        }
+
+        .solar-select-wrapper {
+            margin-bottom: 15px;
+        }
+
+        .solar-select-wrapper label {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 11px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .category-filters {
+            display: flex;
+            gap: 5px;
+            margin-bottom: 15px;
+        }
+
+        #solar-info-panel {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            width: 280px;
+            display: none;
+            pointer-events: auto;
+            padding: 20px;
+        }
+
+        .info-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 15px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            padding-bottom: 10px;
+        }
+
+        .info-header h3 {
+            margin: 0;
+            color: var(--accent-color);
+            font-weight: 400;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        #info-panel-close {
+            background: none;
+            border: none;
+            color: rgba(255,255,255,0.4);
+            cursor: pointer;
+            font-size: 18px;
+            line-height: 1;
+            padding: 0 0 0 10px;
+            transition: color 0.2s;
+        }
+
+        #info-panel-close:hover {
+            color: rgba(255,255,255,0.9);
+        }
+
+        #system-info-content p:first-child {
+            margin: 0 0 14px;
+            font-size: 11px;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: rgba(180,210,255,0.6);
+        }
+
+        #system-info-content p:last-child {
+            margin: 0 0 20px;
+            font-size: 13px;
+            line-height: 1.75;
+            color: rgba(220,235,255,0.85);
+        }
+
+        .body-info-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .body-info-row strong {
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+
+        .temp-toggle-btn {
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+            color: var(--accent-color);
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 10px;
+            padding: 2px 6px;
+            transition: all 0.2s;
+        }
+
+        .temp-toggle-btn:hover {
+            background: rgba(255,255,255,0.2);
+        }
+
+        #info-desc {
+            margin-top: 15px;
+            font-style: italic;
+            color: var(--text-muted);
+            border-top: 1px solid rgba(255,255,255,0.1);
+            padding-top: 10px;
+        }
+
+        .datetime-block {
+            margin-right: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            min-width: 200px;
+        }
+
+        #datetime-display {
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            gap: 1px;
+            padding: 5px 8px;
+            border-radius: 6px;
+            border: 1px solid rgba(255,255,255,0.08);
+            background: rgba(255,255,255,0.04);
+            transition: border-color 0.2s;
+        }
+
+        #datetime-display:hover {
+            border-color: rgba(74,158,255,0.5);
+        }
+
+        #solar-date {
+            font-family: 'Roboto Mono', monospace;
+            color: var(--accent-color);
+            font-size: 13px;
+            white-space: nowrap;
+            letter-spacing: 0.5px;
+        }
+
+        #solar-tz {
+            font-size: 10px;
+            color: rgba(180,210,255,0.5);
+            letter-spacing: 0.5px;
+        }
+
+        #datetime-edit {
+            display: none;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .datetime-inputs {
+            display: flex;
+            gap: 4px;
+        }
+
+        .datetime-inputs input {
+            background: transparent;
+            border: none;
+            border-bottom: 1px solid rgba(74,158,255,0.7);
+            color: var(--accent-color);
+            border-radius: 0;
+            padding: 2px 0;
+            font-family: 'Roboto Mono', monospace;
+            font-size: 13px;
+            outline: none;
+            letter-spacing: 0.5px;
+        }
+
+        .datetime-inputs input:first-child {
+            width: 55%;
+        }
+
+        .datetime-inputs input:last-child {
+            width: 45%;
+        }
+
+        #timezone-select {
+            background: rgba(10,20,40,0.95);
+            border: 1px solid rgba(74,158,255,0.3);
+            color: #e8f4ff;
+            border-radius: 4px;
+            padding: 3px 6px;
+            font-family: var(--font-main);
+            font-size: 11px;
+            cursor: pointer;
+            width: 100%;
+            color-scheme: dark;
+        }
+
+        #time-toggle {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            min-width: 90px;
+            justify-content: center;
+        }
+
+        #realtime-btn {
+            border-color: rgba(76,175,80,0.4);
+        }
+
+        #solar-music {
+            display: none;
+        }
     </style>
 </head>
 <body>
@@ -647,31 +937,27 @@
         </div>
     </div>
 
-    <audio id="solar-music" src="projects/solar_system/assets/Audio/1-drone-piano.mp3" loop preload="auto" style="display:none;"></audio>
-    <div id="ui-layer" style="position: absolute; top: 0; left: 0; width: 100%; padding: 10px; display: flex; justify-content: space-between; pointer-events: none; z-index: 100;">
-        <div style="pointer-events: auto; position: relative;">
-            <button id="settings-btn" title="Settings" style="background: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.15); border-radius: 8px; color: white; width: 36px; height: 36px; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0; transition: background 0.2s;">
+    <audio id="solar-music" src="projects/solar_system/assets/Audio/1-drone-piano.mp3" loop preload="auto"></audio>
+    <div id="ui-layer">
+        <div class="settings-wrapper">
+            <button id="settings-btn" title="Settings">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <circle cx="12" cy="12" r="3"/>
                     <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
                 </svg>
             </button>
-            <div id="settings-panel" class="panel-glass" style="display:none; position: absolute; top: 44px; left: 0; padding: 14px 16px; min-width: 200px; flex-direction: column; gap: 12px;">
-                <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; color: var(--text-main); white-space: nowrap;">
-                    <input type="checkbox" id="fps-toggle"> Mostrar FPS
-                </label>
-                <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; color: var(--text-main); white-space: nowrap;">
-                    <input type="checkbox" id="music-toggle" checked> Música
-                </label>
-                <div style="display: flex; flex-direction: column; gap: 4px;">
-                    <span style="font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px;">Volumen</span>
-                    <input type="range" id="music-volume" min="0" max="1" step="0.05" value="0.6" style="width: 100%;">
+            <div id="settings-panel" class="panel-glass">
+                <label><input type="checkbox" id="fps-toggle"> Mostrar FPS</label>
+                <label><input type="checkbox" id="music-toggle" checked> Música</label>
+                <div class="volume-control">
+                    <span>Volumen</span>
+                    <input type="range" id="music-volume" min="0" max="1" step="0.05" value="0.6">
                 </div>
             </div>
         </div>
-        <button id="god-mode-btn" style="pointer-events: auto; padding: 10px; background: #ffcc00; border: none; border-radius: 5px; font-weight: bold; cursor: pointer;">GOD MODE</button>
+        <button id="god-mode-btn">GOD MODE</button>
     </div>
-    <div id="fps-counter" style="position: absolute; top: 56px; left: 10px; color: #0f0; font-family: monospace; font-size: 13px; background: rgba(0,0,0,0.5); padding: 3px 8px; border-radius: 4px; display: none; pointer-events: none; z-index: 101;">FPS: 0</div>
+    <div id="fps-counter">FPS: 0</div>
     <div id="menu">
         <h1 class="menu-title">Select Game</h1>
         <button class="menu-btn" onclick="startGame('road')">Crossy Road</button>
@@ -725,8 +1011,8 @@
             
             <div class="solar-sidebar panel-glass">
                 <h3>Celestial Bodies</h3>
-                <div style="margin-bottom: 15px;">
-                    <label for="sim-type" style="display: block; margin-bottom: 8px; font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px;">Simulation Type</label>
+                <div class="solar-select-wrapper">
+                    <label for="sim-type">Simulation Type</label>
                     <select id="sim-type">
                         <option value="sun">Solar System (Sun)</option>
                         <option value="black_hole">Solar System (Black Hole)</option>
@@ -734,7 +1020,7 @@
                     </select>
                 </div>
                 
-                <div class="category-filters" style="display: flex; gap: 5px; margin-bottom: 15px;">
+                <div class="category-filters">
                     <button class="cat-btn active" data-cat="all">All</button>
                     <button class="cat-btn" data-cat="planet">Planets</button>
                     <button class="cat-btn" data-cat="moon">Moons</button>
@@ -746,56 +1032,55 @@
                 </ul>
             </div>
 
-            <div id="solar-info-panel" class="panel-glass" style="position: absolute; top: 20px; right: 20px; width: 280px; display: none; pointer-events: auto; padding: 20px;">
-                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px;">
-                    <h3 id="info-name" style="margin: 0; color: var(--accent-color); font-weight: 400; letter-spacing: 1px; text-transform: uppercase;"></h3>
-                    <button id="info-panel-close" style="background: none; border: none; color: rgba(255,255,255,0.4); cursor: pointer; font-size: 18px; line-height: 1; padding: 0 0 0 10px; transition: color 0.2s;" onmouseover="this.style.color='rgba(255,255,255,0.9)'" onmouseout="this.style.color='rgba(255,255,255,0.4)'">&#x2715;</button>
+            <div id="solar-info-panel" class="panel-glass">
+                <div class="info-header">
+                    <h3 id="info-name"></h3>
+                    <button id="info-panel-close">&#x2715;</button>
                 </div>
-                <div id="system-info-content" style="display: none;">
-                    <p id="system-info-subtitle" style="margin: 0 0 14px; font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: rgba(180,210,255,0.6);"></p>
-                    <p id="system-info-desc" style="margin: 0 0 20px; font-size: 13px; line-height: 1.75; color: rgba(220,235,255,0.85);"></p>
+                <div id="system-info-content">
+                    <p id="system-info-subtitle"></p>
+                    <p id="system-info-desc"></p>
                 </div>
-                <div id="body-info-content" style="display: none; font-size: 13px; line-height: 1.8; color: var(--text-main);">
-                    <p><strong style="color: var(--text-muted); font-weight: 500;">Mass:</strong> <span id="info-mass" style="float: right;">-</span></p>
-                    <p><strong style="color: var(--text-muted); font-weight: 500;">Radius:</strong> <span id="info-radius" style="float: right;">-</span></p>
-                    <p style="display: flex; justify-content: space-between; align-items: center;">
-                        <strong style="color: var(--text-muted); font-weight: 500;">Temp:</strong> 
-                        <span style="display: flex; align-items: center; gap: 8px;">
-                            <span id="info-temp">-</span>
-                            <button id="temp-unit-toggle" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: var(--accent-color); border-radius: 4px; cursor: pointer; font-size: 10px; padding: 2px 6px; transition: all 0.2s;">°C/K</button>
+                <div id="body-info-content">
+                    <p class="body-info-row"><strong>Mass:</strong> <span id="info-mass"></span></p>
+                    <p class="body-info-row"><strong>Radius:</strong> <span id="info-radius"></span></p>
+                    <p class="body-info-row">
+                        <strong>Temp:</strong> 
+                        <span>
+                            <span id="info-temp"></span>
+                            <button id="temp-unit-toggle" class="temp-toggle-btn">°C/K</button>
                         </span>
                     </p>
-                    <p><strong style="color: var(--text-muted); font-weight: 500;">Speed:</strong> <span id="info-speed" style="float: right;">-</span></p>
-                    <p><strong style="color: var(--text-muted); font-weight: 500;">Period:</strong> <span id="info-period" style="float: right;">-</span></p>
-                    <p><strong style="color: var(--text-muted); font-weight: 500;">Eccentricity:</strong> <span id="info-eccentricity" style="float: right;">-</span></p>
-                    <p style="margin-top: 15px; font-style: italic; color: var(--text-muted); border-top: 1px solid rgba(255,255,255,0.1); padding-top: 10px;" id="info-desc"></p>
+                    <p class="body-info-row"><strong>Speed:</strong> <span id="info-speed"></span></p>
+                    <p class="body-info-row"><strong>Period:</strong> <span id="info-period"></span></p>
+                    <p class="body-info-row"><strong>Eccentricity:</strong> <span id="info-eccentricity"></span></p>
+                    <p id="info-desc"></p>
                 </div>
             </div>
             
             <div class="time-controls panel-glass">
-                <div id="datetime-block" style="margin-right: 20px; display: flex; flex-direction: column; gap: 4px; min-width: 200px;">
-                    <div id="datetime-display" title="Click to edit" style="cursor: pointer; display: flex; flex-direction: column; gap: 1px; padding: 5px 8px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.04); transition: border-color 0.2s;" onmouseover="this.style.borderColor='rgba(74,158,255,0.5)'" onmouseout="this.style.borderColor='rgba(255,255,255,0.08)'">
-                        <span id="solar-date" style="font-family: 'Roboto Mono', monospace; color: var(--accent-color); font-size: 13px; white-space: nowrap; letter-spacing: 0.5px;">--</span>
-                        <span id="solar-tz" style="font-size: 10px; color: rgba(180,210,255,0.5); letter-spacing: 0.5px;">--</span>
+                <div class="datetime-block">
+                    <div id="datetime-display">
+                        <span id="solar-date">--</span>
+                        <span id="solar-tz">--</span>
                     </div>
-                    <div id="datetime-edit" style="display: none; flex-direction: column; gap: 4px;">
-                        <div style="display: flex; gap: 4px;">
-                            <input type="text" id="date-input" autocomplete="off" spellcheck="false" placeholder="YYYY-MM-DD" style="background: transparent; border: none; border-bottom: 1px solid rgba(74,158,255,0.7); color: var(--accent-color); border-radius: 0; padding: 2px 0; font-family: 'Roboto Mono', monospace; font-size: 13px; width: 55%; box-sizing: border-box; outline: none; letter-spacing: 0.5px;">
-                            <input type="text" id="time-input" autocomplete="off" spellcheck="false" placeholder="HH:MM:SS" style="background: transparent; border: none; border-bottom: 1px solid rgba(74,158,255,0.7); color: var(--accent-color); border-radius: 0; padding: 2px 0; font-family: 'Roboto Mono', monospace; font-size: 13px; width: 45%; box-sizing: border-box; outline: none; letter-spacing: 0.5px;">
+                    <div id="datetime-edit">
+                        <div class="datetime-inputs">
+                            <input type="text" id="date-input" autocomplete="off" spellcheck="false" placeholder="YYYY-MM-DD">
+                            <input type="text" id="time-input" autocomplete="off" spellcheck="false" placeholder="HH:MM:SS">
                         </div>
-                        <select id="timezone-select" style="background: rgba(10,20,40,0.95); border: 1px solid rgba(74,158,255,0.3); color: #e8f4ff; border-radius: 4px; padding: 3px 6px; font-family: var(--font-main); font-size: 11px; cursor: pointer; width: 100%; color-scheme: dark;"></select>
+                        <select id="timezone-select"></select>
                     </div>
                 </div>
-                <button id="time-toggle" class="control-btn" style="display: flex; align-items: center; gap: 5px; min-width: 90px; justify-content: center;">
+                <button id="time-toggle" class="control-btn">
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" stroke="none"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
                     Pause
                 </button>
                 <div class="time-slider-container">
-                    <label for="time-speed">Speed: <span id="speed-val" style="color: var(--accent-color);">1.0</span></label>
+                    <label for="time-speed">Speed: <span id="speed-val">1.0</span></label>
                     <input type="range" id="time-speed" min="0" max="10" step="1" value="0">
                 </div>
-                <!--<button id="time-reset" class="control-btn">Reset</button>-->
-                <button id="realtime-btn" class="control-btn" style="border-color: rgba(76,175,80,0.4);">Real Time</button>
+                <button id="realtime-btn" class="control-btn">Real Time</button>
             </div>
         </div>
     </div>
