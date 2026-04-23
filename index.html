@@ -6,8 +6,8 @@
     <title>Games</title>
     <style>
         :root {
-            --bg-glass: rgba(45, 45, 45, 0.75);
-            --bg-glass-hover: rgba(60, 60, 60, 0.85);
+            --bg-glass: rgba(30, 30, 30, 0.65);
+            --bg-glass-hover: rgba(45, 45, 45, 0.75);
             --border-glass: rgba(255, 255, 255, 0.1);
             --accent-color: #4CAF50;
             --accent-glow: rgba(76, 175, 80, 0.3);
@@ -1405,7 +1405,11 @@
             el.style.transition = 'opacity 0.8s ease';
             el.style.opacity = '0';
             stopStarsAnim();
-            setTimeout(() => { el.classList.remove('active'); el.style.transition = ''; }, 820);
+            setTimeout(() => { 
+                el.classList.remove('active'); 
+                el.style.transition = ''; 
+                if (window.updateSolarDateTime) window.updateSolarDateTime();
+            }, 820);
         }
 
         function startSolarWithLoading(simType) {
@@ -1734,15 +1738,35 @@
                 });
             });
 
-            setInterval(() => {
-                if (datetimeEdit.style.display !== 'none') return;
+            function updateSolarDateTime() {
                 let ts = 0;
-                try { ts = get_solar_time(); } catch(e) { return; }
-                if (!ts) return;
+                try { ts = get_solar_time(); } catch(e) { ts = Date.now(); }
+                if (!ts) ts = Date.now();
                 const el = document.getElementById('solar-date');
                 const tzEl = document.getElementById('solar-tz');
                 if (!el) return;
                 try {
+                    el.textContent = new Intl.DateTimeFormat('en-US', {
+                        timeZone: selectedTimezone,
+                        year: 'numeric', month: '2-digit', day: '2-digit',
+                        hour: '2-digit', minute: '2-digit', second: '2-digit',
+                        hour12: false
+                    }).format(new Date(ts));
+                    if (tzEl) {
+                        const offset = new Intl.DateTimeFormat('en-US', { timeZone: selectedTimezone, timeZoneName: 'short' }).formatToParts(new Date(ts)).find(p => p.type === 'timeZoneName');
+                        tzEl.textContent = selectedTimezone + (offset ? ' (' + offset.value + ')' : '');
+                    }
+                } catch(e) {
+                    el.textContent = new Date(ts).toLocaleString();
+                }
+            }
+
+            setInterval(() => {
+                if (datetimeEdit.style.display !== 'none') return;
+                updateSolarDateTime();
+            }, 200);
+
+            window.updateSolarDateTime = updateSolarDateTime;
                     el.textContent = new Intl.DateTimeFormat('en-US', {
                         timeZone: selectedTimezone,
                         year: 'numeric', month: '2-digit', day: '2-digit',
