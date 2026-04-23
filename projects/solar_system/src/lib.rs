@@ -953,7 +953,6 @@ impl SolarSystem {
             let x_orb_raw = body.orbit_radius * (big_e.cos() - e);
             let z_orb_raw = body.orbit_radius * (1.0 - e*e).sqrt() * big_e.sin();
             
-            // Apply Argument of Periapsis
             let w = body.argument_of_periapsis;
             let (sin_w, cos_w) = w.sin_cos();
             let x_orb = x_orb_raw * cos_w + z_orb_raw * sin_w;
@@ -962,7 +961,6 @@ impl SolarSystem {
             let y_incl = z_orb * body.orbit_inclination.sin();
             let z_incl = z_orb * body.orbit_inclination.cos();
 
-            // Apply Longitude of Ascending Node
             let omega = body.longitude_of_ascending_node;
             let (sin_o, cos_o) = omega.sin_cos();
             
@@ -1030,7 +1028,7 @@ impl SolarSystem {
                 false,
                 None,
                 None
-            );        // Re-enable lighting for planets
+            );        
         self.renderer.gl.uniform1i(Some(&self.renderer.u_use_lighting_location), 1);
         
         self.renderer.enable_depth_test();
@@ -1092,7 +1090,7 @@ impl SolarSystem {
                 instance_data.push(body.color.0);
                 instance_data.push(body.color.1);
                 instance_data.push(body.color.2);
-                instance_data.push(1.0); // Light level
+                instance_data.push(1.0);
                 asteroid_count += 1;
                 continue;
             }
@@ -1133,9 +1131,7 @@ impl SolarSystem {
             let should_use_lighting = use_texture && body.name != "Sun" && body.name != "Black Hole";
             let is_black_hole = body.name == "Black Hole";
             
-            // If black hole, we want it to be visible despite its tiny physical radius.
-            // We scale it up for rendering so the lensing effect is visible.
-            // 3km is invisible. Let's make the visual effect roughly Sun-sized (0.5) or slightly smaller.
+
             let final_render_radius = if is_black_hole { 0.3 } else { render_radius };
 
             self.renderer.draw_mesh(
@@ -1162,10 +1158,6 @@ impl SolarSystem {
                     self.renderer.gl.enable(web_sys::WebGlRenderingContext::BLEND);
                     self.renderer.gl.blend_func(web_sys::WebGlRenderingContext::SRC_ALPHA, web_sys::WebGlRenderingContext::ONE_MINUS_SRC_ALPHA);
                     
-                    // Rings are usually equatorial.
-                    // We rotate 90 deg around X to make the quad horizontal (XZ plane).
-                    // Then apply axial tilt (X rotation).
-                    // So total X rotation = axial_tilt + 90 deg.
                     
                     self.renderer.draw_mesh(
                         &self.ring_mesh,
@@ -1394,7 +1386,7 @@ impl SolarSystem {
             let cam_ez = rel_cam_z - earth_rel_pos.z;
             let dist_to_earth = (cam_ex*cam_ex + cam_ey*cam_ey + cam_ez*cam_ez).sqrt();
             let earth_radius = self.bodies[ei].radius;
-            let show = dist_to_earth < earth_radius * 80.0;
+            let show = dist_to_earth < earth_radius * 40.0;
             if show {
                 let cr = self.bodies[ei].current_rotation;
                 let at = self.bodies[ei].axial_tilt;
