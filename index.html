@@ -590,33 +590,6 @@
             text-align: center;
             padding: 0 20px;
         }
-        .loading-planet {
-            width: 90px;
-            height: 90px;
-            border-radius: 50%;
-            background: radial-gradient(circle at 35% 35%, #6fa8d8, #1a3a6a 60%, #08152a);
-            box-shadow: 0 0 40px rgba(80,160,255,0.35), inset -18px -12px 30px rgba(0,0,0,0.6);
-            animation: spin 8s linear infinite;
-            flex-shrink: 0;
-        }
-        .loading-planet::after {
-            content: '';
-            position: absolute;
-            width: 90px;
-            height: 90px;
-            border-radius: 50%;
-            background: repeating-linear-gradient(
-                180deg,
-                transparent 0%,
-                transparent 38%,
-                rgba(255,255,255,0.07) 40%,
-                rgba(255,255,255,0.07) 44%,
-                transparent 46%,
-                transparent 100%
-            );
-        }
-        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-
         .loading-title {
             font-size: clamp(22px, 4vw, 32px);
             font-weight: 300;
@@ -658,7 +631,6 @@
     <div id="solar-loading">
         <canvas id="stars-canvas"></canvas>
         <div class="loading-content">
-            <div class="loading-planet"></div>
             <div class="loading-title">Solar System</div>
             <div class="loading-subtitle" id="loading-text">Initializing...</div>
             <div class="loading-bar-wrap">
