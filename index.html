@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>MiniGame Evax</title>
+    <title>Games</title>
     <style>
         :root {
             --bg-glass: rgba(30, 30, 30, 0.9);
@@ -564,9 +564,118 @@
             border-color: var(--accent-color);
             color: white;
         }
+
+        /* ───────── SOLAR LOADING SCREEN ───────── */
+        #solar-loading {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: #000;
+            z-index: 9999;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-family: var(--font-main);
+            overflow: hidden;
+        }
+        #solar-loading.active { display: flex; }
+        #solar-loading canvas#stars-canvas {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            border: none !important;
+            border-radius: 0 !important;
+            box-shadow: none !important;
+        }
+        .loading-content {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 28px;
+            text-align: center;
+            padding: 0 20px;
+        }
+        .loading-planet {
+            width: 90px;
+            height: 90px;
+            border-radius: 50%;
+            background: radial-gradient(circle at 35% 35%, #6fa8d8, #1a3a6a 60%, #08152a);
+            box-shadow: 0 0 40px rgba(80,160,255,0.35), inset -18px -12px 30px rgba(0,0,0,0.6);
+            animation: spin 8s linear infinite;
+            flex-shrink: 0;
+        }
+        /* thin cloud band on the planet */
+        .loading-planet::after {
+            content: '';
+            position: absolute;
+            width: 90px;
+            height: 90px;
+            border-radius: 50%;
+            background: repeating-linear-gradient(
+                180deg,
+                transparent 0%,
+                transparent 38%,
+                rgba(255,255,255,0.07) 40%,
+                rgba(255,255,255,0.07) 44%,
+                transparent 46%,
+                transparent 100%
+            );
+        }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+        .loading-title {
+            font-size: clamp(22px, 4vw, 32px);
+            font-weight: 300;
+            letter-spacing: 6px;
+            text-transform: uppercase;
+            color: #e8f4ff;
+            text-shadow: 0 0 20px rgba(100,180,255,0.4);
+        }
+        .loading-subtitle {
+            font-size: 13px;
+            color: rgba(180,210,255,0.7);
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            min-height: 18px;
+        }
+        .loading-bar-wrap {
+            width: min(340px, 80vw);
+            background: rgba(255,255,255,0.07);
+            border-radius: 4px;
+            height: 4px;
+            overflow: hidden;
+        }
+        .loading-bar-fill {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, #4a9eff, #a0d0ff);
+            border-radius: 4px;
+            transition: width 0.3s ease;
+            box-shadow: 0 0 10px rgba(74,158,255,0.6);
+        }
+        .loading-pct {
+            font-size: 12px;
+            color: rgba(180,210,255,0.5);
+            letter-spacing: 1px;
+        }
     </style>
 </head>
 <body>
+    <!-- Solar System Loading Screen -->
+    <div id="solar-loading">
+        <canvas id="stars-canvas"></canvas>
+        <div class="loading-content">
+            <div class="loading-planet"></div>
+            <div class="loading-title">Solar System</div>
+            <div class="loading-subtitle" id="loading-text">Initializing...</div>
+            <div class="loading-bar-wrap">
+                <div class="loading-bar-fill" id="loading-bar"></div>
+            </div>
+            <div class="loading-pct" id="loading-pct">0%</div>
+        </div>
+    </div>
     <audio id="solar-music" src="projects/solar_system/assets/Audio/1-drone-piano.mp3" loop preload="auto" style="display:none;"></audio>
     <div id="ui-layer" style="position: absolute; top: 0; left: 0; width: 100%; padding: 10px; display: flex; justify-content: space-between; pointer-events: none; z-index: 100;">
         <div style="pointer-events: auto; position: relative;">
@@ -746,7 +855,7 @@
         const BASE = '/minigame';
         const GAME_ROUTES = {
             [`${BASE}/crossy_road`]: 'road',
-            [`${BASE}/solar_system`]: 'solar_system',
+            [`${BASE}/solar_system`]: 'solar',
             [`${BASE}/tinycraft`]: 'tinycraft'
         };
 
@@ -800,12 +909,143 @@
             } else {
                 document.body.classList.remove('minecraft-mode');
                 document.body.classList.add('solar-mode');
-                start_solar_system();
-                startSolarMusic();
                 history.pushState(null, '', `${BASE}/solar_system`);
+                startSolarWithLoading('sun');
             }
             resizeCanvas();
         };
+
+        // ─── Solar loading screen helpers ───
+        const SOLAR_TEXTURES = [
+            'projects/solar_system/assets/textures/2k_sun.jpg',
+            'projects/solar_system/assets/textures/2k_mercury.jpg',
+            'projects/solar_system/assets/textures/2k_venus_surface.jpg',
+            'projects/solar_system/assets/textures/2k_venus_atmosphere.jpg',
+            'projects/solar_system/assets/textures/8k_earth_daymap.jpg',
+            'projects/solar_system/assets/textures/8k_earth_nightmap.jpg',
+            'projects/solar_system/assets/textures/8k_earth_clouds.jpg',
+            'projects/solar_system/assets/textures/2k_moon.jpg',
+            'projects/solar_system/assets/textures/2k_mars.jpg',
+            'projects/solar_system/assets/textures/phobos.webp',
+            'projects/solar_system/assets/textures/deimos.webp',
+            'projects/solar_system/assets/textures/2k_ceres_fictional.jpg',
+            'projects/solar_system/assets/textures/2k_jupiter.jpg',
+            'projects/solar_system/assets/textures/io.webp',
+            'projects/solar_system/assets/textures/Europa.webp',
+            'projects/solar_system/assets/textures/Ganymede.webp',
+            'projects/solar_system/assets/textures/Callisto.webp',
+            'projects/solar_system/assets/textures/2k_saturn.jpg',
+            'projects/solar_system/assets/textures/2k_saturn_ring_alpha.png',
+            'projects/solar_system/assets/textures/chariklo.webp',
+            'projects/solar_system/assets/textures/2k_uranus.jpg',
+            'projects/solar_system/assets/textures/2k_neptune.jpg',
+            'projects/solar_system/assets/textures/Pluto.webp',
+            'projects/solar_system/assets/textures/Charon.webp',
+            'projects/solar_system/assets/textures/2k_haumea_fictional.jpg',
+            'projects/solar_system/assets/textures/2k_makemake_fictional.jpg',
+            'projects/solar_system/assets/textures/2k_eris_fictional.jpg',
+            'projects/solar_system/assets/textures/8k_stars.jpg',
+        ];
+
+        const TEXTURE_NAMES = {
+            '8k_earth_daymap.jpg':   'Earth surface',
+            '8k_earth_nightmap.jpg': 'Earth (night)',
+            '8k_earth_clouds.jpg':   'Cloud layer',
+            '8k_stars.jpg':          'Starfield',
+            '2k_sun.jpg':            'Sun',
+            '2k_saturn.jpg':         'Saturn',
+            '2k_jupiter.jpg':        'Jupiter',
+        };
+
+        let starsAnimId = null;
+        function startStarsAnim() {
+            const cv = document.getElementById('stars-canvas');
+            cv.width  = window.innerWidth;
+            cv.height = window.innerHeight;
+            const ctx = cv.getContext('2d');
+            const stars = Array.from({length: 220}, () => ({
+                x: Math.random() * cv.width,
+                y: Math.random() * cv.height,
+                r: Math.random() * 1.4 + 0.2,
+                a: Math.random(),
+                spd: 0.003 + Math.random() * 0.007,
+            }));
+            function draw() {
+                ctx.clearRect(0, 0, cv.width, cv.height);
+                stars.forEach(s => {
+                    s.a += s.spd;
+                    const alpha = 0.3 + 0.7 * Math.abs(Math.sin(s.a));
+                    ctx.beginPath();
+                    ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+                    ctx.fillStyle = `rgba(200,220,255,${alpha})`;
+                    ctx.fill();
+                });
+                starsAnimId = requestAnimationFrame(draw);
+            }
+            draw();
+        }
+        function stopStarsAnim() {
+            if (starsAnimId) { cancelAnimationFrame(starsAnimId); starsAnimId = null; }
+        }
+
+        function showSolarLoading() {
+            const el = document.getElementById('solar-loading');
+            el.classList.add('active');
+            el.style.opacity = '1';
+            document.getElementById('loading-bar').style.width = '0%';
+            document.getElementById('loading-pct').textContent = '0%';
+            document.getElementById('loading-text').textContent = 'Initializing…';
+            startStarsAnim();
+        }
+
+        function hideSolarLoading() {
+            const el = document.getElementById('solar-loading');
+            el.style.transition = 'opacity 0.8s ease';
+            el.style.opacity = '0';
+            stopStarsAnim();
+            setTimeout(() => { el.classList.remove('active'); el.style.transition = ''; }, 820);
+        }
+
+        function startSolarWithLoading(simType) {
+            showSolarLoading();
+            const showStart = Date.now();
+            const MIN_MS = 1200; // siempre visible al menos 1.2 s
+
+            // Esperar 2 frames para garantizar que el browser pinte la pantalla
+            // antes de disparar las cargas (fix para texturas 100% cacheadas)
+            requestAnimationFrame(() => requestAnimationFrame(() => {
+                let loaded = 0;
+                const total = SOLAR_TEXTURES.length;
+
+                function onOne(url) {
+                    loaded++;
+                    const pct = Math.round((loaded / total) * 100);
+                    document.getElementById('loading-bar').style.width = pct + '%';
+                    document.getElementById('loading-pct').textContent = pct + '%';
+                    // Show friendly name for notable textures
+                    const fname = url.split('/').pop();
+                    const label = TEXTURE_NAMES[fname] || null;
+                    if (label) document.getElementById('loading-text').textContent = 'Loading: ' + label;
+                    if (loaded === total) {
+                        document.getElementById('loading-text').textContent = 'Launching…';
+                        const elapsed = Date.now() - showStart;
+                        const wait = Math.max(200, MIN_MS - elapsed);
+                        setTimeout(() => {
+                            start_solar_system();
+                            startSolarMusic();
+                            hideSolarLoading();
+                        }, wait);
+                    }
+                }
+
+                SOLAR_TEXTURES.forEach(url => {
+                    const img = new Image();
+                    img.onload  = () => onOne(url);
+                    img.onerror = () => onOne(url); // count errors too so we never hang
+                    img.src = url;
+                });
+            }));
+        }
 
         // Handle back/forward navigation
         window.addEventListener('popstate', () => {
@@ -907,12 +1147,16 @@
             const simTypeSelect = document.getElementById('sim-type');
             if (simTypeSelect) {
                 simTypeSelect.addEventListener('change', (e) => {
-                    load_solar_system(e.target.value);
-                    // Reset time controls
-                    currentSpeed = 1.0;
-                    isPaused = false;
-                    timeSpeedInput.value = 0;
-                    updateTimeScale();
+                    showSolarLoading();
+                    setTimeout(() => {
+                        load_solar_system(e.target.value);
+                        hideSolarLoading();
+                        // Reset time controls
+                        currentSpeed = 1.0;
+                        isPaused = false;
+                        timeSpeedInput.value = 0;
+                        updateTimeScale();
+                    }, 400);
                 });
             }
 
