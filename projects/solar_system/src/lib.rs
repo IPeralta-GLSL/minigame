@@ -1550,4 +1550,78 @@ impl SolarSystem {
 
         best_idx
     }
+
+    pub fn load_satellite(&mut self, bytes: &[u8]) {
+        let mesh = Mesh::from_gltf(bytes).unwrap_or_else(|_| Mesh::sphere(1.0, 10, 10, 0.8, 0.8, 0.9));
+
+        let window = web_sys::window().unwrap();
+        let document = window.document().unwrap();
+        let labels_container = document.get_element_by_id("solar-labels");
+
+        let label_element = if let Some(container) = &labels_container {
+            let el = document.create_element("div").unwrap();
+            el.set_class_name("solar-label");
+            el.set_text_content(Some("Aquarius"));
+            container.append_child(&el).unwrap();
+            el.dyn_into::<HtmlElement>().ok()
+        } else {
+            None
+        };
+
+        let idx = self.bodies.len();
+
+        if let Ok(Some(list)) = document.query_selector(".body-list") {
+            let li = document.create_element("li").unwrap();
+            let icon_svg = r#"<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="6" height="6" rx="1"/><line x1="3" y1="12" x2="9" y2="12"/><line x1="15" y1="12" x2="21" y2="12"/><line x1="12" y1="3" x2="12" y2="9"/><line x1="12" y1="15" x2="12" y2="21"/></svg>"#;
+            li.set_inner_html(&format!("{}<span>Aquarius</span>", icon_svg));
+            li.set_attribute("data-category", "moon").unwrap();
+            li.set_attribute("onclick", &format!("selectSolarBody({})", idx)).unwrap();
+            list.append_child(&li).unwrap();
+        }
+
+        let earth_idx = self.earth_body_index.unwrap_or(3);
+
+        let p_days = 0.068056_f32;
+        let orbit_speed = (2.0 * std::f32::consts::PI) / (p_days * 86400.0);
+        let orbit_radius = 0.00470_f32;
+
+        let now_ms = Date::now();
+        let j2000_ms = 946728000000.0_f64;
+        let days_since_j2000 = ((now_ms - j2000_ms) / (1000.0 * 60.0 * 60.0 * 24.0)) as f32;
+        let orbit_angle = (orbit_speed * 86400.0 * days_since_j2000) % (2.0 * std::f32::consts::PI);
+
+        self.bodies.push(Body {
+            mesh,
+            radius: 0.0003,
+            orbit_radius,
+            orbit_speed,
+            orbit_angle,
+            mean_longitude_at_epoch: 0.0,
+            color: (0.8, 0.8, 0.9),
+            parent: Some(earth_idx),
+            name: "Aquarius".to_string(),
+            trail: Vec::new(),
+            label_element,
+            texture: None,
+            night_texture: None,
+            cloud_texture: None,
+            cloud_rotation: 0.0,
+            proc_clouds: false,
+            rotation_period: p_days,
+            axial_tilt: 0.0,
+            current_rotation: 0.0,
+            orbit_inclination: 98.0_f32.to_radians(),
+            longitude_of_ascending_node: 0.0,
+            argument_of_periapsis: 0.0,
+            last_trail_angle: orbit_angle,
+            eccentricity: 0.0001,
+            mass: "2,900 kg".to_string(),
+            temperature: 260.0,
+            description: "Joint NASA/CONAE ocean-observing satellite. Measures sea surface salinity from a sun-synchronous polar orbit at 657 km altitude.".to_string(),
+            ring_texture: None,
+            ring_radius: 0.0,
+            ring_inner_radius: None,
+            is_frozen: false,
+        });
+    }
 }

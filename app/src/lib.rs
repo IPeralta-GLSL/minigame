@@ -260,6 +260,36 @@ pub fn start_solar_system() -> Result<(), JsValue> {
 }
 
 #[wasm_bindgen]
+pub async fn load_aquarius_satellite() -> Result<JsValue, JsValue> {
+    let window = web_sys::window().ok_or_else(|| JsValue::from_str("No window"))?;
+    let mut opts = RequestInit::new();
+    opts.method("GET");
+    opts.mode(RequestMode::Cors);
+
+    let request = Request::new_with_str_and_init(
+        "/projects/solar_system/assets/Models/Aquarius%20(A).glb",
+        &opts,
+    )?;
+    let resp_value = JsFuture::from(window.fetch_with_request(&request)).await?;
+    let resp: Response = resp_value.dyn_into()?;
+
+    if resp.ok() {
+        let buffer_promise = resp.array_buffer()?;
+        let buffer = JsFuture::from(buffer_promise).await?;
+        let array = js_sys::Uint8Array::new(&buffer);
+        let bytes = array.to_vec();
+
+        CURRENT_GAME.with(|g| {
+            if let Some(ActiveGame::Solar(game)) = g.borrow_mut().as_mut() {
+                game.load_satellite(&bytes);
+            }
+        });
+    }
+
+    Ok(JsValue::UNDEFINED)
+}
+
+#[wasm_bindgen]
 pub fn start_minecraft() -> Result<(), JsValue> {
     let gl = get_gl()?;
     let renderer = Renderer::new(gl)?;
