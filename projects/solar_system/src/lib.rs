@@ -572,7 +572,9 @@ impl SolarSystem {
 
         let sun_texture = if system_type == SystemType::Solar { bodies[0].texture.clone() } else { None };
 
-        let focused_body_index: Option<usize> = None;
+        // Start focused on the central body (index 0 = Sun/star) so lighting is correct,
+        // but override camera_distance to overview_distance so the whole system is visible.
+        let focused_body_index: Option<usize> = Some(0);
 
         let overview_distance: f32 = match system_type {
             SystemType::Sirius => 3000.0,
