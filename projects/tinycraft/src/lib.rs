@@ -759,8 +759,8 @@ impl Minecraft {
             }
         }
 
-        self.renderer.gl.enable(web_sys::WebGlRenderingContext::BLEND);
-        self.renderer.gl.blend_func(web_sys::WebGlRenderingContext::SRC_ALPHA, web_sys::WebGlRenderingContext::ONE_MINUS_SRC_ALPHA);
+        self.renderer.gl.enable(web_sys::WebGl2RenderingContext::BLEND);
+        self.renderer.gl.blend_func(web_sys::WebGl2RenderingContext::SRC_ALPHA, web_sys::WebGl2RenderingContext::ONE_MINUS_SRC_ALPHA);
 
         if let Some(data) = ice_data {
             self.renderer.draw_instanced_mesh(
@@ -780,7 +780,7 @@ impl Minecraft {
             );
         }
             
-        self.renderer.gl.disable(web_sys::WebGlRenderingContext::BLEND);
+        self.renderer.gl.disable(web_sys::WebGl2RenderingContext::BLEND);
         
         // Render selection highlight (raycast)
         if let Some((_bx, _by, _bz, _face)) = self.raycast() {

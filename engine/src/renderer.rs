@@ -1,5 +1,5 @@
 use wasm_bindgen::prelude::*;
-use web_sys::{WebGlRenderingContext, WebGlProgram, WebGlBuffer, WebGlUniformLocation, HtmlCanvasElement, WebGlTexture, HtmlImageElement, AngleInstancedArrays, ImageBitmap, ImageBitmapOptions, Request, RequestInit, Response, ExtTextureFilterAnisotropic};
+use web_sys::{WebGl2RenderingContext, WebGlProgram, WebGlBuffer, WebGlUniformLocation, HtmlCanvasElement, WebGlTexture, HtmlImageElement, ImageBitmap, ImageBitmapOptions, Request, RequestInit, Response, ExtTextureFilterAnisotropic};
 use nalgebra::{Matrix4, Vector3};
 use crate::mesh::Mesh;
 use wasm_bindgen::JsCast;
@@ -419,7 +419,7 @@ const SKYBOX_FRAGMENT_SHADER: &str = r#"
 "#;
 
 pub struct Renderer {
-    pub gl: WebGlRenderingContext,
+    pub gl: WebGl2RenderingContext,
     program: WebGlProgram,
     mvp_location: WebGlUniformLocation,
     model_location: WebGlUniformLocation,
@@ -453,7 +453,6 @@ pub struct Renderer {
     dynamic_index_buffer: WebGlBuffer,
     
     // Instancing
-    instanced_ext: Option<AngleInstancedArrays>,
     instanced_program: WebGlProgram,
     u_instanced_view_loc: WebGlUniformLocation,
     u_instanced_proj_loc: WebGlUniformLocation,
@@ -478,7 +477,7 @@ pub struct Renderer {
 }
 
 impl Renderer {
-    pub fn new(gl: WebGlRenderingContext) -> Result<Self, JsValue> {
+    pub fn new(gl: WebGl2RenderingContext) -> Result<Self, JsValue> {
         let program = create_program(&gl)?;
         gl.use_program(Some(&program));
 
@@ -534,7 +533,6 @@ impl Renderer {
             .ok_or("Failed to get uPhotometryParams2 location")?;
 
         // Instancing setup
-        let instanced_ext = gl.get_extension("ANGLE_instanced_arrays")?.map(|e| e.unchecked_into::<AngleInstancedArrays>());
         let instanced_program = create_instanced_program(&gl)?;
         let u_instanced_view_loc = gl.get_uniform_location(&instanced_program, "uView").ok_or("Failed to get uView")?;
         let u_instanced_proj_loc = gl.get_uniform_location(&instanced_program, "uProjection").ok_or("Failed to get uProjection")?;
@@ -575,23 +573,23 @@ impl Renderer {
         
         let unit_cube = Mesh::cube(1.0, 1.0, 1.0, 1.0); // White unit cube
         
-        gl.bind_buffer(WebGlRenderingContext::ARRAY_BUFFER, Some(&unit_cube_vertex_buffer));
+        gl.bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, Some(&unit_cube_vertex_buffer));
         unsafe {
             let vert_array = js_sys::Float32Array::view(&unit_cube.vertices);
             gl.buffer_data_with_array_buffer_view(
-                WebGlRenderingContext::ARRAY_BUFFER,
+                WebGl2RenderingContext::ARRAY_BUFFER,
                 &vert_array,
-                WebGlRenderingContext::STATIC_DRAW
+                WebGl2RenderingContext::STATIC_DRAW
             );
         }
 
-        gl.bind_buffer(WebGlRenderingContext::ELEMENT_ARRAY_BUFFER, Some(&unit_cube_index_buffer));
+        gl.bind_buffer(WebGl2RenderingContext::ELEMENT_ARRAY_BUFFER, Some(&unit_cube_index_buffer));
         unsafe {
             let idx_array = js_sys::Uint16Array::view(&unit_cube.indices);
             gl.buffer_data_with_array_buffer_view(
-                WebGlRenderingContext::ELEMENT_ARRAY_BUFFER,
+                WebGl2RenderingContext::ELEMENT_ARRAY_BUFFER,
                 &idx_array,
-                WebGlRenderingContext::STATIC_DRAW
+                WebGl2RenderingContext::STATIC_DRAW
             );
         }
         let unit_cube_index_count = unit_cube.indices.len() as i32;
@@ -636,7 +634,6 @@ impl Renderer {
             u_photometry_mode_location,
             u_photometry_params_location,
             u_photometry_params2_location,
-            instanced_ext,
             instanced_program,
             u_instanced_view_loc,
             u_instanced_proj_loc,
@@ -665,7 +662,7 @@ impl Renderer {
 
     pub fn clear(&self, r: f32, g: f32, b: f32) {
         self.gl.clear_color(r, g, b, 1.0);
-        self.gl.clear(WebGlRenderingContext::COLOR_BUFFER_BIT | WebGlRenderingContext::DEPTH_BUFFER_BIT);
+        self.gl.clear(WebGl2RenderingContext::COLOR_BUFFER_BIT | WebGl2RenderingContext::DEPTH_BUFFER_BIT);
     }
 
     pub fn set_time_color(&self, r: f32, g: f32, b: f32) {
@@ -673,21 +670,21 @@ impl Renderer {
     }
 
     pub fn enable_depth_test(&self) {
-        self.gl.enable(WebGlRenderingContext::DEPTH_TEST);
+        self.gl.enable(WebGl2RenderingContext::DEPTH_TEST);
     }
 
     pub fn enable_face_culling(&self) {
-        self.gl.enable(WebGlRenderingContext::CULL_FACE);
-        self.gl.cull_face(WebGlRenderingContext::BACK);
+        self.gl.enable(WebGl2RenderingContext::CULL_FACE);
+        self.gl.cull_face(WebGl2RenderingContext::BACK);
     }
 
     pub fn enable_blend(&self) {
-        self.gl.enable(WebGlRenderingContext::BLEND);
-        self.gl.blend_func(WebGlRenderingContext::SRC_ALPHA, WebGlRenderingContext::ONE_MINUS_SRC_ALPHA);
+        self.gl.enable(WebGl2RenderingContext::BLEND);
+        self.gl.blend_func(WebGl2RenderingContext::SRC_ALPHA, WebGl2RenderingContext::ONE_MINUS_SRC_ALPHA);
     }
 
     pub fn disable_blend(&self) {
-        self.gl.disable(WebGlRenderingContext::BLEND);
+        self.gl.disable(WebGl2RenderingContext::BLEND);
     }
 
     pub fn resize(&self, width: i32, height: i32) {
@@ -696,7 +693,7 @@ impl Renderer {
 
     pub fn clear_screen(&self, r: f32, g: f32, b: f32) {
         self.gl.clear_color(r, g, b, 1.0);
-        self.gl.clear(WebGlRenderingContext::COLOR_BUFFER_BIT | WebGlRenderingContext::DEPTH_BUFFER_BIT);
+        self.gl.clear(WebGl2RenderingContext::COLOR_BUFFER_BIT | WebGl2RenderingContext::DEPTH_BUFFER_BIT);
     }
 
     pub fn canvas(&self) -> Option<HtmlCanvasElement> {
@@ -704,25 +701,25 @@ impl Renderer {
     }
 
     pub fn draw_cube(&self, x: f32, y: f32, z: f32, w: f32, h: f32, d: f32, r: f32, g: f32, b: f32, projection: &Matrix4<f32>, view: &Matrix4<f32>) {
-        self.gl.bind_buffer(WebGlRenderingContext::ARRAY_BUFFER, Some(&self.unit_cube_vertex_buffer));
-        self.gl.bind_buffer(WebGlRenderingContext::ELEMENT_ARRAY_BUFFER, Some(&self.unit_cube_index_buffer));
+        self.gl.bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, Some(&self.unit_cube_vertex_buffer));
+        self.gl.bind_buffer(WebGl2RenderingContext::ELEMENT_ARRAY_BUFFER, Some(&self.unit_cube_index_buffer));
 
         let pos_loc = self.gl.get_attrib_location(&self.program, "aPosition") as u32;
         let col_loc = self.gl.get_attrib_location(&self.program, "aColor") as u32;
         let tex_loc = self.gl.get_attrib_location(&self.program, "aTexCoord") as u32;
         let norm_loc = self.gl.get_attrib_location(&self.program, "aNormal") as u32;
 
-        self.gl.vertex_attrib_pointer_with_i32(pos_loc, 3, WebGlRenderingContext::FLOAT, false, 44, 0);
+        self.gl.vertex_attrib_pointer_with_i32(pos_loc, 3, WebGl2RenderingContext::FLOAT, false, 44, 0);
         self.gl.enable_vertex_attrib_array(pos_loc);
 
         // We need to set these pointers even if unused, to avoid using pointers from other buffers
-        self.gl.vertex_attrib_pointer_with_i32(col_loc, 3, WebGlRenderingContext::FLOAT, false, 44, 12);
+        self.gl.vertex_attrib_pointer_with_i32(col_loc, 3, WebGl2RenderingContext::FLOAT, false, 44, 12);
         self.gl.enable_vertex_attrib_array(col_loc);
 
-        self.gl.vertex_attrib_pointer_with_i32(tex_loc, 2, WebGlRenderingContext::FLOAT, false, 44, 24);
+        self.gl.vertex_attrib_pointer_with_i32(tex_loc, 2, WebGl2RenderingContext::FLOAT, false, 44, 24);
         self.gl.enable_vertex_attrib_array(tex_loc);
         
-        self.gl.vertex_attrib_pointer_with_i32(norm_loc, 3, WebGlRenderingContext::FLOAT, false, 44, 32);
+        self.gl.vertex_attrib_pointer_with_i32(norm_loc, 3, WebGl2RenderingContext::FLOAT, false, 44, 32);
         self.gl.enable_vertex_attrib_array(norm_loc);
 
         self.gl.uniform1i(Some(&self.u_use_uniform_color_location), 1);
@@ -739,29 +736,29 @@ impl Renderer {
         self.gl.uniform_matrix4fv_with_f32_array(Some(&self.mvp_location), false, &mvp_array);
 
         self.gl.draw_elements_with_i32(
-            WebGlRenderingContext::TRIANGLES,
+            WebGl2RenderingContext::TRIANGLES,
             self.unit_cube_index_count,
-            WebGlRenderingContext::UNSIGNED_SHORT,
+            WebGl2RenderingContext::UNSIGNED_SHORT,
             0
         );
     }
 
     pub fn draw_textured_cube(&self, x: f32, y: f32, z: f32, w: f32, h: f32, d: f32, texture: Option<&WebGlTexture>, projection: &Matrix4<f32>, view: &Matrix4<f32>) {
-        self.gl.bind_buffer(WebGlRenderingContext::ARRAY_BUFFER, Some(&self.unit_cube_vertex_buffer));
-        self.gl.bind_buffer(WebGlRenderingContext::ELEMENT_ARRAY_BUFFER, Some(&self.unit_cube_index_buffer));
+        self.gl.bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, Some(&self.unit_cube_vertex_buffer));
+        self.gl.bind_buffer(WebGl2RenderingContext::ELEMENT_ARRAY_BUFFER, Some(&self.unit_cube_index_buffer));
 
         let pos_loc = self.gl.get_attrib_location(&self.program, "aPosition") as u32;
         let col_loc = self.gl.get_attrib_location(&self.program, "aColor") as u32;
         let tex_loc = self.gl.get_attrib_location(&self.program, "aTexCoord") as u32;
         let norm_loc = self.gl.get_attrib_location(&self.program, "aNormal") as u32;
 
-        self.gl.vertex_attrib_pointer_with_i32(pos_loc, 3, WebGlRenderingContext::FLOAT, false, 44, 0);
+        self.gl.vertex_attrib_pointer_with_i32(pos_loc, 3, WebGl2RenderingContext::FLOAT, false, 44, 0);
         self.gl.enable_vertex_attrib_array(pos_loc);
-        self.gl.vertex_attrib_pointer_with_i32(col_loc, 3, WebGlRenderingContext::FLOAT, false, 44, 12);
+        self.gl.vertex_attrib_pointer_with_i32(col_loc, 3, WebGl2RenderingContext::FLOAT, false, 44, 12);
         self.gl.enable_vertex_attrib_array(col_loc);
-        self.gl.vertex_attrib_pointer_with_i32(tex_loc, 2, WebGlRenderingContext::FLOAT, false, 44, 24);
+        self.gl.vertex_attrib_pointer_with_i32(tex_loc, 2, WebGl2RenderingContext::FLOAT, false, 44, 24);
         self.gl.enable_vertex_attrib_array(tex_loc);
-        self.gl.vertex_attrib_pointer_with_i32(norm_loc, 3, WebGlRenderingContext::FLOAT, false, 44, 32);
+        self.gl.vertex_attrib_pointer_with_i32(norm_loc, 3, WebGl2RenderingContext::FLOAT, false, 44, 32);
         self.gl.enable_vertex_attrib_array(norm_loc);
 
         self.gl.uniform1i(Some(&self.u_use_uniform_color_location), 0);
@@ -769,8 +766,8 @@ impl Renderer {
         self.gl.uniform1i(Some(&self.u_is_black_hole_location), 0);
 
         if let Some(tex) = texture {
-            self.gl.active_texture(WebGlRenderingContext::TEXTURE0);
-            self.gl.bind_texture(WebGlRenderingContext::TEXTURE_2D, Some(tex));
+            self.gl.active_texture(WebGl2RenderingContext::TEXTURE0);
+            self.gl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(tex));
             self.gl.uniform1i(Some(&self.u_use_texture_location), 1);
             self.gl.uniform1i(Some(&self.u_texture_location), 0);
         } else {
@@ -785,9 +782,9 @@ impl Renderer {
         self.gl.uniform_matrix4fv_with_f32_array(Some(&self.mvp_location), false, &mvp_array);
 
         self.gl.draw_elements_with_i32(
-            WebGlRenderingContext::TRIANGLES,
+            WebGl2RenderingContext::TRIANGLES,
             self.unit_cube_index_count,
-            WebGlRenderingContext::UNSIGNED_SHORT,
+            WebGl2RenderingContext::UNSIGNED_SHORT,
             0
         );
     }
@@ -813,43 +810,43 @@ impl Renderer {
         
         // Bind texture
         if let Some(tex) = texture {
-            self.gl.active_texture(WebGlRenderingContext::TEXTURE0);
-            self.gl.bind_texture(WebGlRenderingContext::TEXTURE_2D, Some(tex));
+            self.gl.active_texture(WebGl2RenderingContext::TEXTURE0);
+            self.gl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(tex));
             self.gl.uniform1i(Some(&self.u_skybox_texture_loc), 0);
         }
         
         // Upload mesh
-        self.gl.bind_buffer(WebGlRenderingContext::ARRAY_BUFFER, Some(&self.dynamic_vertex_buffer));
+        self.gl.bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, Some(&self.dynamic_vertex_buffer));
         unsafe {
             let vert_array = js_sys::Float32Array::view(&mesh.vertices);
             self.gl.buffer_data_with_array_buffer_view(
-                WebGlRenderingContext::ARRAY_BUFFER,
+                WebGl2RenderingContext::ARRAY_BUFFER,
                 &vert_array,
-                WebGlRenderingContext::STATIC_DRAW
+                WebGl2RenderingContext::STATIC_DRAW
             );
         }
 
-        self.gl.bind_buffer(WebGlRenderingContext::ELEMENT_ARRAY_BUFFER, Some(&self.dynamic_index_buffer));
+        self.gl.bind_buffer(WebGl2RenderingContext::ELEMENT_ARRAY_BUFFER, Some(&self.dynamic_index_buffer));
         unsafe {
             let idx_array = js_sys::Uint16Array::view(&mesh.indices);
             self.gl.buffer_data_with_array_buffer_view(
-                WebGlRenderingContext::ELEMENT_ARRAY_BUFFER,
+                WebGl2RenderingContext::ELEMENT_ARRAY_BUFFER,
                 &idx_array,
-                WebGlRenderingContext::STATIC_DRAW
+                WebGl2RenderingContext::STATIC_DRAW
             );
         }
         
         // Attributes
         let pos_loc = self.gl.get_attrib_location(&self.skybox_program, "aPosition");
         if pos_loc != -1 {
-            self.gl.vertex_attrib_pointer_with_i32(pos_loc as u32, 3, WebGlRenderingContext::FLOAT, false, 44, 0);
+            self.gl.vertex_attrib_pointer_with_i32(pos_loc as u32, 3, WebGl2RenderingContext::FLOAT, false, 44, 0);
             self.gl.enable_vertex_attrib_array(pos_loc as u32);
         }
         
         self.gl.draw_elements_with_i32(
-            WebGlRenderingContext::TRIANGLES,
+            WebGl2RenderingContext::TRIANGLES,
             mesh.indices.len() as i32,
-            WebGlRenderingContext::UNSIGNED_SHORT,
+            WebGl2RenderingContext::UNSIGNED_SHORT,
             0
         );
         
@@ -870,14 +867,6 @@ impl Renderer {
         camera_pos: Option<(f32, f32, f32)>,
         photometry: Option<[f32; 6]>,
     ) {
-        let ext = match &self.instanced_ext {
-            Some(e) => e,
-            None => {
-                web_sys::console::log_1(&"Instanced extension not found".into());
-                return;
-            },
-        };
-
         self.gl.use_program(Some(&self.instanced_program));
 
         // web_sys::console::log_1(&format!("Drawing instanced: {} instances", count).into());
@@ -906,31 +895,31 @@ impl Renderer {
         }
 
         if let Some(tex) = texture {
-            self.gl.active_texture(WebGlRenderingContext::TEXTURE0);
-            self.gl.bind_texture(WebGlRenderingContext::TEXTURE_2D, Some(tex));
+            self.gl.active_texture(WebGl2RenderingContext::TEXTURE0);
+            self.gl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(tex));
             self.gl.uniform1i(Some(&self.u_instanced_use_texture_loc), 1);
             self.gl.uniform1i(Some(&self.u_instanced_texture_loc), 0);
         } else {
             self.gl.uniform1i(Some(&self.u_instanced_use_texture_loc), 0);
         }
 
-        self.gl.bind_buffer(WebGlRenderingContext::ARRAY_BUFFER, Some(&self.dynamic_vertex_buffer));
+        self.gl.bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, Some(&self.dynamic_vertex_buffer));
         unsafe {
             let vert_array = js_sys::Float32Array::view(&mesh.vertices);
             self.gl.buffer_data_with_array_buffer_view(
-                WebGlRenderingContext::ARRAY_BUFFER,
+                WebGl2RenderingContext::ARRAY_BUFFER,
                 &vert_array,
-                WebGlRenderingContext::STATIC_DRAW
+                WebGl2RenderingContext::STATIC_DRAW
             );
         }
 
-        self.gl.bind_buffer(WebGlRenderingContext::ELEMENT_ARRAY_BUFFER, Some(&self.dynamic_index_buffer));
+        self.gl.bind_buffer(WebGl2RenderingContext::ELEMENT_ARRAY_BUFFER, Some(&self.dynamic_index_buffer));
         unsafe {
             let idx_array = js_sys::Uint16Array::view(&mesh.indices);
             self.gl.buffer_data_with_array_buffer_view(
-                WebGlRenderingContext::ELEMENT_ARRAY_BUFFER,
+                WebGl2RenderingContext::ELEMENT_ARRAY_BUFFER,
                 &idx_array,
-                WebGlRenderingContext::STATIC_DRAW
+                WebGl2RenderingContext::STATIC_DRAW
             );
         }
 
@@ -939,27 +928,27 @@ impl Renderer {
         let tex_loc = self.gl.get_attrib_location(&self.instanced_program, "aTexCoord");
 
         if pos_loc != -1 {
-            self.gl.vertex_attrib_pointer_with_i32(pos_loc as u32, 3, WebGlRenderingContext::FLOAT, false, 44, 0);
+            self.gl.vertex_attrib_pointer_with_i32(pos_loc as u32, 3, WebGl2RenderingContext::FLOAT, false, 44, 0);
             self.gl.enable_vertex_attrib_array(pos_loc as u32);
         }
 
         if tex_loc != -1 {
-            self.gl.vertex_attrib_pointer_with_i32(tex_loc as u32, 2, WebGlRenderingContext::FLOAT, false, 44, 24);
+            self.gl.vertex_attrib_pointer_with_i32(tex_loc as u32, 2, WebGl2RenderingContext::FLOAT, false, 44, 24);
             self.gl.enable_vertex_attrib_array(tex_loc as u32);
         }
 
         if norm_loc != -1 {
-            self.gl.vertex_attrib_pointer_with_i32(norm_loc as u32, 3, WebGlRenderingContext::FLOAT, false, 44, 32);
+            self.gl.vertex_attrib_pointer_with_i32(norm_loc as u32, 3, WebGl2RenderingContext::FLOAT, false, 44, 32);
             self.gl.enable_vertex_attrib_array(norm_loc as u32);
         }
 
-        self.gl.bind_buffer(WebGlRenderingContext::ARRAY_BUFFER, Some(&self.instance_data_buffer));
+        self.gl.bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, Some(&self.instance_data_buffer));
         unsafe {
             let data_array = js_sys::Float32Array::view(instance_data);
             self.gl.buffer_data_with_array_buffer_view(
-                WebGlRenderingContext::ARRAY_BUFFER,
+                WebGl2RenderingContext::ARRAY_BUFFER,
                 &data_array,
-                WebGlRenderingContext::DYNAMIC_DRAW
+                WebGl2RenderingContext::DYNAMIC_DRAW
             );
         }
 
@@ -971,51 +960,51 @@ impl Renderer {
         let stride = 32; // 3+1+3+1 = 8 floats * 4 bytes = 32 bytes
 
         if i_pos_loc != -1 {
-            self.gl.vertex_attrib_pointer_with_i32(i_pos_loc as u32, 3, WebGlRenderingContext::FLOAT, false, stride, 0);
+            self.gl.vertex_attrib_pointer_with_i32(i_pos_loc as u32, 3, WebGl2RenderingContext::FLOAT, false, stride, 0);
             self.gl.enable_vertex_attrib_array(i_pos_loc as u32);
-            ext.vertex_attrib_divisor_angle(i_pos_loc as u32, 1);
+            self.gl.vertex_attrib_divisor(i_pos_loc as u32, 1);
         }
 
         if i_scale_loc != -1 {
-            self.gl.vertex_attrib_pointer_with_i32(i_scale_loc as u32, 1, WebGlRenderingContext::FLOAT, false, stride, 12);
+            self.gl.vertex_attrib_pointer_with_i32(i_scale_loc as u32, 1, WebGl2RenderingContext::FLOAT, false, stride, 12);
             self.gl.enable_vertex_attrib_array(i_scale_loc as u32);
-            ext.vertex_attrib_divisor_angle(i_scale_loc as u32, 1);
+            self.gl.vertex_attrib_divisor(i_scale_loc as u32, 1);
         }
 
         if i_col_loc != -1 {
-            self.gl.vertex_attrib_pointer_with_i32(i_col_loc as u32, 3, WebGlRenderingContext::FLOAT, false, stride, 16);
+            self.gl.vertex_attrib_pointer_with_i32(i_col_loc as u32, 3, WebGl2RenderingContext::FLOAT, false, stride, 16);
             self.gl.enable_vertex_attrib_array(i_col_loc as u32);
-            ext.vertex_attrib_divisor_angle(i_col_loc as u32, 1);
+            self.gl.vertex_attrib_divisor(i_col_loc as u32, 1);
         }
 
         if i_light_loc != -1 {
-            self.gl.vertex_attrib_pointer_with_i32(i_light_loc as u32, 1, WebGlRenderingContext::FLOAT, false, stride, 28);
+            self.gl.vertex_attrib_pointer_with_i32(i_light_loc as u32, 1, WebGl2RenderingContext::FLOAT, false, stride, 28);
             self.gl.enable_vertex_attrib_array(i_light_loc as u32);
-            ext.vertex_attrib_divisor_angle(i_light_loc as u32, 1);
+            self.gl.vertex_attrib_divisor(i_light_loc as u32, 1);
         }
 
-        ext.draw_elements_instanced_angle_with_i32(
-            WebGlRenderingContext::TRIANGLES,
+        self.gl.draw_elements_instanced_with_i32(
+            WebGl2RenderingContext::TRIANGLES,
             mesh.indices.len() as i32,
-            WebGlRenderingContext::UNSIGNED_SHORT,
+            WebGl2RenderingContext::UNSIGNED_SHORT,
             0,
             count
         );
 
         if i_pos_loc != -1 {
-            ext.vertex_attrib_divisor_angle(i_pos_loc as u32, 0);
+            self.gl.vertex_attrib_divisor(i_pos_loc as u32, 0);
             self.gl.disable_vertex_attrib_array(i_pos_loc as u32);
         }
         if i_scale_loc != -1 {
-            ext.vertex_attrib_divisor_angle(i_scale_loc as u32, 0);
+            self.gl.vertex_attrib_divisor(i_scale_loc as u32, 0);
             self.gl.disable_vertex_attrib_array(i_scale_loc as u32);
         }
         if i_col_loc != -1 {
-            ext.vertex_attrib_divisor_angle(i_col_loc as u32, 0);
+            self.gl.vertex_attrib_divisor(i_col_loc as u32, 0);
             self.gl.disable_vertex_attrib_array(i_col_loc as u32);
         }
         if i_light_loc != -1 {
-            ext.vertex_attrib_divisor_angle(i_light_loc as u32, 0);
+            self.gl.vertex_attrib_divisor(i_light_loc as u32, 0);
             self.gl.disable_vertex_attrib_array(i_light_loc as u32);
         }
     }
@@ -1046,14 +1035,14 @@ impl Renderer {
         }
 
         if let Some(bg_tex) = background_texture {
-            self.gl.active_texture(WebGlRenderingContext::TEXTURE2);
-            self.gl.bind_texture(WebGlRenderingContext::TEXTURE_2D, Some(bg_tex));
+            self.gl.active_texture(WebGl2RenderingContext::TEXTURE2);
+            self.gl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(bg_tex));
             self.gl.uniform1i(Some(&self.u_background_texture_location), 2);
         }
 
         if let Some(tex) = texture {
-            self.gl.active_texture(WebGlRenderingContext::TEXTURE0);
-            self.gl.bind_texture(WebGlRenderingContext::TEXTURE_2D, Some(tex));
+            self.gl.active_texture(WebGl2RenderingContext::TEXTURE0);
+            self.gl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(tex));
             self.gl.uniform1i(Some(&self.u_use_texture_location), 1);
             self.gl.uniform1i(Some(&self.u_texture_location), 0);
             self.gl.uniform1i(Some(&self.u_use_uniform_color_location), 0);
@@ -1068,31 +1057,31 @@ impl Renderer {
         }
 
         if let Some(night_tex) = night_texture {
-            self.gl.active_texture(WebGlRenderingContext::TEXTURE1);
-            self.gl.bind_texture(WebGlRenderingContext::TEXTURE_2D, Some(night_tex));
+            self.gl.active_texture(WebGl2RenderingContext::TEXTURE1);
+            self.gl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(night_tex));
             self.gl.uniform1i(Some(&self.u_use_night_texture_location), 1);
             self.gl.uniform1i(Some(&self.u_night_texture_location), 1);
         } else {
             self.gl.uniform1i(Some(&self.u_use_night_texture_location), 0);
         }
 
-        self.gl.bind_buffer(WebGlRenderingContext::ARRAY_BUFFER, Some(&self.dynamic_vertex_buffer));
+        self.gl.bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, Some(&self.dynamic_vertex_buffer));
         unsafe {
             let vert_array = js_sys::Float32Array::view(&mesh.vertices);
             self.gl.buffer_data_with_array_buffer_view(
-                WebGlRenderingContext::ARRAY_BUFFER,
+                WebGl2RenderingContext::ARRAY_BUFFER,
                 &vert_array,
-                WebGlRenderingContext::STATIC_DRAW
+                WebGl2RenderingContext::STATIC_DRAW
             );
         }
 
-        self.gl.bind_buffer(WebGlRenderingContext::ELEMENT_ARRAY_BUFFER, Some(&self.dynamic_index_buffer));
+        self.gl.bind_buffer(WebGl2RenderingContext::ELEMENT_ARRAY_BUFFER, Some(&self.dynamic_index_buffer));
         unsafe {
             let idx_array = js_sys::Uint16Array::view(&mesh.indices);
             self.gl.buffer_data_with_array_buffer_view(
-                WebGlRenderingContext::ELEMENT_ARRAY_BUFFER,
+                WebGl2RenderingContext::ELEMENT_ARRAY_BUFFER,
                 &idx_array,
-                WebGlRenderingContext::STATIC_DRAW
+                WebGl2RenderingContext::STATIC_DRAW
             );
         }
 
@@ -1113,16 +1102,16 @@ impl Renderer {
         
         // Actually, let's check Mesh first.
         
-        self.gl.vertex_attrib_pointer_with_i32(pos_loc, 3, WebGlRenderingContext::FLOAT, false, 44, 0);
+        self.gl.vertex_attrib_pointer_with_i32(pos_loc, 3, WebGl2RenderingContext::FLOAT, false, 44, 0);
         self.gl.enable_vertex_attrib_array(pos_loc);
 
-        self.gl.vertex_attrib_pointer_with_i32(col_loc, 3, WebGlRenderingContext::FLOAT, false, 44, 12);
+        self.gl.vertex_attrib_pointer_with_i32(col_loc, 3, WebGl2RenderingContext::FLOAT, false, 44, 12);
         self.gl.enable_vertex_attrib_array(col_loc);
 
-        self.gl.vertex_attrib_pointer_with_i32(tex_loc, 2, WebGlRenderingContext::FLOAT, false, 44, 24);
+        self.gl.vertex_attrib_pointer_with_i32(tex_loc, 2, WebGl2RenderingContext::FLOAT, false, 44, 24);
         self.gl.enable_vertex_attrib_array(tex_loc);
         
-        self.gl.vertex_attrib_pointer_with_i32(norm_loc, 3, WebGlRenderingContext::FLOAT, false, 44, 32);
+        self.gl.vertex_attrib_pointer_with_i32(norm_loc, 3, WebGl2RenderingContext::FLOAT, false, 44, 32);
         self.gl.enable_vertex_attrib_array(norm_loc);
 
         let model = Matrix4::new_translation(&Vector3::new(x, y, z)) *
@@ -1152,21 +1141,21 @@ impl Renderer {
         self.gl.uniform_matrix3fv_with_f32_array(Some(&self.normal_matrix_location), false, &normal_matrix_array);
 
         self.gl.draw_elements_with_i32(
-            WebGlRenderingContext::TRIANGLES,
+            WebGl2RenderingContext::TRIANGLES,
             mesh.indices.len() as i32,
-            WebGlRenderingContext::UNSIGNED_SHORT,
+            WebGl2RenderingContext::UNSIGNED_SHORT,
             0
         );
     }
 
     pub fn draw_lines(&self, vertices: &[f32], r: f32, g: f32, b: f32, projection: &Matrix4<f32>, view: &Matrix4<f32>) {
-        self.gl.bind_buffer(WebGlRenderingContext::ARRAY_BUFFER, Some(&self.dynamic_vertex_buffer));
+        self.gl.bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, Some(&self.dynamic_vertex_buffer));
         unsafe {
             let vert_array = js_sys::Float32Array::view(vertices);
             self.gl.buffer_data_with_array_buffer_view(
-                WebGlRenderingContext::ARRAY_BUFFER,
+                WebGl2RenderingContext::ARRAY_BUFFER,
                 &vert_array,
-                WebGlRenderingContext::DYNAMIC_DRAW
+                WebGl2RenderingContext::DYNAMIC_DRAW
             );
         }
 
@@ -1175,7 +1164,7 @@ impl Renderer {
         let tex_loc = self.gl.get_attrib_location(&self.program, "aTexCoord") as u32;
         let norm_loc = self.gl.get_attrib_location(&self.program, "aNormal") as u32;
 
-        self.gl.vertex_attrib_pointer_with_i32(pos_loc, 3, WebGlRenderingContext::FLOAT, false, 0, 0);
+        self.gl.vertex_attrib_pointer_with_i32(pos_loc, 3, WebGl2RenderingContext::FLOAT, false, 0, 0);
         self.gl.enable_vertex_attrib_array(pos_loc);
         
         self.gl.disable_vertex_attrib_array(col_loc);
@@ -1194,7 +1183,7 @@ impl Renderer {
         self.gl.uniform_matrix4fv_with_f32_array(Some(&self.mvp_location), false, &mvp_array);
 
         self.gl.draw_arrays(
-            WebGlRenderingContext::LINE_STRIP,
+            WebGl2RenderingContext::LINE_STRIP,
             0,
             (vertices.len() / 3) as i32
         );
@@ -1239,16 +1228,16 @@ impl Renderer {
 
     fn create_placeholder_texture(&self) -> Result<WebGlTexture, JsValue> {
         let texture = self.gl.create_texture().ok_or("Failed to create texture")?;
-        self.gl.bind_texture(WebGlRenderingContext::TEXTURE_2D, Some(&texture));
+        self.gl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&texture));
         let _ = self.gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_opt_u8_array(
-            WebGlRenderingContext::TEXTURE_2D,
+            WebGl2RenderingContext::TEXTURE_2D,
             0,
-            WebGlRenderingContext::RGBA as i32,
+            WebGl2RenderingContext::RGBA as i32,
             1,
             1,
             0,
-            WebGlRenderingContext::RGBA,
-            WebGlRenderingContext::UNSIGNED_BYTE,
+            WebGl2RenderingContext::RGBA,
+            WebGl2RenderingContext::UNSIGNED_BYTE,
             Some(&[24u8, 26, 34, 255]),
         );
         Ok(texture)
@@ -1260,15 +1249,6 @@ const MAX_ACTIVE_STREAMS: usize = 3;
 enum TextureSource {
     Bitmap(ImageBitmap),
     Image(HtmlImageElement),
-}
-
-impl TextureSource {
-    fn dimensions(&self) -> (u32, u32) {
-        match self {
-            TextureSource::Bitmap(b) => (b.width(), b.height()),
-            TextureSource::Image(i) => (i.width(), i.height()),
-        }
-    }
 }
 
 struct StreamSemaphore {
@@ -1365,105 +1345,96 @@ async fn load_image_element(url: String) -> Result<HtmlImageElement, JsValue> {
     Ok(img)
 }
 
-fn upload_texture_source(gl: &WebGlRenderingContext, texture: &WebGlTexture, source: &TextureSource, anisotropy: Option<(u32, f32)>) {
-    gl.bind_texture(WebGlRenderingContext::TEXTURE_2D, Some(texture));
+fn upload_texture_source(gl: &WebGl2RenderingContext, texture: &WebGlTexture, source: &TextureSource, anisotropy: Option<(u32, f32)>) {
+    gl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(texture));
     match source {
         TextureSource::Bitmap(bitmap) => {
             let _ = gl.tex_image_2d_with_u32_and_u32_and_image_bitmap(
-                WebGlRenderingContext::TEXTURE_2D,
+                WebGl2RenderingContext::TEXTURE_2D,
                 0,
-                WebGlRenderingContext::RGBA as i32,
-                WebGlRenderingContext::RGBA,
-                WebGlRenderingContext::UNSIGNED_BYTE,
+                WebGl2RenderingContext::RGBA as i32,
+                WebGl2RenderingContext::RGBA,
+                WebGl2RenderingContext::UNSIGNED_BYTE,
                 bitmap,
             );
         }
         TextureSource::Image(image) => {
-            gl.pixel_storei(WebGlRenderingContext::UNPACK_FLIP_Y_WEBGL, 1);
-            let _ = gl.tex_image_2d_with_u32_and_u32_and_image(
-                WebGlRenderingContext::TEXTURE_2D,
+            gl.pixel_storei(WebGl2RenderingContext::UNPACK_FLIP_Y_WEBGL, 1);
+            let _ = gl.tex_image_2d_with_u32_and_u32_and_html_image_element(
+                WebGl2RenderingContext::TEXTURE_2D,
                 0,
-                WebGlRenderingContext::RGBA as i32,
-                WebGlRenderingContext::RGBA,
-                WebGlRenderingContext::UNSIGNED_BYTE,
+                WebGl2RenderingContext::RGBA as i32,
+                WebGl2RenderingContext::RGBA,
+                WebGl2RenderingContext::UNSIGNED_BYTE,
                 image,
             );
-            gl.pixel_storei(WebGlRenderingContext::UNPACK_FLIP_Y_WEBGL, 0);
+            gl.pixel_storei(WebGl2RenderingContext::UNPACK_FLIP_Y_WEBGL, 0);
         }
     }
-    let (width, height) = source.dimensions();
-    gl.tex_parameteri(WebGlRenderingContext::TEXTURE_2D, WebGlRenderingContext::TEXTURE_MAG_FILTER, WebGlRenderingContext::LINEAR as i32);
-    if is_power_of_2(width) && is_power_of_2(height) {
-        gl.generate_mipmap(WebGlRenderingContext::TEXTURE_2D);
-        gl.tex_parameteri(WebGlRenderingContext::TEXTURE_2D, WebGlRenderingContext::TEXTURE_MIN_FILTER, WebGlRenderingContext::LINEAR_MIPMAP_LINEAR as i32);
-    } else {
-        gl.tex_parameteri(WebGlRenderingContext::TEXTURE_2D, WebGlRenderingContext::TEXTURE_WRAP_S, WebGlRenderingContext::CLAMP_TO_EDGE as i32);
-        gl.tex_parameteri(WebGlRenderingContext::TEXTURE_2D, WebGlRenderingContext::TEXTURE_WRAP_T, WebGlRenderingContext::CLAMP_TO_EDGE as i32);
-        gl.tex_parameteri(WebGlRenderingContext::TEXTURE_2D, WebGlRenderingContext::TEXTURE_MIN_FILTER, WebGlRenderingContext::LINEAR as i32);
-    }
+    gl.tex_parameteri(WebGl2RenderingContext::TEXTURE_2D, WebGl2RenderingContext::TEXTURE_MAG_FILTER, WebGl2RenderingContext::LINEAR as i32);
+    gl.generate_mipmap(WebGl2RenderingContext::TEXTURE_2D);
+    gl.tex_parameteri(WebGl2RenderingContext::TEXTURE_2D, WebGl2RenderingContext::TEXTURE_MIN_FILTER, WebGl2RenderingContext::LINEAR_MIPMAP_LINEAR as i32);
+    gl.tex_parameteri(WebGl2RenderingContext::TEXTURE_2D, WebGl2RenderingContext::TEXTURE_WRAP_S, WebGl2RenderingContext::REPEAT as i32);
+    gl.tex_parameteri(WebGl2RenderingContext::TEXTURE_2D, WebGl2RenderingContext::TEXTURE_WRAP_T, WebGl2RenderingContext::CLAMP_TO_EDGE as i32);
     if let Some((param, max)) = anisotropy {
-        gl.tex_parameterf(WebGlRenderingContext::TEXTURE_2D, param, max);
+        gl.tex_parameterf(WebGl2RenderingContext::TEXTURE_2D, param, max);
     }
 }
 
-fn is_power_of_2(value: u32) -> bool {
-    (value & (value - 1)) == 0
-}
-
-fn create_program(gl: &WebGlRenderingContext) -> Result<WebGlProgram, JsValue> {
-    let vert_shader = compile_shader(gl, WebGlRenderingContext::VERTEX_SHADER, VERTEX_SHADER)?;
-    let frag_shader = compile_shader(gl, WebGlRenderingContext::FRAGMENT_SHADER, FRAGMENT_SHADER)?;
+fn create_program(gl: &WebGl2RenderingContext) -> Result<WebGlProgram, JsValue> {
+    let vert_shader = compile_shader(gl, WebGl2RenderingContext::VERTEX_SHADER, VERTEX_SHADER)?;
+    let frag_shader = compile_shader(gl, WebGl2RenderingContext::FRAGMENT_SHADER, FRAGMENT_SHADER)?;
 
     let program = gl.create_program().ok_or("Unable to create program")?;
     gl.attach_shader(&program, &vert_shader);
     gl.attach_shader(&program, &frag_shader);
     gl.link_program(&program);
 
-    if gl.get_program_parameter(&program, WebGlRenderingContext::LINK_STATUS).as_bool().unwrap_or(false) {
+    if gl.get_program_parameter(&program, WebGl2RenderingContext::LINK_STATUS).as_bool().unwrap_or(false) {
         Ok(program)
     } else {
         Err(JsValue::from_str(&gl.get_program_info_log(&program).unwrap_or_default()))
     }
 }
 
-fn create_instanced_program(gl: &WebGlRenderingContext) -> Result<WebGlProgram, JsValue> {
-    let vert_shader = compile_shader(gl, WebGlRenderingContext::VERTEX_SHADER, INSTANCED_VERTEX_SHADER)?;
-    let frag_shader = compile_shader(gl, WebGlRenderingContext::FRAGMENT_SHADER, FRAGMENT_SHADER)?;
+fn create_instanced_program(gl: &WebGl2RenderingContext) -> Result<WebGlProgram, JsValue> {
+    let vert_shader = compile_shader(gl, WebGl2RenderingContext::VERTEX_SHADER, INSTANCED_VERTEX_SHADER)?;
+    let frag_shader = compile_shader(gl, WebGl2RenderingContext::FRAGMENT_SHADER, FRAGMENT_SHADER)?;
 
     let program = gl.create_program().ok_or("Unable to create program")?;
     gl.attach_shader(&program, &vert_shader);
     gl.attach_shader(&program, &frag_shader);
     gl.link_program(&program);
 
-    if gl.get_program_parameter(&program, WebGlRenderingContext::LINK_STATUS).as_bool().unwrap_or(false) {
+    if gl.get_program_parameter(&program, WebGl2RenderingContext::LINK_STATUS).as_bool().unwrap_or(false) {
         Ok(program)
     } else {
         Err(JsValue::from_str(&gl.get_program_info_log(&program).unwrap_or_default()))
     }
 }
 
-fn create_skybox_program(gl: &WebGlRenderingContext) -> Result<WebGlProgram, JsValue> {
-    let vert_shader = compile_shader(gl, WebGlRenderingContext::VERTEX_SHADER, SKYBOX_VERTEX_SHADER)?;
-    let frag_shader = compile_shader(gl, WebGlRenderingContext::FRAGMENT_SHADER, SKYBOX_FRAGMENT_SHADER)?;
+fn create_skybox_program(gl: &WebGl2RenderingContext) -> Result<WebGlProgram, JsValue> {
+    let vert_shader = compile_shader(gl, WebGl2RenderingContext::VERTEX_SHADER, SKYBOX_VERTEX_SHADER)?;
+    let frag_shader = compile_shader(gl, WebGl2RenderingContext::FRAGMENT_SHADER, SKYBOX_FRAGMENT_SHADER)?;
 
     let program = gl.create_program().ok_or("Unable to create program")?;
     gl.attach_shader(&program, &vert_shader);
     gl.attach_shader(&program, &frag_shader);
     gl.link_program(&program);
 
-    if gl.get_program_parameter(&program, WebGlRenderingContext::LINK_STATUS).as_bool().unwrap_or(false) {
+    if gl.get_program_parameter(&program, WebGl2RenderingContext::LINK_STATUS).as_bool().unwrap_or(false) {
         Ok(program)
     } else {
         Err(JsValue::from_str(&gl.get_program_info_log(&program).unwrap_or_default()))
     }
 }
 
-fn compile_shader(gl: &WebGlRenderingContext, shader_type: u32, source: &str) -> Result<web_sys::WebGlShader, JsValue> {
+fn compile_shader(gl: &WebGl2RenderingContext, shader_type: u32, source: &str) -> Result<web_sys::WebGlShader, JsValue> {
     let shader = gl.create_shader(shader_type).ok_or("Unable to create shader")?;
     gl.shader_source(&shader, source);
     gl.compile_shader(&shader);
 
-    if gl.get_shader_parameter(&shader, WebGlRenderingContext::COMPILE_STATUS).as_bool().unwrap_or(false) {
+    if gl.get_shader_parameter(&shader, WebGl2RenderingContext::COMPILE_STATUS).as_bool().unwrap_or(false) {
         Ok(shader)
     } else {
         Err(JsValue::from_str(&gl.get_shader_info_log(&shader).unwrap_or_default()))

@@ -1,7 +1,7 @@
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::JsFuture;
-use web_sys::{WebGlRenderingContext, HtmlCanvasElement, KeyboardEvent, MouseEvent, WheelEvent, Request, RequestInit, RequestMode, Response};
+use web_sys::{WebGl2RenderingContext, HtmlCanvasElement, KeyboardEvent, MouseEvent, WheelEvent, Request, RequestInit, RequestMode, Response};
 use std::cell::RefCell;
 use std::rc::Rc;
 use engine::renderer::Renderer;
@@ -20,7 +20,7 @@ thread_local! {
     static CURRENT_GAME: RefCell<Option<ActiveGame>> = RefCell::new(None);
 }
 
-fn get_gl() -> Result<WebGlRenderingContext, JsValue> {
+fn get_gl() -> Result<WebGl2RenderingContext, JsValue> {
     let window = web_sys::window().ok_or("No window")?;
     let document = window.document().ok_or("No document")?;
     let canvas = document.get_element_by_id("canvas")
@@ -28,9 +28,9 @@ fn get_gl() -> Result<WebGlRenderingContext, JsValue> {
         .dyn_into::<HtmlCanvasElement>()?;
 
     let gl = canvas
-        .get_context("webgl")?
-        .ok_or("No WebGL")?
-        .dyn_into::<WebGlRenderingContext>()?;
+        .get_context("webgl2")?
+        .ok_or("WebGL2 not supported")?
+        .dyn_into::<WebGl2RenderingContext>()?;
     Ok(gl)
 }
 

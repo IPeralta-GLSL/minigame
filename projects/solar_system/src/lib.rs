@@ -971,7 +971,7 @@ impl SolarSystem {
         let rel_light_pos = Vector3::new(0.0, 0.0, 0.0) - target;
         self.renderer.set_light_position(rel_light_pos.x, rel_light_pos.y, rel_light_pos.z);
 
-        self.renderer.gl.disable(web_sys::WebGlRenderingContext::DEPTH_TEST);
+        self.renderer.gl.disable(web_sys::WebGl2RenderingContext::DEPTH_TEST);
         
 
         self.renderer.gl.uniform1i(Some(&self.renderer.u_use_lighting_location), 0);
@@ -1117,8 +1117,8 @@ impl SolarSystem {
 
             if use_texture {
                 if let Some(ring_tex) = &body.ring_texture {
-                    self.renderer.gl.enable(web_sys::WebGlRenderingContext::BLEND);
-                    self.renderer.gl.blend_func(web_sys::WebGlRenderingContext::SRC_ALPHA, web_sys::WebGlRenderingContext::ONE_MINUS_SRC_ALPHA);
+                    self.renderer.gl.enable(web_sys::WebGl2RenderingContext::BLEND);
+                    self.renderer.gl.blend_func(web_sys::WebGl2RenderingContext::SRC_ALPHA, web_sys::WebGl2RenderingContext::ONE_MINUS_SRC_ALPHA);
                     
                     
                     self.renderer.draw_mesh(
@@ -1141,12 +1141,12 @@ impl SolarSystem {
                         None
                     );
                     
-                    self.renderer.gl.disable(web_sys::WebGlRenderingContext::BLEND);
+                    self.renderer.gl.disable(web_sys::WebGl2RenderingContext::BLEND);
                 }
 
                 if let Some(cloud_tex) = &body.cloud_texture {
-                    self.renderer.gl.enable(web_sys::WebGlRenderingContext::BLEND);
-                    self.renderer.gl.blend_func(web_sys::WebGlRenderingContext::ONE, web_sys::WebGlRenderingContext::ONE);
+                    self.renderer.gl.enable(web_sys::WebGl2RenderingContext::BLEND);
+                    self.renderer.gl.blend_func(web_sys::WebGl2RenderingContext::ONE, web_sys::WebGl2RenderingContext::ONE);
                     self.renderer.draw_mesh(
                         &body.mesh,
                         pos.x, pos.y, pos.z,
@@ -1166,7 +1166,7 @@ impl SolarSystem {
                         None,
                         None
                     );
-                    self.renderer.gl.disable(web_sys::WebGlRenderingContext::BLEND);
+                    self.renderer.gl.disable(web_sys::WebGl2RenderingContext::BLEND);
                 } else if body.proc_clouds {
                     if let Some(loc) = &self.renderer.u_is_cloud_location {
                         self.renderer.gl.uniform1i(Some(loc), 1);
@@ -1177,10 +1177,10 @@ impl SolarSystem {
                     if let Some(loc) = &self.renderer.u_cloud_rot_offset {
                         self.renderer.gl.uniform1f(Some(loc), body.cloud_rotation);
                     }
-                    self.renderer.gl.enable(web_sys::WebGlRenderingContext::BLEND);
+                    self.renderer.gl.enable(web_sys::WebGl2RenderingContext::BLEND);
                     self.renderer.gl.blend_func(
-                        web_sys::WebGlRenderingContext::SRC_ALPHA,
-                        web_sys::WebGlRenderingContext::ONE_MINUS_SRC_ALPHA,
+                        web_sys::WebGl2RenderingContext::SRC_ALPHA,
+                        web_sys::WebGl2RenderingContext::ONE_MINUS_SRC_ALPHA,
                     );
                     self.renderer.draw_mesh(
                         &body.mesh,
@@ -1201,7 +1201,7 @@ impl SolarSystem {
                         texture_to_use,
                         None
                     );
-                    self.renderer.gl.disable(web_sys::WebGlRenderingContext::BLEND);
+                    self.renderer.gl.disable(web_sys::WebGl2RenderingContext::BLEND);
                     if let Some(loc) = &self.renderer.u_is_cloud_location {
                         self.renderer.gl.uniform1i(Some(loc), 0);
                     }
