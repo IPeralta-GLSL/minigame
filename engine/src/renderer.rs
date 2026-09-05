@@ -103,6 +103,35 @@ const FRAGMENT_SHADER: &str = r#"
     uniform float uTime;
     uniform float uCloudRotOffset;
 
+    uniform int uPhotometryMode;
+    uniform vec4 uPhotometryParams;
+    uniform vec2 uPhotometryParams2;
+
+    float hapkeHGPhase(float cosA, float g) {
+        float d = 1.0 + g * g - 2.0 * g * cosA;
+        return (1.0 - g * g) / (d * sqrt(max(d, 1e-6)));
+    }
+
+    float hapkePhotometry(float mu0, float mu, float cosA) {
+        if (mu0 <= 0.0001) return 0.0;
+        float w = uPhotometryParams.x;
+        float g = uPhotometryParams.y;
+        float h = uPhotometryParams.z;
+        float b0 = uPhotometryParams.w;
+        float limb = uPhotometryParams2.x;
+        float beta = uPhotometryParams2.y;
+        float base = pow(mu0 / (mu0 + mu + 1e-4), beta);
+        float limbT = pow(mu + 1e-4, limb);
+        float pRatio = min(hapkeHGPhase(cosA, g) / max(hapkeHGPhase(1.0, g), 1e-4), 8.0);
+        float alpha = acos(clamp(cosA, -1.0, 1.0));
+        float B = b0 / (1.0 + tan(alpha * 0.5) / max(h, 1e-3));
+        float sq = sqrt(max(1.0 - w, 1e-4));
+        float hm0 = (1.0 + 2.0 * mu0) / (1.0 + 2.0 * mu0 * sq);
+        float hm = (1.0 + 2.0 * mu) / (1.0 + 2.0 * mu * sq);
+        float multi = 0.6 * w * (hm0 * hm - 1.0);
+        return base * limbT * pRatio * (1.0 + B) + multi;
+    }
+
     // --- 3D noise (seamless on sphere, no UV seam) ---
     float cloudHash(vec3 p) {
         p = fract(p * vec3(0.1031, 0.1030, 0.0973));
@@ -298,8 +327,14 @@ const FRAGMENT_SHADER: &str = r#"
             
             vec3 norm = normalize(vNormal);
             vec3 lightDir = normalize(uLightPos - vFragPos);
-            
-            float diff = max(dot(norm, lightDir), 0.0);
+
+            float diff;
+            if (uPhotometryMode == 1) {
+                vec3 vDir = normalize(uCameraPos - vFragPos);
+                diff = hapkePhotometry(dot(norm, lightDir), max(dot(norm, vDir), 0.0), clamp(dot(lightDir, vDir), -1.0, 1.0));
+            } else {
+                diff = max(dot(norm, lightDir), 0.0);
+            }
 
             if (uIsRing) {
                 diff = 0.8;
@@ -408,6 +443,9 @@ pub struct Renderer {
     pub u_is_cloud_location: Option<WebGlUniformLocation>,
     pub u_time_location: Option<WebGlUniformLocation>,
     pub u_cloud_rot_offset: Option<WebGlUniformLocation>,
+    u_photometry_mode_location: WebGlUniformLocation,
+    u_photometry_params_location: WebGlUniformLocation,
+    u_photometry_params2_location: WebGlUniformLocation,
     unit_cube_vertex_buffer: WebGlBuffer,
     unit_cube_index_buffer: WebGlBuffer,
     unit_cube_index_count: i32,
@@ -425,6 +463,10 @@ pub struct Renderer {
     u_instanced_use_texture_loc: WebGlUniformLocation,
     u_instanced_texture_loc: WebGlUniformLocation,
     pub u_instanced_global_alpha_loc: WebGlUniformLocation,
+    u_instanced_photometry_mode_loc: WebGlUniformLocation,
+    u_instanced_photometry_params_loc: WebGlUniformLocation,
+    u_instanced_photometry_params2_loc: WebGlUniformLocation,
+    u_instanced_camera_pos_loc: WebGlUniformLocation,
     instance_data_buffer: WebGlBuffer,
     max_anisotropy: Option<(u32, f32)>,
 
@@ -484,6 +526,12 @@ impl Renderer {
         let u_is_cloud_location = gl.get_uniform_location(&program, "uIsCloud");
         let u_time_location = gl.get_uniform_location(&program, "uTime");
         let u_cloud_rot_offset = gl.get_uniform_location(&program, "uCloudRotOffset");
+        let u_photometry_mode_location = gl.get_uniform_location(&program, "uPhotometryMode")
+            .ok_or("Failed to get uPhotometryMode location")?;
+        let u_photometry_params_location = gl.get_uniform_location(&program, "uPhotometryParams")
+            .ok_or("Failed to get uPhotometryParams location")?;
+        let u_photometry_params2_location = gl.get_uniform_location(&program, "uPhotometryParams2")
+            .ok_or("Failed to get uPhotometryParams2 location")?;
 
         // Instancing setup
         let instanced_ext = gl.get_extension("ANGLE_instanced_arrays")?.map(|e| e.unchecked_into::<AngleInstancedArrays>());
@@ -496,6 +544,10 @@ impl Renderer {
         let u_instanced_use_texture_loc = gl.get_uniform_location(&instanced_program, "uUseTexture").ok_or("Failed to get uUseTexture instanced")?;
         let u_instanced_texture_loc = gl.get_uniform_location(&instanced_program, "uTexture").ok_or("Failed to get uTexture instanced")?;
         let u_instanced_global_alpha_loc = gl.get_uniform_location(&instanced_program, "uGlobalAlpha").ok_or("Failed to get uGlobalAlpha instanced")?;
+        let u_instanced_photometry_mode_loc = gl.get_uniform_location(&instanced_program, "uPhotometryMode").ok_or("Failed to get uPhotometryMode instanced")?;
+        let u_instanced_photometry_params_loc = gl.get_uniform_location(&instanced_program, "uPhotometryParams").ok_or("Failed to get uPhotometryParams instanced")?;
+        let u_instanced_photometry_params2_loc = gl.get_uniform_location(&instanced_program, "uPhotometryParams2").ok_or("Failed to get uPhotometryParams2 instanced")?;
+        let u_instanced_camera_pos_loc = gl.get_uniform_location(&instanced_program, "uCameraPos").ok_or("Failed to get uCameraPos instanced")?;
         let instance_data_buffer = gl.create_buffer().ok_or("Failed to create instance buffer")?;
 
         let max_anisotropy = gl
@@ -581,6 +633,9 @@ impl Renderer {
             u_is_cloud_location,
             u_time_location,
             u_cloud_rot_offset,
+            u_photometry_mode_location,
+            u_photometry_params_location,
+            u_photometry_params2_location,
             instanced_ext,
             instanced_program,
             u_instanced_view_loc,
@@ -591,6 +646,10 @@ impl Renderer {
             u_instanced_use_texture_loc,
             u_instanced_texture_loc,
             u_instanced_global_alpha_loc,
+            u_instanced_photometry_mode_loc,
+            u_instanced_photometry_params_loc,
+            u_instanced_photometry_params2_loc,
+            u_instanced_camera_pos_loc,
             instance_data_buffer,
             max_anisotropy,
             skybox_program,
@@ -808,6 +867,8 @@ impl Renderer {
         light_pos: &Vector3<f32>,
         texture: Option<&WebGlTexture>,
         alpha: f32,
+        camera_pos: Option<(f32, f32, f32)>,
+        photometry: Option<[f32; 6]>,
     ) {
         let ext = match &self.instanced_ext {
             Some(e) => e,
@@ -827,6 +888,22 @@ impl Renderer {
         self.gl.uniform1i(Some(&self.u_instanced_use_lighting_loc), 1); // Enable lighting for instanced
         self.gl.uniform3f(Some(&self.u_instanced_time_color_loc), 1.0, 1.0, 1.0);
         self.gl.uniform1f(Some(&self.u_instanced_global_alpha_loc), alpha);
+
+        match camera_pos {
+            Some((cx, cy, cz)) => self.gl.uniform3f(Some(&self.u_instanced_camera_pos_loc), cx, cy, cz),
+            None => self.gl.uniform3f(Some(&self.u_instanced_camera_pos_loc), 0.0, 0.0, 0.0),
+        }
+
+        match photometry {
+            Some(p) => {
+                self.gl.uniform1i(Some(&self.u_instanced_photometry_mode_loc), 1);
+                self.gl.uniform4f(Some(&self.u_instanced_photometry_params_loc), p[0], p[1], p[2], p[3]);
+                self.gl.uniform2f(Some(&self.u_instanced_photometry_params2_loc), p[4], p[5]);
+            }
+            None => {
+                self.gl.uniform1i(Some(&self.u_instanced_photometry_mode_loc), 0);
+            }
+        }
 
         if let Some(tex) = texture {
             self.gl.active_texture(WebGlRenderingContext::TEXTURE0);
@@ -943,11 +1020,20 @@ impl Renderer {
         }
     }
 
-    pub fn draw_mesh(&self, mesh: &Mesh, x: f32, y: f32, z: f32, w: f32, h: f32, d: f32, rotation_x: f32, rotation_y: f32, rotation_z: f32, projection: &Matrix4<f32>, view: &Matrix4<f32>, texture: Option<&WebGlTexture>, night_texture: Option<&WebGlTexture>, color_override: Option<(f32, f32, f32)>, is_ring: bool, ring_inner_radius: Option<f32>, use_lighting: bool, is_black_hole: bool, is_frozen: bool, camera_pos: Option<(f32, f32, f32)>, background_texture: Option<&WebGlTexture>) {
+    pub fn draw_mesh(&self, mesh: &Mesh, x: f32, y: f32, z: f32, w: f32, h: f32, d: f32, rotation_x: f32, rotation_y: f32, rotation_z: f32, projection: &Matrix4<f32>, view: &Matrix4<f32>, texture: Option<&WebGlTexture>, night_texture: Option<&WebGlTexture>, color_override: Option<(f32, f32, f32)>, is_ring: bool, ring_inner_radius: Option<f32>, use_lighting: bool, is_black_hole: bool, is_frozen: bool, camera_pos: Option<(f32, f32, f32)>, background_texture: Option<&WebGlTexture>, photometry: Option<[f32; 6]>) {
         self.gl.use_program(Some(&self.program));
         
-        // Enable lighting by default for meshes
         self.gl.uniform1i(Some(&self.u_use_lighting_location), if use_lighting { 1 } else { 0 });
+        match photometry {
+            Some(p) => {
+                self.gl.uniform1i(Some(&self.u_photometry_mode_location), 1);
+                self.gl.uniform4f(Some(&self.u_photometry_params_location), p[0], p[1], p[2], p[3]);
+                self.gl.uniform2f(Some(&self.u_photometry_params2_location), p[4], p[5]);
+            }
+            None => {
+                self.gl.uniform1i(Some(&self.u_photometry_mode_location), 0);
+            }
+        }
         self.gl.uniform1i(Some(&self.u_is_ring_location), if is_ring { 1 } else { 0 });
         self.gl.uniform1f(Some(&self.u_ring_inner_radius_location), ring_inner_radius.unwrap_or(0.0));
         self.gl.uniform1i(Some(&self.u_is_black_hole_location), if is_black_hole { 1 } else { 0 });

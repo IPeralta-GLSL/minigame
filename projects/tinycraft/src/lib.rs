@@ -721,24 +721,24 @@ impl Minecraft {
             match *block_type {
                 BlockType::Grass => {
                     self.renderer.draw_instanced_mesh(
-                        &self.top_mesh, &data, count, &projection, &view, &light_pos_uniform, self.grass_top_texture.as_ref(), 1.0
+                        &self.top_mesh, &data, count, &projection, &view, &light_pos_uniform, self.grass_top_texture.as_ref(), 1.0, None, None
                     );
                     self.renderer.draw_instanced_mesh(
-                        &self.bottom_mesh, &data, count, &projection, &view, &light_pos_uniform, self.dirt_texture.as_ref(), 1.0
+                        &self.bottom_mesh, &data, count, &projection, &view, &light_pos_uniform, self.dirt_texture.as_ref(), 1.0, None, None
                     );
                     self.renderer.draw_instanced_mesh(
-                        &self.side_mesh, &data, count, &projection, &view, &light_pos_uniform, self.grass_side_texture.as_ref(), 1.0
+                        &self.side_mesh, &data, count, &projection, &view, &light_pos_uniform, self.grass_side_texture.as_ref(), 1.0, None, None
                     );
                 },
                 BlockType::Wood => {
                     self.renderer.draw_instanced_mesh(
-                        &self.top_mesh, &data, count, &projection, &view, &light_pos_uniform, self.wood_top_texture.as_ref(), 1.0
+                        &self.top_mesh, &data, count, &projection, &view, &light_pos_uniform, self.wood_top_texture.as_ref(), 1.0, None, None
                     );
                     self.renderer.draw_instanced_mesh(
-                        &self.bottom_mesh, &data, count, &projection, &view, &light_pos_uniform, self.wood_top_texture.as_ref(), 1.0
+                        &self.bottom_mesh, &data, count, &projection, &view, &light_pos_uniform, self.wood_top_texture.as_ref(), 1.0, None, None
                     );
                     self.renderer.draw_instanced_mesh(
-                        &self.side_mesh, &data, count, &projection, &view, &light_pos_uniform, self.wood_side_texture.as_ref(), 1.0
+                        &self.side_mesh, &data, count, &projection, &view, &light_pos_uniform, self.wood_side_texture.as_ref(), 1.0, None, None
                     );
                 },
                 _ => {
@@ -753,7 +753,7 @@ impl Minecraft {
                     };
                     
                     self.renderer.draw_instanced_mesh(
-                        &self.cube_mesh, &data, count, &projection, &view, &light_pos_uniform, texture, 1.0
+                        &self.cube_mesh, &data, count, &projection, &view, &light_pos_uniform, texture, 1.0, None, None
                     );
                 }
             }
@@ -764,19 +764,19 @@ impl Minecraft {
 
         if let Some(data) = ice_data {
             self.renderer.draw_instanced_mesh(
-                &self.cube_mesh, &data, ice_count, &projection, &view, &light_pos_uniform, self.ice_texture.as_ref(), 0.8
+                &self.cube_mesh, &data, ice_count, &projection, &view, &light_pos_uniform, self.ice_texture.as_ref(), 0.8, None, None
             );
         }
 
         if let Some(data) = glass_data {
             self.renderer.draw_instanced_mesh(
-                &self.cube_mesh, &data, glass_count, &projection, &view, &light_pos_uniform, self.glass_texture.as_ref(), 0.5
+                &self.cube_mesh, &data, glass_count, &projection, &view, &light_pos_uniform, self.glass_texture.as_ref(), 0.5, None, None
             );
         }
 
         if let Some(data) = water_data {
             self.renderer.draw_instanced_mesh(
-                &self.cube_mesh, &data, water_count, &projection, &view, &light_pos_uniform, self.water_texture.as_ref(), 0.6
+                &self.cube_mesh, &data, water_count, &projection, &view, &light_pos_uniform, self.water_texture.as_ref(), 0.6, None, None
             );
         }
             

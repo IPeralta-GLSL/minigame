@@ -75,9 +75,30 @@ pub struct SolarSystem {
     country_labels: Vec<(f32, f32, HtmlElement)>,
 }
 
+fn photometry_preset(name: &str) -> Option<[f32; 6]> {
+    match name {
+        "Moon" => Some([0.12, -0.30, 0.06, 1.2, 0.0, 1.0]),
+        "Mercury" => Some([0.10, -0.25, 0.05, 1.3, 0.0, 1.0]),
+        "Ceres" => Some([0.09, -0.20, 0.06, 0.8, 0.0, 1.0]),
+        "Phobos" | "Deimos" => Some([0.07, -0.25, 0.05, 0.9, 0.0, 1.0]),
+        "Io" => Some([0.25, -0.15, 0.05, 0.7, 0.0, 1.0]),
+        "Europa" | "Ganymede" | "Callisto" => Some([0.30, -0.10, 0.05, 0.6, 0.0, 1.0]),
+        "Pluto" | "Charon" => Some([0.15, -0.20, 0.06, 1.0, 0.0, 1.0]),
+        "Haumea" | "Makemake" | "Eris" => Some([0.30, -0.10, 0.05, 0.8, 0.0, 1.0]),
+        "Chariklo" => Some([0.08, -0.20, 0.05, 0.9, 0.0, 1.0]),
+        "Mars" => Some([0.15, 0.20, 0.06, 0.4, 0.15, 1.0]),
+        "Venus" => Some([0.60, 0.55, 0.08, 0.2, 0.30, 1.0]),
+        "Titan" => Some([0.40, 0.50, 0.08, 0.2, 0.35, 1.0]),
+        "Jupiter" | "Saturn" => Some([0.45, 0.35, 0.08, 0.2, 0.45, 1.0]),
+        "Uranus" | "Neptune" => Some([0.50, 0.30, 0.08, 0.2, 0.55, 1.0]),
+        _ => None,
+    }
+}
+
+const BELT_PHOTOMETRY: [f32; 6] = [0.08, -0.20, 0.05, 0.8, 0.0, 1.0];
+
 impl SolarSystem {
-    pub fn new(renderer: Renderer, system_type: SystemType) -> Self {
-        let mut bodies = Vec::new();
+    pub fn new(renderer: Renderer, system_type: SystemType) -> Self {        let mut bodies = Vec::new();
         let sphere_mesh = Mesh::sphere(1.0, 20, 20, 1.0, 1.0, 1.0);
         let asteroid_mesh = Mesh::sphere(1.0, 6, 6, 1.0, 1.0, 1.0);
         let ring_mesh = Mesh::quad(2.0, 2.0);
@@ -972,6 +993,7 @@ impl SolarSystem {
                 false,
                 false,
                 None,
+                None,
                 None
             );        
         self.renderer.gl.uniform1i(Some(&self.renderer.u_use_lighting_location), 1);
@@ -1089,7 +1111,8 @@ impl SolarSystem {
                 is_black_hole,
                 body.is_frozen,
                 Some((rel_cam_x, rel_cam_y, rel_cam_z)),
-                if is_black_hole { self.background_texture.as_ref() } else { None }
+                if is_black_hole { self.background_texture.as_ref() } else { None },
+                photometry_preset(&body.name)
             );
 
             if use_texture {
@@ -1113,6 +1136,7 @@ impl SolarSystem {
                         true,
                         false,
                         body.is_frozen,
+                        None,
                         None,
                         None
                     );
@@ -1138,6 +1162,7 @@ impl SolarSystem {
                         true,
                         false,
                         body.is_frozen,
+                        None,
                         None,
                         None
                     );
@@ -1174,6 +1199,7 @@ impl SolarSystem {
                         body.is_frozen,
                         Some((rel_cam_x, rel_cam_y, rel_cam_z)),
                         texture_to_use,
+                        None
                     );
                     self.renderer.gl.disable(web_sys::WebGlRenderingContext::BLEND);
                     if let Some(loc) = &self.renderer.u_is_cloud_location {
@@ -1381,10 +1407,12 @@ impl SolarSystem {
                 asteroid_count,
                 &projection,
                 &view,
-                &Vector3::new(0.0, 0.0, 0.0),
-                None,
-                1.0
-            );
+                 &Vector3::new(0.0, 0.0, 0.0),
+                 None,
+                 1.0,
+                 Some((rel_cam_x, rel_cam_y, rel_cam_z)),
+                 Some(BELT_PHOTOMETRY)
+             );
         }
     }
 
