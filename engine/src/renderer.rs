@@ -393,8 +393,8 @@ const FRAGMENT_SHADER: &str = r#"#version 300 es
                             float outerR = uRingRadii.y;
                             if (rr > innerR && rr < outerR) {
                                 float band = outerR - innerR;
-                                float edge = smoothstep(innerR, innerR + band * 0.12, rr) * (1.0 - smoothstep(outerR - band * 0.12, outerR, rr));
-                                occ = max(occ, edge * 0.85);
+                                float edge = smoothstep(innerR, innerR + band * 0.2, rr) * (1.0 - smoothstep(outerR - band * 0.2, outerR, rr));
+                                occ = max(occ, edge * 0.75);
                             }
                         }
                     }

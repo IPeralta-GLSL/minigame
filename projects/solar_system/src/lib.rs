@@ -1142,12 +1142,15 @@ impl SolarSystem {
             };
             self.renderer.set_shadow_occluders(&body_shadow_list);
 
-            if body.ring_texture.is_some() && use_texture {
+            let ring_shadow_params: Option<((f32, f32, f32), (f32, f32, f32), f32, f32)> = if body.ring_texture.is_some() && use_texture {
                 let inner_uv = body.ring_inner_radius.unwrap_or(0.15);
-                let ring_normal = (0.0, -body.axial_tilt.sin(), body.axial_tilt.cos());
-                self.renderer.set_ring_shadow(true, ring_normal, (pos.x, pos.y, pos.z), inner_uv * 2.0 * body.ring_radius, body.ring_radius);
+                Some(((0.0, body.axial_tilt.cos(), body.axial_tilt.sin()), (pos.x, pos.y, pos.z), inner_uv * 2.0 * body.ring_radius, body.ring_radius))
             } else {
-                self.renderer.set_ring_shadow(false, (0.0, 1.0, 0.0), (0.0, 0.0, 0.0), 0.0, 0.0);
+                None
+            };
+            match &ring_shadow_params {
+                Some((n, c, i, o)) => self.renderer.set_ring_shadow(true, *n, *c, *i, *o),
+                None => self.renderer.set_ring_shadow(false, (0.0, 1.0, 0.0), (0.0, 0.0, 0.0), 0.0, 0.0),
             }
 
             self.renderer.draw_mesh(
@@ -1177,6 +1180,7 @@ impl SolarSystem {
                     ring_shadow_list.push([pos.x, pos.y, pos.z, final_render_radius]);
                     ring_shadow_list.extend(body_shadow_list.iter().cloned().take(3));
                     self.renderer.set_shadow_occluders(&ring_shadow_list);
+                    self.renderer.set_ring_shadow(false, (0.0, 1.0, 0.0), (0.0, 0.0, 0.0), 0.0, 0.0);
 
                     self.renderer.gl.enable(web_sys::WebGl2RenderingContext::BLEND);
                     self.renderer.gl.blend_func(web_sys::WebGl2RenderingContext::SRC_ALPHA, web_sys::WebGl2RenderingContext::ONE_MINUS_SRC_ALPHA);
@@ -1204,6 +1208,10 @@ impl SolarSystem {
                     );
                     
                     self.renderer.gl.disable(web_sys::WebGl2RenderingContext::BLEND);
+
+                    if let Some((n, c, i, o)) = &ring_shadow_params {
+                        self.renderer.set_ring_shadow(true, *n, *c, *i, *o);
+                    }
                 }
 
                 if let Some(cloud_tex) = &body.cloud_texture {
