@@ -114,6 +114,7 @@ const FRAGMENT_SHADER: &str = r#"#version 300 es
 
     uniform int uShadowCount;
     uniform vec4 uOccluders[4];
+    uniform int uIsStar;
 
     float sphereShadow(vec3 origin, vec3 dir, float lightDist, vec4 occ) {
         vec3 oc = occ.xyz - origin;
@@ -229,6 +230,25 @@ const FRAGMENT_SHADER: &str = r#"#version 300 es
             vec3 bgColor = texture(uBackgroundTexture, uv).rgb;
 
             fragColor = vec4(bgColor, 1.0);
+            return;
+        }
+
+        if (uIsStar == 1) {
+            vec3 sp = normalize(vPos);
+            float t = uTime * 0.02;
+            vec3 p1 = sp * 6.0 + vec3(t * 0.35, -t * 0.22, t * 0.18);
+            float gran = cloudFbm(p1 * 2.5);
+            vec3 p2 = rotY(sp * 3.5, t * 0.6);
+            float cells = cloudFbm(p2 * 4.0 + vec3(5.2, 1.3, 7.7));
+            float activity = gran * 0.65 + cells * 0.35;
+            vec3 starColor = mix(vec3(0.99, 0.95, 0.84), vec3(1.0, 0.62, 0.15), smoothstep(0.32, 0.78, activity));
+            starColor = mix(starColor, vec3(0.55, 0.12, 0.02), smoothstep(0.66, 0.94, activity) * 0.6);
+            vec3 vd = normalize(uCameraPos - vFragPos);
+            float ndv = clamp(dot(normalize(vNormal), vd), 0.0, 1.0);
+            float limb = 0.5 + 0.5 * pow(ndv, 0.6);
+            float pulse = 0.97 + 0.03 * sin(uTime * 0.8 + activity * 6.0);
+            vec3 tint = uUseUniformColor ? uUniformColor : vColor;
+            fragColor = vec4(starColor * limb * pulse * 1.3 * tint, 1.0);
             return;
         }
 
@@ -534,6 +554,7 @@ pub struct Renderer {
     u_photometry_params2_location: WebGlUniformLocation,
     u_shadow_count_location: WebGlUniformLocation,
     u_occluders_location: WebGlUniformLocation,
+    u_is_star_location: WebGlUniformLocation,
     unit_cube_vertex_buffer: WebGlBuffer,
     unit_cube_index_buffer: WebGlBuffer,
     unit_cube_index_count: i32,
@@ -633,6 +654,8 @@ impl Renderer {
             .ok_or("Failed to get uShadowCount location")?;
         let u_occluders_location = gl.get_uniform_location(&program, "uOccluders[0]")
             .ok_or("Failed to get uOccluders location")?;
+        let u_is_star_location = gl.get_uniform_location(&program, "uIsStar")
+            .ok_or("Failed to get uIsStar location")?;
 
         // Instancing setup
         let instanced_program = create_instanced_program(&gl)?;
@@ -755,6 +778,7 @@ impl Renderer {
             u_photometry_params2_location,
             u_shadow_count_location,
             u_occluders_location,
+            u_is_star_location,
             instanced_program,
             u_instanced_view_loc,
             u_instanced_proj_loc,
@@ -1151,10 +1175,11 @@ impl Renderer {
         }
     }
 
-    pub fn draw_mesh(&self, mesh: &Mesh, x: f32, y: f32, z: f32, w: f32, h: f32, d: f32, rotation_x: f32, rotation_y: f32, rotation_z: f32, projection: &Matrix4<f32>, view: &Matrix4<f32>, texture: Option<&WebGlTexture>, night_texture: Option<&WebGlTexture>, color_override: Option<(f32, f32, f32)>, is_ring: bool, ring_inner_radius: Option<f32>, use_lighting: bool, is_black_hole: bool, is_frozen: bool, camera_pos: Option<(f32, f32, f32)>, background_texture: Option<&WebGlTexture>, photometry: Option<[f32; 6]>, atmosphere: Option<(f32, f32, f32)>) {
+    pub fn draw_mesh(&self, mesh: &Mesh, x: f32, y: f32, z: f32, w: f32, h: f32, d: f32, rotation_x: f32, rotation_y: f32, rotation_z: f32, projection: &Matrix4<f32>, view: &Matrix4<f32>, texture: Option<&WebGlTexture>, night_texture: Option<&WebGlTexture>, color_override: Option<(f32, f32, f32)>, is_ring: bool, ring_inner_radius: Option<f32>, use_lighting: bool, is_black_hole: bool, is_frozen: bool, camera_pos: Option<(f32, f32, f32)>, background_texture: Option<&WebGlTexture>, photometry: Option<[f32; 6]>, atmosphere: Option<(f32, f32, f32)>, is_star: bool) {
         self.gl.use_program(Some(&self.program));
-        
+
         self.gl.uniform1i(Some(&self.u_use_lighting_location), if use_lighting { 1 } else { 0 });
+        self.gl.uniform1i(Some(&self.u_is_star_location), if is_star { 1 } else { 0 });
         match atmosphere {
             Some((ar, ag, ab)) => self.gl.uniform3f(Some(&self.u_atmosphere_glow_location), ar, ag, ab),
             None => self.gl.uniform3f(Some(&self.u_atmosphere_glow_location), 0.0, 0.0, 0.0),

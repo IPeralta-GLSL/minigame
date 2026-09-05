@@ -340,7 +340,7 @@ impl SolarSystem {
                 let bh_radius = 0.0000019777;
                 bodies.push(create_body("Black Hole", bh_radius, 0.0, 0.0, 0.0, (0.0, 0.0, 0.0), None, Mesh::sphere, None, None, None, None, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, "1.989 × 10^30 kg", 0.0, "A black hole with the same mass as the Sun. Event Horizon: 3km.", None));
             } else {
-                bodies.push(create_body("Sun", 0.465, 0.0, 0.0, 0.0, (1.0, 1.0, 0.0), None, Mesh::sphere, Some("projects/solar_system/assets/textures/2k_sun.jpg"), None, None, None, 0.0, 25.0, 7.25, 0.0, 0.0, 0.0, 0.0, "1.989 × 10^30 kg", 5778.0, "The star at the center of our Solar System.", None));
+                bodies.push(create_body("Sun", 0.465, 0.0, 0.0, 0.0, (1.0, 1.0, 0.0), None, Mesh::sphere, None, None, None, None, 0.0, 25.0, 7.25, 0.0, 0.0, 0.0, 0.0, "1.989 × 10^30 kg", 5778.0, "The star at the center of our Solar System.", None));
             }
 
         let p_mercury = 87.969;
@@ -1037,7 +1037,8 @@ impl SolarSystem {
                 None,
                 None,
                 None,
-                None
+                None,
+                false
             );        
         self.renderer.gl.uniform1i(Some(&self.renderer.u_use_lighting_location), 1);
         
@@ -1123,13 +1124,15 @@ impl SolarSystem {
                 None
             };
             
-            let color_override = if !use_texture {
+            let is_star = body.name == "Sun" || body.name == "Sirius A";
+
+            let color_override = if !use_texture || is_star {
                 Some(body.color)
             } else {
                 None
             };
 
-            let should_use_lighting = use_texture && body.name != "Sun" && body.name != "Black Hole";
+            let should_use_lighting = use_texture && body.name != "Sun" && body.name != "Black Hole" && body.name != "Sirius A";
             let is_black_hole = body.name == "Black Hole";
             
 
@@ -1153,6 +1156,12 @@ impl SolarSystem {
                 None => self.renderer.set_ring_shadow(false, (0.0, 1.0, 0.0), (0.0, 0.0, 0.0), 0.0, 0.0),
             }
 
+            if is_star {
+                if let Some(loc) = &self.renderer.u_time_location {
+                    self.renderer.gl.uniform1f(Some(loc), (self.current_time / 1000.0) as f32);
+                }
+            }
+
             self.renderer.draw_mesh(
                 &body.mesh,
                 pos.x, pos.y, pos.z,
@@ -1171,7 +1180,8 @@ impl SolarSystem {
                 Some((rel_cam_x, rel_cam_y, rel_cam_z)),
                 if is_black_hole { self.background_texture.as_ref() } else { None },
                 photometry_preset(&body.name),
-                atmosphere_preset(&body.name)
+                atmosphere_preset(&body.name),
+                is_star
             );
 
             if use_texture {
@@ -1204,7 +1214,8 @@ impl SolarSystem {
                         None,
                         None,
                         None,
-                        None
+                        None,
+                        false
                     );
                     
                     self.renderer.gl.disable(web_sys::WebGl2RenderingContext::BLEND);
@@ -1236,7 +1247,8 @@ impl SolarSystem {
                         None,
                         None,
                         None,
-                        None
+                        None,
+                        false
                     );
                     self.renderer.gl.disable(web_sys::WebGl2RenderingContext::BLEND);
                 } else if body.proc_clouds {
@@ -1272,7 +1284,8 @@ impl SolarSystem {
                         Some((rel_cam_x, rel_cam_y, rel_cam_z)),
                         texture_to_use,
                         None,
-                        None
+                        None,
+                        false
                     );
                     self.renderer.gl.disable(web_sys::WebGl2RenderingContext::BLEND);
                     if let Some(loc) = &self.renderer.u_is_cloud_location {
