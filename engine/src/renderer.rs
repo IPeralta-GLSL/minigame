@@ -106,6 +106,12 @@ const FRAGMENT_SHADER: &str = r#"#version 300 es
     uniform vec4 uPhotometryParams;
     uniform vec2 uPhotometryParams2;
 
+    uniform vec3 uAtmosphereGlow;
+    uniform int uRingShadow;
+    uniform vec3 uRingNormal;
+    uniform vec3 uRingCenter;
+    uniform vec2 uRingRadii;
+
     uniform int uShadowCount;
     uniform vec4 uOccluders[4];
 
@@ -366,15 +372,35 @@ const FRAGMENT_SHADER: &str = r#"#version 300 es
 
             float terminator = clamp(diff, 0.0, 1.0);
 
-            if (uShadowCount > 0) {
-                vec3 toLight = uLightPos - vFragPos;
-                float lightDist = length(toLight);
-                vec3 sDir = toLight / max(lightDist, 1e-5);
-                float occ = 0.0;
-                for (int i = 0; i < 4; i++) {
-                    if (i >= uShadowCount) break;
-                    occ = max(occ, sphereShadow(vFragPos, sDir, lightDist, uOccluders[i]));
+            float occ = 0.0;
+            if ((uShadowCount > 0 || uRingShadow == 1) && dist >= 1.0) {
+                vec3 sDir = lightDir;
+                float lightDist = dist;
+                if (uShadowCount > 0) {
+                    for (int i = 0; i < 4; i++) {
+                        if (i >= uShadowCount) break;
+                        occ = max(occ, sphereShadow(vFragPos, sDir, lightDist, uOccluders[i]));
+                    }
                 }
+                if (uRingShadow == 1) {
+                    float denom = dot(sDir, uRingNormal);
+                    if (abs(denom) > 1e-5) {
+                        float tr = dot(uRingCenter - vFragPos, uRingNormal) / denom;
+                        if (tr > 0.0 && tr < lightDist) {
+                            vec3 hp = vFragPos + sDir * tr;
+                            float rr = length(hp - uRingCenter);
+                            float innerR = uRingRadii.x;
+                            float outerR = uRingRadii.y;
+                            if (rr > innerR && rr < outerR) {
+                                float band = outerR - innerR;
+                                float edge = smoothstep(innerR, innerR + band * 0.12, rr) * (1.0 - smoothstep(outerR - band * 0.12, outerR, rr));
+                                occ = max(occ, edge * 0.85);
+                            }
+                        }
+                    }
+                }
+            }
+            if (occ > 0.0) {
                 diff *= 1.0 - occ;
                 ambient *= 1.0 - occ * 0.92;
             }
@@ -389,6 +415,13 @@ const FRAGMENT_SHADER: &str = r#"#version 300 es
                 result = mix(nightColor, dayColor, mixFactor);
             } else {
                 result = dayColor;
+            }
+
+            if (uAtmosphereGlow.r + uAtmosphereGlow.g + uAtmosphereGlow.b > 0.0 && !uIsRing) {
+                vec3 avd = normalize(uCameraPos - vFragPos);
+                float fres = pow(1.0 - clamp(dot(norm, avd), 0.0, 1.0), 3.0);
+                float alit = clamp(dot(norm, lightDir) + 0.35, 0.0, 1.0);
+                result += uAtmosphereGlow * fres * alit * (1.0 - occ);
             }
         } else {
             result = color;
@@ -443,6 +476,31 @@ const SKYBOX_FRAGMENT_SHADER: &str = r#"#version 300 es
     void main() {
         vec2 uv = SampleSphericalMap(normalize(vTexCoord));
         fragColor = texture(uSkybox, uv);
+    }
+"#;
+
+const GLOW_VERTEX_SHADER: &str = r#"#version 300 es
+    in vec2 aPos;
+    void main() {
+        gl_Position = vec4(aPos, 0.9999, 1.0);
+    }
+"#;
+
+const GLOW_FRAGMENT_SHADER: &str = r#"#version 300 es
+    precision highp float;
+    uniform vec2 uGlowCenter;
+    uniform float uGlowRadius;
+    uniform vec3 uGlowColor;
+    out vec4 fragColor;
+
+    void main() {
+        vec2 p = gl_FragCoord.xy - uGlowCenter;
+        float d = length(p) / max(uGlowRadius, 1e-3);
+        float core = exp(-d * d * 5.0);
+        float halo = exp(-d * 1.8) * 0.35;
+        float flareX = exp(-abs(p.y) / max(uGlowRadius * 0.08, 1e-3)) * exp(-abs(p.x) / max(uGlowRadius * 2.2, 1e-3)) * 0.5;
+        float i = core + halo + flareX;
+        fragColor = vec4(uGlowColor * i, i);
     }
 "#;
 
@@ -504,6 +562,16 @@ pub struct Renderer {
     u_skybox_view_loc: WebGlUniformLocation,
     u_skybox_proj_loc: WebGlUniformLocation,
     u_skybox_texture_loc: WebGlUniformLocation,
+    glow_program: WebGlProgram,
+    u_glow_center_loc: WebGlUniformLocation,
+    u_glow_radius_loc: WebGlUniformLocation,
+    u_glow_color_loc: WebGlUniformLocation,
+    a_glow_pos_loc: i32,
+    u_atmosphere_glow_location: WebGlUniformLocation,
+    u_ring_shadow_location: WebGlUniformLocation,
+    u_ring_normal_location: WebGlUniformLocation,
+    u_ring_center_location: WebGlUniformLocation,
+    u_ring_radii_location: WebGlUniformLocation,
 }
 
 impl Renderer {
@@ -601,6 +669,23 @@ impl Renderer {
         let u_skybox_proj_loc = gl.get_uniform_location(&skybox_program, "uProjection").ok_or("Failed to get uProjection skybox")?;
         let u_skybox_texture_loc = gl.get_uniform_location(&skybox_program, "uSkybox").ok_or("Failed to get uSkybox")?;
 
+        let glow_program = create_glow_program(&gl)?;
+        let u_glow_center_loc = gl.get_uniform_location(&glow_program, "uGlowCenter").ok_or("Failed to get uGlowCenter")?;
+        let u_glow_radius_loc = gl.get_uniform_location(&glow_program, "uGlowRadius").ok_or("Failed to get uGlowRadius")?;
+        let u_glow_color_loc = gl.get_uniform_location(&glow_program, "uGlowColor").ok_or("Failed to get uGlowColor")?;
+        let a_glow_pos_loc = gl.get_attrib_location(&glow_program, "aPos");
+
+        let u_atmosphere_glow_location = gl.get_uniform_location(&program, "uAtmosphereGlow")
+            .ok_or("Failed to get uAtmosphereGlow location")?;
+        let u_ring_shadow_location = gl.get_uniform_location(&program, "uRingShadow")
+            .ok_or("Failed to get uRingShadow location")?;
+        let u_ring_normal_location = gl.get_uniform_location(&program, "uRingNormal")
+            .ok_or("Failed to get uRingNormal location")?;
+        let u_ring_center_location = gl.get_uniform_location(&program, "uRingCenter")
+            .ok_or("Failed to get uRingCenter location")?;
+        let u_ring_radii_location = gl.get_uniform_location(&program, "uRingRadii")
+            .ok_or("Failed to get uRingRadii location")?;
+
         // Create unit cube buffers
         let unit_cube_vertex_buffer = gl.create_buffer().ok_or("Failed to create unit cube buffer")?;
         let unit_cube_index_buffer = gl.create_buffer().ok_or("Failed to create unit cube index buffer")?;
@@ -689,6 +774,16 @@ impl Renderer {
             u_skybox_view_loc,
             u_skybox_proj_loc,
             u_skybox_texture_loc,
+            glow_program,
+            u_glow_center_loc,
+            u_glow_radius_loc,
+            u_glow_color_loc,
+            a_glow_pos_loc,
+            u_atmosphere_glow_location,
+            u_ring_shadow_location,
+            u_ring_normal_location,
+            u_ring_center_location,
+            u_ring_radii_location,
         })
     }
 
@@ -1056,10 +1151,14 @@ impl Renderer {
         }
     }
 
-    pub fn draw_mesh(&self, mesh: &Mesh, x: f32, y: f32, z: f32, w: f32, h: f32, d: f32, rotation_x: f32, rotation_y: f32, rotation_z: f32, projection: &Matrix4<f32>, view: &Matrix4<f32>, texture: Option<&WebGlTexture>, night_texture: Option<&WebGlTexture>, color_override: Option<(f32, f32, f32)>, is_ring: bool, ring_inner_radius: Option<f32>, use_lighting: bool, is_black_hole: bool, is_frozen: bool, camera_pos: Option<(f32, f32, f32)>, background_texture: Option<&WebGlTexture>, photometry: Option<[f32; 6]>) {
+    pub fn draw_mesh(&self, mesh: &Mesh, x: f32, y: f32, z: f32, w: f32, h: f32, d: f32, rotation_x: f32, rotation_y: f32, rotation_z: f32, projection: &Matrix4<f32>, view: &Matrix4<f32>, texture: Option<&WebGlTexture>, night_texture: Option<&WebGlTexture>, color_override: Option<(f32, f32, f32)>, is_ring: bool, ring_inner_radius: Option<f32>, use_lighting: bool, is_black_hole: bool, is_frozen: bool, camera_pos: Option<(f32, f32, f32)>, background_texture: Option<&WebGlTexture>, photometry: Option<[f32; 6]>, atmosphere: Option<(f32, f32, f32)>) {
         self.gl.use_program(Some(&self.program));
         
         self.gl.uniform1i(Some(&self.u_use_lighting_location), if use_lighting { 1 } else { 0 });
+        match atmosphere {
+            Some((ar, ag, ab)) => self.gl.uniform3f(Some(&self.u_atmosphere_glow_location), ar, ag, ab),
+            None => self.gl.uniform3f(Some(&self.u_atmosphere_glow_location), 0.0, 0.0, 0.0),
+        }
         match photometry {
             Some(p) => {
                 self.gl.uniform1i(Some(&self.u_photometry_mode_location), 1);
@@ -1195,7 +1294,45 @@ impl Renderer {
         );
     }
 
-    pub fn draw_lines(&self, vertices: &[f32], r: f32, g: f32, b: f32, projection: &Matrix4<f32>, view: &Matrix4<f32>) {
+    pub fn set_ring_shadow(&self, enabled: bool, normal: (f32, f32, f32), center: (f32, f32, f32), inner: f32, outer: f32) {
+        self.gl.use_program(Some(&self.program));
+        self.gl.uniform1i(Some(&self.u_ring_shadow_location), if enabled { 1 } else { 0 });
+        if enabled {
+            self.gl.uniform3f(Some(&self.u_ring_normal_location), normal.0, normal.1, normal.2);
+            self.gl.uniform3f(Some(&self.u_ring_center_location), center.0, center.1, center.2);
+            self.gl.uniform2f(Some(&self.u_ring_radii_location), inner, outer);
+        }
+    }
+
+    pub fn draw_screen_glow(&self, center_px: (f32, f32), radius_px: f32, color: (f32, f32, f32)) {
+        self.gl.use_program(Some(&self.glow_program));
+        self.gl.disable(WebGl2RenderingContext::DEPTH_TEST);
+        self.gl.enable(WebGl2RenderingContext::BLEND);
+        self.gl.blend_func(WebGl2RenderingContext::ONE, WebGl2RenderingContext::ONE);
+        self.gl.uniform2f(Some(&self.u_glow_center_loc), center_px.0, center_px.1);
+        self.gl.uniform1f(Some(&self.u_glow_radius_loc), radius_px);
+        self.gl.uniform3f(Some(&self.u_glow_color_loc), color.0, color.1, color.2);
+        let quad = [-1.0f32, -1.0, 3.0, -1.0, -1.0, 3.0];
+        self.gl.bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, Some(&self.dynamic_vertex_buffer));
+        unsafe {
+            let arr = js_sys::Float32Array::view(&quad);
+            self.gl.buffer_data_with_array_buffer_view(
+                WebGl2RenderingContext::ARRAY_BUFFER,
+                &arr,
+                WebGl2RenderingContext::DYNAMIC_DRAW,
+            );
+        }
+        if self.a_glow_pos_loc != -1 {
+            self.gl.vertex_attrib_pointer_with_i32(self.a_glow_pos_loc as u32, 2, WebGl2RenderingContext::FLOAT, false, 8, 0);
+            self.gl.enable_vertex_attrib_array(self.a_glow_pos_loc as u32);
+            self.gl.draw_arrays(WebGl2RenderingContext::TRIANGLES, 0, 3);
+            self.gl.disable_vertex_attrib_array(self.a_glow_pos_loc as u32);
+        }
+        self.gl.disable(WebGl2RenderingContext::BLEND);
+        self.gl.enable(WebGl2RenderingContext::DEPTH_TEST);
+    }
+
+    pub fn draw_lines(&self, vertices: &[f32], r: f32, g: f32, b: f32, offset: (f32, f32, f32), projection: &Matrix4<f32>, view: &Matrix4<f32>) {
         self.gl.bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, Some(&self.dynamic_vertex_buffer));
         unsafe {
             let vert_array = js_sys::Float32Array::view(vertices);
@@ -1225,7 +1362,7 @@ impl Renderer {
         self.gl.uniform1i(Some(&self.u_is_black_hole_location), 0);
         self.gl.uniform3f(Some(&self.u_uniform_color_location), r, g, b);
 
-        let mvp = projection * view;
+        let mvp = projection * view * Matrix4::new_translation(&Vector3::new(offset.0, offset.1, offset.2));
         let mvp_array: [f32; 16] = mvp.as_slice().try_into().unwrap();
         self.gl.uniform_matrix4fv_with_f32_array(Some(&self.mvp_location), false, &mvp_array);
 
@@ -1296,6 +1433,7 @@ impl Drop for Renderer {
         self.gl.delete_program(Some(&self.program));
         self.gl.delete_program(Some(&self.instanced_program));
         self.gl.delete_program(Some(&self.skybox_program));
+        self.gl.delete_program(Some(&self.glow_program));
         self.gl.delete_buffer(Some(&self.unit_cube_vertex_buffer));
         self.gl.delete_buffer(Some(&self.unit_cube_index_buffer));
         self.gl.delete_buffer(Some(&self.dynamic_vertex_buffer));
@@ -1476,6 +1614,22 @@ fn create_instanced_program(gl: &WebGl2RenderingContext) -> Result<WebGlProgram,
 fn create_skybox_program(gl: &WebGl2RenderingContext) -> Result<WebGlProgram, JsValue> {
     let vert_shader = compile_shader(gl, WebGl2RenderingContext::VERTEX_SHADER, SKYBOX_VERTEX_SHADER)?;
     let frag_shader = compile_shader(gl, WebGl2RenderingContext::FRAGMENT_SHADER, SKYBOX_FRAGMENT_SHADER)?;
+
+    let program = gl.create_program().ok_or("Unable to create program")?;
+    gl.attach_shader(&program, &vert_shader);
+    gl.attach_shader(&program, &frag_shader);
+    gl.link_program(&program);
+
+    if gl.get_program_parameter(&program, WebGl2RenderingContext::LINK_STATUS).as_bool().unwrap_or(false) {
+        Ok(program)
+    } else {
+        Err(JsValue::from_str(&gl.get_program_info_log(&program).unwrap_or_default()))
+    }
+}
+
+fn create_glow_program(gl: &WebGl2RenderingContext) -> Result<WebGlProgram, JsValue> {
+    let vert_shader = compile_shader(gl, WebGl2RenderingContext::VERTEX_SHADER, GLOW_VERTEX_SHADER)?;
+    let frag_shader = compile_shader(gl, WebGl2RenderingContext::FRAGMENT_SHADER, GLOW_FRAGMENT_SHADER)?;
 
     let program = gl.create_program().ok_or("Unable to create program")?;
     gl.attach_shader(&program, &vert_shader);

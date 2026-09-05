@@ -2,7 +2,7 @@ use engine::renderer::Renderer;
 use engine::mesh::Mesh;
 use nalgebra::{Matrix4, Point3, Vector3, Vector4};
 use js_sys::Date;
-use web_sys::{HtmlElement, WebGlTexture};
+use web_sys::{Element, HtmlElement, WebGlTexture};
 use wasm_bindgen::JsCast;
 use rand::Rng;
 
@@ -73,6 +73,9 @@ pub struct SolarSystem {
     oort_cloud_label: Option<HtmlElement>,
     earth_body_index: Option<usize>,
     country_labels: Vec<(f32, f32, HtmlElement)>,
+    positions: Vec<Vector3<f32>>,
+    info_speed_element: Option<Element>,
+    last_speed_text: String,
 }
 
 fn photometry_preset(name: &str) -> Option<[f32; 6]> {
@@ -136,6 +139,48 @@ fn collect_shadow_occluders(
     }
     candidates.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
     candidates.into_iter().take(max_count).map(|(_, v)| v).collect()
+}
+
+fn compute_positions(bodies: &[Body], out: &mut Vec<Vector3<f32>>) {
+    out.resize(bodies.len(), Vector3::zeros());
+    for i in 0..bodies.len() {
+        let body = &bodies[i];
+        let m = body.orbit_angle;
+        let e = body.eccentricity;
+        let big_e = m + e * m.sin();
+        let x_orb_raw = body.orbit_radius * (big_e.cos() - e);
+        let z_orb_raw = body.orbit_radius * (1.0 - e * e).sqrt() * big_e.sin();
+        let w = body.argument_of_periapsis;
+        let (sin_w, cos_w) = w.sin_cos();
+        let x_orb = x_orb_raw * cos_w + z_orb_raw * sin_w;
+        let z_orb = -x_orb_raw * sin_w + z_orb_raw * cos_w;
+        let y_incl = z_orb * body.orbit_inclination.sin();
+        let z_incl = z_orb * body.orbit_inclination.cos();
+        let omega = body.longitude_of_ascending_node;
+        let (sin_o, cos_o) = omega.sin_cos();
+        let x_final = x_orb * cos_o + z_incl * sin_o;
+        let y_final = y_incl;
+        let z_final = -x_orb * sin_o + z_incl * cos_o;
+        let mut pos = Vector3::new(x_final, y_final, z_final);
+        if let Some(pidx) = body.parent {
+            pos += out[pidx];
+        }
+        out[i] = pos;
+    }
+}
+
+fn atmosphere_preset(name: &str) -> Option<(f32, f32, f32)> {
+    match name {
+        "Earth" => Some((0.22, 0.45, 1.0)),
+        "Venus" => Some((0.9, 0.75, 0.45)),
+        "Mars" => Some((0.5, 0.3, 0.18)),
+        "Titan" => Some((0.7, 0.55, 0.3)),
+        "Jupiter" => Some((0.35, 0.3, 0.2)),
+        "Saturn" => Some((0.4, 0.35, 0.22)),
+        "Uranus" => Some((0.25, 0.5, 0.5)),
+        "Neptune" => Some((0.2, 0.3, 0.6)),
+        _ => None,
+    }
 }
 
 impl Drop for SolarSystem {
@@ -647,6 +692,9 @@ impl SolarSystem {
             }
         }
 
+        let mut initial_positions = Vec::with_capacity(bodies.len());
+        compute_positions(&bodies, &mut initial_positions);
+
         SolarSystem {
             renderer,
             bodies,
@@ -673,6 +721,9 @@ impl SolarSystem {
             oort_cloud_label,
             earth_body_index,
             country_labels,
+            positions: initial_positions,
+            info_speed_element: None,
+            last_speed_text: String::new(),
         }
     }
 
@@ -683,6 +734,9 @@ impl SolarSystem {
 
             let window = web_sys::window().unwrap();
             let document = window.document().unwrap();
+
+            self.info_speed_element = document.get_element_by_id("info-speed");
+            self.last_speed_text.clear();
             
             if let Some(panel) = document.get_element_by_id("solar-info-panel") {
                 panel.set_attribute("style", "position: absolute; top: 20px; right: 20px; width: 280px; display: block; pointer-events: auto; padding: 20px;").unwrap();
@@ -729,6 +783,8 @@ impl SolarSystem {
             self.camera_target_distance = self.camera_target_distance.max(0.0001).min(100000000.0);
         } else {
             self.focused_body_index = None;
+            self.info_speed_element = None;
+            self.last_speed_text.clear();
             let window = web_sys::window().unwrap();
             let document = window.document().unwrap();
             if let Some(panel) = document.get_element_by_id("solar-info-panel") {
@@ -769,6 +825,8 @@ impl SolarSystem {
                 }
             }
         }
+
+        compute_positions(&self.bodies, &mut self.positions);
     }
 
     pub fn set_time_scale(&mut self, scale: f32) {
@@ -806,25 +864,20 @@ impl SolarSystem {
         self.camera_rotation.1 += (self.camera_target_rotation.1 - self.camera_rotation.1) * rot_speed;
 
         self.current_time += safe_dt * 1000.0 * self.time_scale as f64;
-        
-        let window = web_sys::window().unwrap();
-        let document = window.document().unwrap();
 
         if let Some(idx) = self.focused_body_index {
             if idx < self.bodies.len() {
-                let body = &self.bodies[idx];
-                if let Some(el) = document.get_element_by_id("info-speed") {
-                    let speed_kmh = if body.orbit_radius > 0.0 {
+                let speed_kmh = {
+                    let body = &self.bodies[idx];
+                    if body.orbit_radius > 0.0 {
                         let m = body.orbit_angle;
                         let e = body.eccentricity;
                         let big_e = m + e * m.sin();
                         let x_orb = body.orbit_radius * (big_e.cos() - e);
                         let z_orb = body.orbit_radius * (1.0 - e*e).sqrt() * big_e.sin();
                         let r = (x_orb*x_orb + z_orb*z_orb).sqrt();
-
                         let n = body.orbit_speed.abs();
                         let a = body.orbit_radius;
-                        
                         if r > 0.0 {
                             let v_sim = n * a * ((2.0 * a / r) - 1.0).abs().sqrt();
                             let scale = 6371.0 / 0.0042;
@@ -834,131 +887,88 @@ impl SolarSystem {
                         }
                     } else {
                         0.0
-                    };
-                    el.set_text_content(Some(&format!("{:.0} km/h", speed_kmh)));
+                    }
+                };
+                let text = format!("{:.0} km/h", speed_kmh);
+                if text != self.last_speed_text {
+                    if let Some(el) = &self.info_speed_element {
+                        el.set_text_content(Some(&text));
+                    }
+                    self.last_speed_text = text;
                 }
             }
         }
 
-        let mut positions = vec![Vector3::new(0.0, 0.0, 0.0); self.bodies.len()];        for i in 0..self.bodies.len() {
-
+        let safe_dt_f = safe_dt as f32;
+        for i in 0..self.bodies.len() {
             let body = &mut self.bodies[i];
             if body.parent.is_some() {
-                body.orbit_angle += body.orbit_speed * safe_dt as f32 * self.time_scale;
+                body.orbit_angle += body.orbit_speed * safe_dt_f * self.time_scale;
                 body.orbit_angle %= 2.0 * std::f32::consts::PI;
             }
-            
 
             if body.rotation_period != 0.0 {
-
-
-
                 let period_seconds = body.rotation_period.abs() * 24.0 * 3600.0;
                 let rotation_speed = (2.0 * std::f32::consts::PI) / period_seconds;
-                
-
-                body.current_rotation += rotation_speed * safe_dt as f32 * self.time_scale;
+                body.current_rotation += rotation_speed * safe_dt_f * self.time_scale;
                 body.current_rotation %= 2.0 * std::f32::consts::PI;
-
                 if body.cloud_texture.is_some() || body.proc_clouds {
-
-                    body.cloud_rotation += rotation_speed * 0.2 * safe_dt as f32 * self.time_scale;
+                    body.cloud_rotation += rotation_speed * 0.2 * safe_dt_f * self.time_scale;
                     body.cloud_rotation %= 2.0 * std::f32::consts::PI;
                 }
             }
+        }
 
-            
-            let m = body.orbit_angle;
+        compute_positions(&self.bodies, &mut self.positions);
+
+        for i in 0..self.bodies.len() {
+            let body = &mut self.bodies[i];
+            if body.orbit_radius <= 0.0 { continue; }
+            if body.name.starts_with("Asteroid") || body.name.starts_with("Kuiper") || body.name.starts_with("Oort") { continue; }
+
             let e = body.eccentricity;
-            let big_e = m + e * m.sin(); 
-            
-            let x_orb_raw = body.orbit_radius * (big_e.cos() - e);
-            let z_orb_raw = body.orbit_radius * (1.0 - e*e).sqrt() * big_e.sin();
-            
-            let w = body.argument_of_periapsis;
-            let (sin_w, cos_w) = w.sin_cos();
-            let x_orb = x_orb_raw * cos_w + z_orb_raw * sin_w;
-            let z_orb = -x_orb_raw * sin_w + z_orb_raw * cos_w;
-            
-            let y_incl = z_orb * body.orbit_inclination.sin();
-            let z_incl = z_orb * body.orbit_inclination.cos();
-            
-            let omega = body.longitude_of_ascending_node;
-            let (sin_o, cos_o) = omega.sin_cos();
-            
-            let x_final = x_orb * cos_o + z_incl * sin_o;
-            let y_final = y_incl;
-            let z_final = -x_orb * sin_o + z_incl * cos_o;
-            
-            let mut pos = Vector3::new(x_final, y_final, z_final);
-            
-            if let Some(parent_idx) = body.parent {
-                pos += positions[parent_idx];
+            let two_pi = 2.0 * std::f32::consts::PI;
+            let angle_step = two_pi / 1000.0;
+
+            let current_angle = body.orbit_angle % two_pi;
+            let last_angle = body.last_trail_angle % two_pi;
+            let mut diff = current_angle - last_angle;
+            if diff < 0.0 {
+                diff += two_pi;
             }
-            
-            positions[i] = pos;
-            
-            if body.orbit_radius > 0.0 {
-                if body.name.starts_with("Asteroid") || body.name.starts_with("Kuiper") || body.name.starts_with("Oort") { continue; }
 
-                let two_pi = 2.0 * std::f32::consts::PI;
-                let angle_step = two_pi / 1000.0;
-                
+            if diff >= angle_step {
+                let steps = (diff / angle_step).floor() as usize;
+                let steps_to_add = steps.min(1000);
 
-                let current_angle = body.orbit_angle % two_pi;
-                let last_angle = body.last_trail_angle % two_pi;
-                
-                let mut diff = current_angle - last_angle;
-                if diff < 0.0 {
-                    diff += two_pi;
+                for k in 1..=steps_to_add {
+                    let a_angle = body.last_trail_angle + (k as f32 * angle_step);
+                    let m_t = a_angle;
+                    let big_e_t = m_t + e * m_t.sin();
+                    let x_t_raw = body.orbit_radius * (big_e_t.cos() - e);
+                    let z_t_raw = body.orbit_radius * (1.0 - e*e).sqrt() * big_e_t.sin();
+                    let w = body.argument_of_periapsis;
+                    let (sin_w, cos_w) = w.sin_cos();
+                    let x_t = x_t_raw * cos_w + z_t_raw * sin_w;
+                    let z_t = -x_t_raw * sin_w + z_t_raw * cos_w;
+                    let y_incl = z_t * body.orbit_inclination.sin();
+                    let z_incl = z_t * body.orbit_inclination.cos();
+                    let omega = body.longitude_of_ascending_node;
+                    let (sin_o, cos_o) = omega.sin_cos();
+                    let x_final = x_t * cos_o + z_incl * sin_o;
+                    let y_final = y_incl;
+                    let z_final = -x_t * sin_o + z_incl * cos_o;
+                    body.trail.push(x_final);
+                    body.trail.push(y_final);
+                    body.trail.push(z_final);
                 }
-                
 
-                if diff >= angle_step {
-                    let steps = (diff / angle_step).floor() as usize;
-                    
+                body.last_trail_angle += steps as f32 * angle_step;
+                body.last_trail_angle %= two_pi;
 
-
-                    let steps_to_add = steps.min(1000);
-                    
-                    for k in 1..=steps_to_add {
-                        let a_angle = body.last_trail_angle + (k as f32 * angle_step);
-                        
-                        let m_t = a_angle;
-                        let big_e_t = m_t + e * m_t.sin();
-                        
-                        let x_t_raw = body.orbit_radius * (big_e_t.cos() - e);
-                        let z_t_raw = body.orbit_radius * (1.0 - e*e).sqrt() * big_e_t.sin();
-                        
-                        let w = body.argument_of_periapsis;
-                        let (sin_w, cos_w) = w.sin_cos();
-                        let x_t = x_t_raw * cos_w + z_t_raw * sin_w;
-                        let z_t = -x_t_raw * sin_w + z_t_raw * cos_w;
-                        
-                        let y_incl = z_t * body.orbit_inclination.sin();
-                        let z_incl = z_t * body.orbit_inclination.cos();
-                        
-                        let omega = body.longitude_of_ascending_node;
-                        let (sin_o, cos_o) = omega.sin_cos();
-                        
-                        let x_final = x_t * cos_o + z_incl * sin_o;
-                        let y_final = y_incl;
-                        let z_final = -x_t * sin_o + z_incl * cos_o;
-                        
-                        let p = Vector3::new(x_final, y_final, z_final);
-                        
-                        body.trail.push(p.x);
-                        body.trail.push(p.y);
-                        body.trail.push(p.z);
-                    }
-                    
-                    body.last_trail_angle += steps as f32 * angle_step;
-                    body.last_trail_angle %= two_pi;
-                    
-
-                    while body.trail.len() > 3000 {
-                        body.trail.drain(0..3);
-                    }
+                if body.trail.len() > 4000 * 3 {
+                    let excess = body.trail.len() - 3000 * 3;
+                    body.trail.drain(0..excess);
                 }
             }
         }
@@ -970,38 +980,7 @@ impl SolarSystem {
         self.renderer.enable_depth_test();
 
 
-        let mut positions = vec![Vector3::new(0.0, 0.0, 0.0); self.bodies.len()];
-        for i in 0..self.bodies.len() {
-            let body = &self.bodies[i];
-            
-            let m = body.orbit_angle;
-            let e = body.eccentricity;
-            let big_e = m + e * m.sin();
-            
-            let x_orb_raw = body.orbit_radius * (big_e.cos() - e);
-            let z_orb_raw = body.orbit_radius * (1.0 - e*e).sqrt() * big_e.sin();
-            
-            let w = body.argument_of_periapsis;
-            let (sin_w, cos_w) = w.sin_cos();
-            let x_orb = x_orb_raw * cos_w + z_orb_raw * sin_w;
-            let z_orb = -x_orb_raw * sin_w + z_orb_raw * cos_w;
-            
-            let y_incl = z_orb * body.orbit_inclination.sin();
-            let z_incl = z_orb * body.orbit_inclination.cos();
-
-            let omega = body.longitude_of_ascending_node;
-            let (sin_o, cos_o) = omega.sin_cos();
-            
-            let x_final = x_orb * cos_o + z_incl * sin_o;
-            let y_final = y_incl;
-            let z_final = -x_orb * sin_o + z_incl * cos_o;
-
-            let mut pos = Vector3::new(x_final, y_final, z_final);
-            if let Some(parent_idx) = body.parent {
-                pos += positions[parent_idx];
-            }
-            positions[i] = pos;
-        }
+        let positions = &self.positions;
 
         let target = if let Some(idx) = self.focused_body_index {
             positions[idx]
@@ -1057,6 +1036,7 @@ impl SolarSystem {
                 false,
                 None,
                 None,
+                None,
                 None
             );        
         self.renderer.gl.uniform1i(Some(&self.renderer.u_use_lighting_location), 1);
@@ -1081,21 +1061,18 @@ impl SolarSystem {
             let pos = abs_pos - target;
             
             if !body.trail.is_empty() && !body.name.starts_with("Asteroid") && !body.name.starts_with("Kuiper") && !body.name.starts_with("Oort") {
-                let parent_pos = if let Some(pidx) = body.parent {
-                    positions[pidx]
+                let offset = if let Some(pidx) = body.parent {
+                    positions[pidx] - target
                 } else {
-                    Vector3::new(0.0, 0.0, 0.0)
+                    Vector3::new(0.0, 0.0, 0.0) - target
                 };
 
-                let relative_trail: Vec<f32> = body.trail.chunks(3).flat_map(|p| {
-                    vec![p[0] + parent_pos.x - target.x, p[1] + parent_pos.y - target.y, p[2] + parent_pos.z - target.z]
-                }).collect();
-
                 self.renderer.draw_lines(
-                    &relative_trail,
+                    &body.trail,
                     body.color.0 * 0.5,
                     body.color.1 * 0.5,
                     body.color.2 * 0.5,
+                    (offset.x, offset.y, offset.z),
                     &projection,
                     &view
                 );
@@ -1165,6 +1142,14 @@ impl SolarSystem {
             };
             self.renderer.set_shadow_occluders(&body_shadow_list);
 
+            if body.ring_texture.is_some() && use_texture {
+                let inner_uv = body.ring_inner_radius.unwrap_or(0.15);
+                let ring_normal = (0.0, -body.axial_tilt.sin(), body.axial_tilt.cos());
+                self.renderer.set_ring_shadow(true, ring_normal, (pos.x, pos.y, pos.z), inner_uv * 2.0 * body.ring_radius, body.ring_radius);
+            } else {
+                self.renderer.set_ring_shadow(false, (0.0, 1.0, 0.0), (0.0, 0.0, 0.0), 0.0, 0.0);
+            }
+
             self.renderer.draw_mesh(
                 &body.mesh,
                 pos.x, pos.y, pos.z,
@@ -1182,7 +1167,8 @@ impl SolarSystem {
                 body.is_frozen,
                 Some((rel_cam_x, rel_cam_y, rel_cam_z)),
                 if is_black_hole { self.background_texture.as_ref() } else { None },
-                photometry_preset(&body.name)
+                photometry_preset(&body.name),
+                atmosphere_preset(&body.name)
             );
 
             if use_texture {
@@ -1213,6 +1199,7 @@ impl SolarSystem {
                         body.is_frozen,
                         None,
                         None,
+                        None,
                         None
                     );
                     
@@ -1238,6 +1225,7 @@ impl SolarSystem {
                         true,
                         false,
                         body.is_frozen,
+                        None,
                         None,
                         None,
                         None
@@ -1275,6 +1263,7 @@ impl SolarSystem {
                         body.is_frozen,
                         Some((rel_cam_x, rel_cam_y, rel_cam_z)),
                         texture_to_use,
+                        None,
                         None
                     );
                     self.renderer.gl.disable(web_sys::WebGl2RenderingContext::BLEND);
@@ -1490,6 +1479,31 @@ impl SolarSystem {
                  Some(BELT_PHOTOMETRY)
              );
         }
+
+        if self.system_type != SystemType::BlackHole {
+            let star_clip = projection * view * Vector4::new(star_rel.x, star_rel.y, star_rel.z, 1.0);
+            if star_clip.w > 0.0 {
+                let ndc_x = star_clip.x / star_clip.w;
+                let ndc_y = star_clip.y / star_clip.w;
+                if ndc_x >= -1.3 && ndc_x <= 1.3 && ndc_y >= -1.3 && ndc_y <= 1.3 {
+                    let glow_x = (ndc_x + 1.0) * width as f32 / 2.0;
+                    let glow_y = (ndc_y + 1.0) * height as f32 / 2.0;
+                    let star_radius = self.bodies[0].radius;
+                    let top_clip = projection * view * Vector4::new(star_rel.x, star_rel.y + star_radius, star_rel.z, 1.0);
+                    let radius_px = if top_clip.w > 0.0 {
+                        ((top_clip.y / top_clip.w - ndc_y).abs() * height as f32 / 2.0).max(2.0)
+                    } else {
+                        2.0
+                    };
+                    let glow_color = if self.system_type == SystemType::Sirius {
+                        (0.65, 0.78, 1.0)
+                    } else {
+                        (1.0, 0.93, 0.72)
+                    };
+                    self.renderer.draw_screen_glow((glow_x, glow_y), (radius_px * 9.0).max(36.0), glow_color);
+                }
+            }
+        }
     }
 
     pub fn handle_input(&mut self, key: &str) {
@@ -1532,31 +1546,7 @@ impl SolarSystem {
     }
 
     pub fn pick_body(&self, x: i32, y: i32, width: i32, height: i32) -> i32 {
-        let mut positions = vec![nalgebra::Vector3::<f32>::zeros(); self.bodies.len()];
-        for i in 0..self.bodies.len() {
-            let body = &self.bodies[i];
-            let m = body.orbit_angle;
-            let e = body.eccentricity;
-            let big_e = m + e * m.sin();
-            let x_orb_raw = body.orbit_radius * (big_e.cos() - e);
-            let z_orb_raw = body.orbit_radius * (1.0 - e * e).sqrt() * big_e.sin();
-            let w_ang = body.argument_of_periapsis;
-            let (sin_w, cos_w) = w_ang.sin_cos();
-            let x_orb = x_orb_raw * cos_w + z_orb_raw * sin_w;
-            let z_orb = -x_orb_raw * sin_w + z_orb_raw * cos_w;
-            let y_incl = z_orb * body.orbit_inclination.sin();
-            let z_incl = z_orb * body.orbit_inclination.cos();
-            let omega = body.longitude_of_ascending_node;
-            let (sin_o, cos_o) = omega.sin_cos();
-            let x_final = x_orb * cos_o + z_incl * sin_o;
-            let y_final = y_incl;
-            let z_final = -x_orb * sin_o + z_incl * cos_o;
-            let mut pos = nalgebra::Vector3::new(x_final, y_final, z_final);
-            if let Some(pidx) = body.parent {
-                pos += positions[pidx];
-            }
-            positions[i] = pos;
-        }
+        let positions = &self.positions;
 
         let target = if let Some(idx) = self.focused_body_index {
             positions[idx]
@@ -1602,7 +1592,7 @@ impl SolarSystem {
             let center = positions[i] - target;
             let oc = cam_origin - center;
 
-            let dist_to_cam = (cam_origin - center).norm();
+            let dist_to_cam = oc.norm();
             let pick_radius = (body.radius).max(dist_to_cam * 0.002) * 3.0;
 
             let b = 2.0 * oc.dot(&ray_dir);
