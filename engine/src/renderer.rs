@@ -1291,6 +1291,19 @@ impl Renderer {
     }
 }
 
+impl Drop for Renderer {
+    fn drop(&mut self) {
+        self.gl.delete_program(Some(&self.program));
+        self.gl.delete_program(Some(&self.instanced_program));
+        self.gl.delete_program(Some(&self.skybox_program));
+        self.gl.delete_buffer(Some(&self.unit_cube_vertex_buffer));
+        self.gl.delete_buffer(Some(&self.unit_cube_index_buffer));
+        self.gl.delete_buffer(Some(&self.dynamic_vertex_buffer));
+        self.gl.delete_buffer(Some(&self.dynamic_index_buffer));
+        self.gl.delete_buffer(Some(&self.instance_data_buffer));
+    }
+}
+
 const MAX_ACTIVE_STREAMS: usize = 3;
 
 enum TextureSource {

@@ -138,6 +138,19 @@ fn collect_shadow_occluders(
     candidates.into_iter().take(max_count).map(|(_, v)| v).collect()
 }
 
+impl Drop for SolarSystem {
+    fn drop(&mut self) {
+        let gl = &self.renderer.gl;
+        for body in &self.bodies {
+            if let Some(t) = &body.texture { gl.delete_texture(Some(t)); }
+            if let Some(t) = &body.night_texture { gl.delete_texture(Some(t)); }
+            if let Some(t) = &body.cloud_texture { gl.delete_texture(Some(t)); }
+            if let Some(t) = &body.ring_texture { gl.delete_texture(Some(t)); }
+        }
+        if let Some(t) = &self.background_texture { gl.delete_texture(Some(t)); }
+    }
+}
+
 impl SolarSystem {
     pub fn new(renderer: Renderer, system_type: SystemType) -> Self {        let mut bodies = Vec::new();
         let sphere_mesh = Mesh::sphere(1.0, 20, 20, 1.0, 1.0, 1.0);
@@ -206,10 +219,18 @@ impl SolarSystem {
                 color
             };
 
-            let (slices, stacks) = if name.starts_with("Asteroid") || name.starts_with("Kuiper") || name.starts_with("Oort") {
+            let is_small = name.starts_with("Asteroid") || name.starts_with("Kuiper") || name.starts_with("Oort");
+
+            let (slices, stacks) = if is_small {
                 (6, 6)
             } else {
                 (40, 40)
+            };
+
+            let body_mesh = if is_small {
+                Mesh { vertices: Vec::new(), indices: Vec::new() }
+            } else {
+                mesh_fn(1.0, slices, stacks, mesh_r, mesh_g, mesh_b)
             };
 
             let (final_temp, is_frozen) = if system_type == SystemType::BlackHole && name != "Black Hole" {
@@ -227,7 +248,7 @@ impl SolarSystem {
             };
 
             Body {
-                mesh: mesh_fn(1.0, slices, stacks, mesh_r, mesh_g, mesh_b),
+                mesh: body_mesh,
                 radius,
                 orbit_radius,
                 orbit_speed,
@@ -989,7 +1010,8 @@ impl SolarSystem {
         };
 
         let aspect = width as f32 / height as f32;
-        let projection = Matrix4::new_perspective(aspect, 45.0 * std::f32::consts::PI / 180.0, 0.001, 200000000.0); // Increased far plane significantly
+        let near_plane = 0.001_f32.min(self.camera_distance * 0.05).max(1e-7);
+        let projection = Matrix4::new_perspective(aspect, 45.0 * std::f32::consts::PI / 180.0, near_plane, 200000000.0);
         
 
 
@@ -1549,7 +1571,8 @@ impl SolarSystem {
 
         let aspect = width as f32 / height as f32;
         let fov_y = 45.0_f32.to_radians();
-        let projection = nalgebra::Matrix4::new_perspective(aspect, fov_y, 0.001, 200000000.0);
+        let near_plane = 0.001_f32.min(self.camera_distance * 0.05).max(1e-7);
+        let projection = nalgebra::Matrix4::new_perspective(aspect, fov_y, near_plane, 200000000.0);
         let view = nalgebra::Matrix4::look_at_rh(
             &nalgebra::Point3::new(rel_cam_x, rel_cam_y, rel_cam_z),
             &nalgebra::Point3::new(0.0, 0.0, 0.0),

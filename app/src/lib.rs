@@ -18,6 +18,7 @@ enum ActiveGame {
 
 thread_local! {
     static CURRENT_GAME: RefCell<Option<ActiveGame>> = RefCell::new(None);
+    static GAME_LOOP_STARTED: std::cell::Cell<bool> = std::cell::Cell::new(false);
 }
 
 fn get_gl() -> Result<WebGl2RenderingContext, JsValue> {
@@ -35,6 +36,10 @@ fn get_gl() -> Result<WebGl2RenderingContext, JsValue> {
 }
 
 fn start_game_loop() -> Result<(), JsValue> {
+    if GAME_LOOP_STARTED.with(|started| started.replace(true)) {
+        return Ok(());
+    }
+
     let closure = Closure::wrap(Box::new(move |event: KeyboardEvent| {
         CURRENT_GAME.with(|g| {
             if let Some(active_game) = g.borrow_mut().as_mut() {

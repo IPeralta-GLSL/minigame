@@ -100,6 +100,28 @@ struct InputState {
     right: bool,
 }
 
+impl Drop for Minecraft {
+    fn drop(&mut self) {
+        let gl = &self.renderer.gl;
+        if let Some(t) = &self.grass_top_texture { gl.delete_texture(Some(t)); }
+        if let Some(t) = &self.grass_side_texture { gl.delete_texture(Some(t)); }
+        if let Some(t) = &self.dirt_texture { gl.delete_texture(Some(t)); }
+        if let Some(t) = &self.leaves_texture { gl.delete_texture(Some(t)); }
+        if let Some(t) = &self.stone_texture { gl.delete_texture(Some(t)); }
+        if let Some(t) = &self.wood_side_texture { gl.delete_texture(Some(t)); }
+        if let Some(t) = &self.wood_top_texture { gl.delete_texture(Some(t)); }
+        if let Some(t) = &self.bedrock_texture { gl.delete_texture(Some(t)); }
+        if let Some(t) = &self.sand_texture { gl.delete_texture(Some(t)); }
+        if let Some(t) = &self.water_texture { gl.delete_texture(Some(t)); }
+        if let Some(t) = &self.glass_texture { gl.delete_texture(Some(t)); }
+        if let Some(t) = &self.snow_texture { gl.delete_texture(Some(t)); }
+        if let Some(t) = &self.ice_texture { gl.delete_texture(Some(t)); }
+        if let Some(t) = &self.skybox_texture { gl.delete_texture(Some(t)); }
+        if let Some(t) = &self.sun_texture { gl.delete_texture(Some(t)); }
+        if let Some(t) = &self.moon_texture { gl.delete_texture(Some(t)); }
+    }
+}
+
 impl Minecraft {
     fn block_type_name(block_type: BlockType) -> &'static str {
         match block_type {
