@@ -1,8 +1,14 @@
 use wasm_bindgen::prelude::*;
-use web_sys::{WebGlRenderingContext, WebGlProgram, WebGlBuffer, WebGlUniformLocation, HtmlCanvasElement, WebGlTexture, HtmlImageElement, AngleInstancedArrays};
+use web_sys::{WebGlRenderingContext, WebGlProgram, WebGlBuffer, WebGlUniformLocation, HtmlCanvasElement, WebGlTexture, HtmlImageElement, AngleInstancedArrays, ImageBitmap, ImageBitmapOptions, Request, RequestInit, Response, ExtTextureFilterAnisotropic};
 use nalgebra::{Matrix4, Vector3};
 use crate::mesh::Mesh;
 use wasm_bindgen::JsCast;
+use wasm_bindgen_futures::JsFuture;
+use std::cell::RefCell;
+use std::collections::VecDeque;
+use std::future::Future;
+use std::pin::Pin;
+use std::task::{Context, Poll, Waker};
 
 const VERTEX_SHADER: &str = r#"
     attribute vec3 aPosition;
@@ -420,6 +426,7 @@ pub struct Renderer {
     u_instanced_texture_loc: WebGlUniformLocation,
     pub u_instanced_global_alpha_loc: WebGlUniformLocation,
     instance_data_buffer: WebGlBuffer,
+    max_anisotropy: Option<(u32, f32)>,
 
     // Skybox
     skybox_program: WebGlProgram,
@@ -490,6 +497,19 @@ impl Renderer {
         let u_instanced_texture_loc = gl.get_uniform_location(&instanced_program, "uTexture").ok_or("Failed to get uTexture instanced")?;
         let u_instanced_global_alpha_loc = gl.get_uniform_location(&instanced_program, "uGlobalAlpha").ok_or("Failed to get uGlobalAlpha instanced")?;
         let instance_data_buffer = gl.create_buffer().ok_or("Failed to create instance buffer")?;
+
+        let max_anisotropy = gl
+            .get_extension("EXT_texture_filter_anisotropic")
+            .ok()
+            .flatten()
+            .and_then(|_| {
+                let param = ExtTextureFilterAnisotropic::TEXTURE_MAX_ANISOTROPY_EXT;
+                let max = gl
+                    .get_parameter(ExtTextureFilterAnisotropic::MAX_TEXTURE_MAX_ANISOTROPY_EXT)
+                    .ok()?
+                    .as_f64()? as f32;
+                if max > 0.0 { Some((param, max.min(8.0))) } else { None }
+            });
 
         // Skybox setup
         let skybox_program = create_skybox_program(&gl)?;
@@ -572,6 +592,7 @@ impl Renderer {
             u_instanced_texture_loc,
             u_instanced_global_alpha_loc,
             instance_data_buffer,
+            max_anisotropy,
             skybox_program,
             u_skybox_view_loc,
             u_skybox_proj_loc,
@@ -1093,65 +1114,209 @@ impl Renderer {
         );
     }
     pub fn create_texture(&self, url: &str) -> Result<WebGlTexture, JsValue> {
+        let texture = self.create_placeholder_texture()?;
+        let gl = self.gl.clone();
+        let target = texture.clone();
+        let aniso = self.max_anisotropy;
+        let url_owned = url.to_string();
+        wasm_bindgen_futures::spawn_local(async move {
+            let _permit = AcquireStreamPermit.await;
+            match load_texture_source(&url_owned).await {
+                Ok(source) => upload_texture_source(&gl, &target, &source, aniso),
+                Err(_) => web_sys::console::error_1(&format!("Failed to load texture: {}", url_owned).into()),
+            }
+        });
+        Ok(texture)
+    }
+
+    pub fn create_streamed_texture(&self, low_url: Option<&str>, high_url: &str) -> Result<WebGlTexture, JsValue> {
+        let texture = self.create_placeholder_texture()?;
+        let gl = self.gl.clone();
+        let target = texture.clone();
+        let aniso = self.max_anisotropy;
+        let low = low_url.map(|u| u.to_string());
+        let high = high_url.to_string();
+        wasm_bindgen_futures::spawn_local(async move {
+            let _permit = AcquireStreamPermit.await;
+            if let Some(low) = &low {
+                if let Ok(source) = load_texture_source(low).await {
+                    upload_texture_source(&gl, &target, &source, aniso);
+                }
+            }
+            match load_texture_source(&high).await {
+                Ok(source) => upload_texture_source(&gl, &target, &source, aniso),
+                Err(_) => web_sys::console::error_1(&format!("Failed to load texture: {}", high).into()),
+            }
+        });
+        Ok(texture)
+    }
+
+    fn create_placeholder_texture(&self) -> Result<WebGlTexture, JsValue> {
         let texture = self.gl.create_texture().ok_or("Failed to create texture")?;
         self.gl.bind_texture(WebGlRenderingContext::TEXTURE_2D, Some(&texture));
-
-        // Put a single pixel in the texture so we can use it immediately.
-        let level = 0;
-        let internal_format = WebGlRenderingContext::RGBA as i32;
-        let width = 1;
-        let height = 1;
-        let border = 0;
-        let src_format = WebGlRenderingContext::RGBA;
-        let src_type = WebGlRenderingContext::UNSIGNED_BYTE;
-        let pixel = [0u8, 0, 255, 255]; // Blue
-        // We ignore the result of the initial pixel upload to ensure we return the texture object
-        // even if this step fails (though it shouldn't).
         let _ = self.gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_opt_u8_array(
-            WebGlRenderingContext::TEXTURE_2D, level, internal_format, width, height, border, src_format, src_type, Some(&pixel)
+            WebGlRenderingContext::TEXTURE_2D,
+            0,
+            WebGlRenderingContext::RGBA as i32,
+            1,
+            1,
+            0,
+            WebGlRenderingContext::RGBA,
+            WebGlRenderingContext::UNSIGNED_BYTE,
+            Some(&[24u8, 26, 34, 255]),
         );
-
-        let img = HtmlImageElement::new().unwrap();
-        // img.set_cross_origin(Some("anonymous"));
-        
-        let gl = self.gl.clone();
-        let texture_clone = texture.clone();
-        let img_clone = img.clone();
-        let url_string = url.to_string();
-        
-        let onload = Closure::wrap(Box::new(move || {
-            web_sys::console::log_1(&format!("Texture loaded: {}", url_string).into());
-            gl.bind_texture(WebGlRenderingContext::TEXTURE_2D, Some(&texture_clone));
-            
-            // Flip Y for textures to match standard UV coordinates
-            gl.pixel_storei(WebGlRenderingContext::UNPACK_FLIP_Y_WEBGL, 1);
-            
-            gl.tex_image_2d_with_u32_and_u32_and_image(
-                WebGlRenderingContext::TEXTURE_2D, 0, WebGlRenderingContext::RGBA as i32, WebGlRenderingContext::RGBA, WebGlRenderingContext::UNSIGNED_BYTE, &img_clone
-            ).unwrap();
-            
-            // Check if power of 2
-            if is_power_of_2(img_clone.width()) && is_power_of_2(img_clone.height()) {
-                gl.generate_mipmap(WebGlRenderingContext::TEXTURE_2D);
-            } else {
-                gl.tex_parameteri(WebGlRenderingContext::TEXTURE_2D, WebGlRenderingContext::TEXTURE_WRAP_S, WebGlRenderingContext::CLAMP_TO_EDGE as i32);
-                gl.tex_parameteri(WebGlRenderingContext::TEXTURE_2D, WebGlRenderingContext::TEXTURE_WRAP_T, WebGlRenderingContext::CLAMP_TO_EDGE as i32);
-                gl.tex_parameteri(WebGlRenderingContext::TEXTURE_2D, WebGlRenderingContext::TEXTURE_MIN_FILTER, WebGlRenderingContext::LINEAR as i32);
-            }
-        }) as Box<dyn FnMut()>);
-
-        let onerror = Closure::wrap(Box::new(move || {
-            web_sys::console::error_1(&"Failed to load texture".into());
-        }) as Box<dyn FnMut()>);
-
-        img.set_onload(Some(onload.as_ref().unchecked_ref()));
-        img.set_onerror(Some(onerror.as_ref().unchecked_ref()));
-        onload.forget();
-        onerror.forget();
-        
-        img.set_src(url);
-
         Ok(texture)
+    }
+}
+
+const MAX_ACTIVE_STREAMS: usize = 3;
+
+enum TextureSource {
+    Bitmap(ImageBitmap),
+    Image(HtmlImageElement),
+}
+
+impl TextureSource {
+    fn dimensions(&self) -> (u32, u32) {
+        match self {
+            TextureSource::Bitmap(b) => (b.width(), b.height()),
+            TextureSource::Image(i) => (i.width(), i.height()),
+        }
+    }
+}
+
+struct StreamSemaphore {
+    active: usize,
+    waiters: VecDeque<Waker>,
+}
+
+thread_local! {
+    static STREAM_SEMAPHORE: RefCell<StreamSemaphore> = RefCell::new(StreamSemaphore { active: 0, waiters: VecDeque::new() });
+    static RETAINED_CLOSURES: RefCell<Vec<Closure<dyn FnMut()>>> = RefCell::new(Vec::new());
+}
+
+struct StreamPermit;
+
+impl Drop for StreamPermit {
+    fn drop(&mut self) {
+        let waker = STREAM_SEMAPHORE.with(|s| {
+            let mut s = s.borrow_mut();
+            s.active = s.active.saturating_sub(1);
+            s.waiters.pop_front()
+        });
+        if let Some(waker) = waker {
+            waker.wake();
+        }
+    }
+}
+
+struct AcquireStreamPermit;
+
+impl Future for AcquireStreamPermit {
+    type Output = StreamPermit;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        STREAM_SEMAPHORE.with(|s| {
+            let mut s = s.borrow_mut();
+            if s.active < MAX_ACTIVE_STREAMS {
+                s.active += 1;
+                Poll::Ready(StreamPermit)
+            } else {
+                s.waiters.push_back(cx.waker().clone());
+                Poll::Pending
+            }
+        })
+    }
+}
+
+async fn load_texture_source(url: &str) -> Result<TextureSource, JsValue> {
+    match fetch_image_bitmap(url).await {
+        Ok(bitmap) => Ok(TextureSource::Bitmap(bitmap)),
+        Err(_) => load_image_element(url.to_string()).await.map(TextureSource::Image),
+    }
+}
+
+async fn fetch_image_bitmap(url: &str) -> Result<ImageBitmap, JsValue> {
+    let window = web_sys::window().ok_or_else(|| JsValue::from_str("No window"))?;
+    let opts = RequestInit::new();
+    opts.set_method("GET");
+    let request = Request::new_with_str_and_init(url, &opts)?;
+    let resp_value = JsFuture::from(window.fetch_with_request(&request)).await?;
+    let resp: Response = resp_value.dyn_into()?;
+    if !resp.ok() {
+        return Err(JsValue::from_str("Texture request failed"));
+    }
+    let blob_value = JsFuture::from(resp.blob()?).await?;
+    let blob: web_sys::Blob = blob_value.dyn_into()?;
+    let bitmap_opts = ImageBitmapOptions::new();
+    bitmap_opts.set_image_orientation(web_sys::ImageOrientation::FlipY);
+    let bitmap_value = JsFuture::from(window.create_image_bitmap_with_blob_and_image_bitmap_options(&blob, &bitmap_opts)?).await?;
+    let bitmap: ImageBitmap = bitmap_value.dyn_into()?;
+    Ok(bitmap)
+}
+
+async fn load_image_element(url: String) -> Result<HtmlImageElement, JsValue> {
+    let img = HtmlImageElement::new()?;
+    let img_for_handler = img.clone();
+    let url_ref = url.as_str();
+    let mut executor = move |resolve: js_sys::Function, reject: js_sys::Function| {
+        let onload = Closure::wrap(Box::new(move || {
+            let _ = resolve.call0(&JsValue::NULL);
+        }) as Box<dyn FnMut()>);
+        let onerror = Closure::wrap(Box::new(move || {
+            let _ = reject.call0(&JsValue::NULL);
+        }) as Box<dyn FnMut()>);
+        img_for_handler.set_onload(Some(onload.as_ref().unchecked_ref()));
+        img_for_handler.set_onerror(Some(onerror.as_ref().unchecked_ref()));
+        RETAINED_CLOSURES.with(|v| {
+            v.borrow_mut().push(onload);
+            v.borrow_mut().push(onerror);
+        });
+        img_for_handler.set_src(url_ref);
+    };
+    let promise = js_sys::Promise::new(&mut executor);
+    JsFuture::from(promise).await?;
+    Ok(img)
+}
+
+fn upload_texture_source(gl: &WebGlRenderingContext, texture: &WebGlTexture, source: &TextureSource, anisotropy: Option<(u32, f32)>) {
+    gl.bind_texture(WebGlRenderingContext::TEXTURE_2D, Some(texture));
+    match source {
+        TextureSource::Bitmap(bitmap) => {
+            let _ = gl.tex_image_2d_with_u32_and_u32_and_image_bitmap(
+                WebGlRenderingContext::TEXTURE_2D,
+                0,
+                WebGlRenderingContext::RGBA as i32,
+                WebGlRenderingContext::RGBA,
+                WebGlRenderingContext::UNSIGNED_BYTE,
+                bitmap,
+            );
+        }
+        TextureSource::Image(image) => {
+            gl.pixel_storei(WebGlRenderingContext::UNPACK_FLIP_Y_WEBGL, 1);
+            let _ = gl.tex_image_2d_with_u32_and_u32_and_image(
+                WebGlRenderingContext::TEXTURE_2D,
+                0,
+                WebGlRenderingContext::RGBA as i32,
+                WebGlRenderingContext::RGBA,
+                WebGlRenderingContext::UNSIGNED_BYTE,
+                image,
+            );
+            gl.pixel_storei(WebGlRenderingContext::UNPACK_FLIP_Y_WEBGL, 0);
+        }
+    }
+    let (width, height) = source.dimensions();
+    gl.tex_parameteri(WebGlRenderingContext::TEXTURE_2D, WebGlRenderingContext::TEXTURE_MAG_FILTER, WebGlRenderingContext::LINEAR as i32);
+    if is_power_of_2(width) && is_power_of_2(height) {
+        gl.generate_mipmap(WebGlRenderingContext::TEXTURE_2D);
+        gl.tex_parameteri(WebGlRenderingContext::TEXTURE_2D, WebGlRenderingContext::TEXTURE_MIN_FILTER, WebGlRenderingContext::LINEAR_MIPMAP_LINEAR as i32);
+    } else {
+        gl.tex_parameteri(WebGlRenderingContext::TEXTURE_2D, WebGlRenderingContext::TEXTURE_WRAP_S, WebGlRenderingContext::CLAMP_TO_EDGE as i32);
+        gl.tex_parameteri(WebGlRenderingContext::TEXTURE_2D, WebGlRenderingContext::TEXTURE_WRAP_T, WebGlRenderingContext::CLAMP_TO_EDGE as i32);
+        gl.tex_parameteri(WebGlRenderingContext::TEXTURE_2D, WebGlRenderingContext::TEXTURE_MIN_FILTER, WebGlRenderingContext::LINEAR as i32);
+    }
+    if let Some((param, max)) = anisotropy {
+        gl.tex_parameterf(WebGlRenderingContext::TEXTURE_2D, param, max);
     }
 }
 

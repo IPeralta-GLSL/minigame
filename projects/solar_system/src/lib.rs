@@ -91,6 +91,20 @@ impl SolarSystem {
             (2.0 * std::f32::consts::PI) / p_seconds
         };
 
+        let load_texture = |url: &str| -> Option<WebGlTexture> {
+            let low = match url.rsplit('/').next().unwrap_or("") {
+                "8k_earth_daymap.jpg" => Some("projects/solar_system/assets/textures/2k_earth_daymap.jpg"),
+                "8k_earth_nightmap.jpg" => Some("projects/solar_system/assets/textures/2k_earth_nightmap.jpg"),
+                "8k_earth_clouds.jpg" => Some("projects/solar_system/assets/textures/2k_earth_clouds.jpg"),
+                "8k_stars.jpg" => Some("projects/solar_system/assets/textures/2k_stars_milky_way.jpg"),
+                _ => None,
+            };
+            match low {
+                Some(low) => renderer.create_streamed_texture(Some(low), url).ok(),
+                None => renderer.create_texture(url).ok(),
+            }
+        };
+
         let window = web_sys::window().unwrap();
         let document = window.document().unwrap();
         let labels_container = document.get_element_by_id("solar-labels");
@@ -119,53 +133,10 @@ impl SolarSystem {
                 }
             }
 
-            let texture = if let Some(url) = texture_url {
-                match renderer.create_texture(url) {
-                    Ok(t) => Some(t),
-                    Err(e) => {
-                        web_sys::console::error_1(&format!("Failed to create texture for {}: {:?}", name, e).into());
-                        None
-                    }
-                }
-            } else {
-                None
-            };
-
-            let night_texture = if let Some(url) = night_texture_url {
-                match renderer.create_texture(url) {
-                    Ok(t) => Some(t),
-                    Err(e) => {
-                        web_sys::console::error_1(&format!("Failed to create night texture for {}: {:?}", name, e).into());
-                        None
-                    }
-                }
-            } else {
-                None
-            };
-
-            let cloud_texture = if let Some(url) = cloud_texture_url {
-                match renderer.create_texture(url) {
-                    Ok(t) => Some(t),
-                    Err(e) => {
-                        web_sys::console::error_1(&format!("Failed to create cloud texture for {}: {:?}", name, e).into());
-                        None
-                    }
-                }
-            } else {
-                None
-            };
-
-            let ring_texture = if let Some(url) = ring_texture_url {
-                match renderer.create_texture(url) {
-                    Ok(t) => Some(t),
-                    Err(e) => {
-                        web_sys::console::error_1(&format!("Failed to create ring texture for {}: {:?}", name, e).into());
-                        None
-                    }
-                }
-            } else {
-                None
-            };
+            let texture = texture_url.and_then(|url| load_texture(url));
+            let night_texture = night_texture_url.and_then(|url| load_texture(url));
+            let cloud_texture = cloud_texture_url.and_then(|url| load_texture(url));
+            let ring_texture = ring_texture_url.and_then(|url| load_texture(url));
 
             let (mesh_r, mesh_g, mesh_b) = if texture.is_some() {
                 (1.0, 1.0, 1.0)
@@ -484,7 +455,7 @@ impl SolarSystem {
             }
         }
 
-        let background_texture = renderer.create_texture("projects/solar_system/assets/textures/8k_stars.jpg").ok();
+        let background_texture = load_texture("projects/solar_system/assets/textures/8k_stars.jpg");
         let background_mesh = Mesh::sphere(1.0, 40, 40, 1.0, 1.0, 1.0);
 
 

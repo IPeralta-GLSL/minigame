@@ -988,7 +988,7 @@
     <div id="solar-loading">
         <canvas id="stars-canvas"></canvas>
         <div class="loading-content">
-            <div class="loading-title">Solar System</div>
+            <div class="loading-title">Universe Simulator</div>
             <div class="loading-subtitle" id="loading-text">Initializing...</div>
             <div class="loading-bar-wrap">
                 <div class="loading-bar-fill" id="loading-bar"></div>
@@ -1021,7 +1021,7 @@
     <div id="menu">
         <h1 class="menu-title">Select Game</h1>
         <!--<button class="menu-btn" onclick="startGame('road')">Crossy Road</button>-->
-        <button class="menu-btn solar" onclick="startGame('solar')">Solar System</button>
+        <button class="menu-btn solar" onclick="startGame('solar')">Universe Simulator</button>
         <button class="menu-btn minecraft" onclick="startGame('minecraft')">Tiny Craft</button>
     </div>
     <div class="game-container">
@@ -1164,9 +1164,9 @@
         const SYSTEM_INFO = {
             sun: {
                 icon: '☀️',
-                title: 'Solar System',
+                title: 'Universe Simulator',
                 subtitle: 'Our Cosmic Neighborhood',
-                desc: 'Eight planets orbit our Sun across a span of over 100 AU. From the rocky inner worlds to the gas giants, the asteroid belt, and the icy Kuiper Belt — this simulation reflects real orbital mechanics and current planetary positions.',
+                desc: 'Eight planets orbit our Sun across a span of over 100 AU. From the rocky inner worlds to the gas giants, the asteroid belt, and the icy Kuiper Belt — this simulation reflects real orbital mechanics and current planetary positions. High-resolution Earth textures stream in progressively.',
                 defaultFocus: 3,
             },
             black_hole: {
@@ -1236,7 +1236,7 @@
         
         window.load_solar_system = load_solar_system;
 
-        const BASE = '/minigame';
+        const BASE = (location.pathname === '/minigame' || location.pathname.startsWith('/minigame/')) ? '/minigame' : '';
         const GAME_ROUTES = {
             [`${BASE}/crossy_road`]: 'road',
             [`${BASE}/solar_system`]: 'solar',
@@ -1304,9 +1304,9 @@
             'projects/solar_system/assets/textures/2k_mercury.jpg',
             'projects/solar_system/assets/textures/2k_venus_surface.jpg',
             'projects/solar_system/assets/textures/2k_venus_atmosphere.jpg',
-            'projects/solar_system/assets/textures/8k_earth_daymap.jpg',
-            'projects/solar_system/assets/textures/8k_earth_nightmap.jpg',
-            'projects/solar_system/assets/textures/8k_earth_clouds.jpg',
+            'projects/solar_system/assets/textures/2k_earth_daymap.jpg',
+            'projects/solar_system/assets/textures/2k_earth_nightmap.jpg',
+            'projects/solar_system/assets/textures/2k_earth_clouds.jpg',
             'projects/solar_system/assets/textures/2k_moon.jpg',
             'projects/solar_system/assets/textures/2k_mars.jpg',
             'projects/solar_system/assets/textures/phobos.webp',
@@ -1327,7 +1327,7 @@
             'projects/solar_system/assets/textures/2k_haumea_fictional.jpg',
             'projects/solar_system/assets/textures/2k_makemake_fictional.jpg',
             'projects/solar_system/assets/textures/2k_eris_fictional.jpg',
-            'projects/solar_system/assets/textures/8k_stars.jpg',
+            'projects/solar_system/assets/textures/2k_stars_milky_way.jpg',
         ];
 
         const TEXTURE_NAMES = {
@@ -1335,9 +1335,9 @@
             '2k_mercury.jpg':            'Mercury',
             '2k_venus_surface.jpg':      'Venus surface',
             '2k_venus_atmosphere.jpg':   'Venus atmosphere',
-            '8k_earth_daymap.jpg':       'Earth (day) — 8K',
-            '8k_earth_nightmap.jpg':     'Earth (night) — 8K',
-            '8k_earth_clouds.jpg':       'Earth clouds — 8K',
+            '2k_earth_daymap.jpg':       'Earth (day)',
+            '2k_earth_nightmap.jpg':     'Earth (night)',
+            '2k_earth_clouds.jpg':       'Earth clouds',
             '2k_moon.jpg':               'Moon',
             '2k_mars.jpg':               'Mars',
             'phobos.webp':               'Phobos',
@@ -1358,7 +1358,7 @@
             '2k_haumea_fictional.jpg':   'Haumea',
             '2k_makemake_fictional.jpg': 'Makemake',
             '2k_eris_fictional.jpg':     'Eris',
-            '8k_stars.jpg':              'Starfield — 8K',
+            '2k_stars_milky_way.jpg':    'Starfield',
         };
 
         let starsAnimId = null;
@@ -1415,34 +1415,28 @@
         }
 
         async function loadAllTextures() {
-            const results = [];
-            for (let i = 0; i < SOLAR_TEXTURES.length; i++) {
-                const url = SOLAR_TEXTURES[i];
-                const fname = url.split('/').pop();
-                const pct = Math.round(((i + 1) / SOLAR_TEXTURES.length) * 100);
-                
-                document.getElementById('loading-text').textContent = TEXTURE_NAMES[fname] || fname.replace(/\.[^.]+$/, '').replace(/_/g, ' ');
-                document.getElementById('loading-bar').style.width = pct + '%';
-                document.getElementById('loading-pct').textContent = `${i + 1} / ${SOLAR_TEXTURES.length} (${pct}%)`;
-                
-                try {
-                    await new Promise((resolve, reject) => {
+            const CONCURRENCY = 6;
+            const queue = SOLAR_TEXTURES.slice();
+            let done = 0;
+            async function worker() {
+                while (queue.length > 0) {
+                    const url = queue.shift();
+                    const fname = url.split('/').pop();
+                    const pct = Math.round(((done + 1) / SOLAR_TEXTURES.length) * 100);
+                    document.getElementById('loading-text').textContent = TEXTURE_NAMES[fname] || fname.replace(/\.[^.]+$/, '').replace(/_/g, ' ');
+                    document.getElementById('loading-bar').style.width = pct + '%';
+                    document.getElementById('loading-pct').textContent = `${done + 1} / ${SOLAR_TEXTURES.length} (${pct}%)`;
+                    await new Promise((resolve) => {
                         const img = new Image();
-                        img.onload = () => {
-                            results.push({ url, loaded: true });
-                            resolve();
-                        };
-                        img.onerror = () => {
-                            results.push({ url, loaded: false });
-                            resolve();
-                        };
+                        img.onload = resolve;
+                        img.onerror = resolve;
                         img.src = url;
                     });
-                } catch (e) {
-                    results.push({ url, loaded: false });
+                    done++;
                 }
             }
-            return results;
+            const workers = Array.from({ length: Math.min(CONCURRENCY, SOLAR_TEXTURES.length) }, worker);
+            await Promise.all(workers);
         }
 
         async function startSolarWithLoading(simType) {
