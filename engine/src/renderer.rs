@@ -10,75 +10,74 @@ use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll, Waker};
 
-const VERTEX_SHADER: &str = r#"
-    attribute vec3 aPosition;
-    attribute vec3 aColor;
-    attribute vec2 aTexCoord;
-    attribute vec3 aNormal;
-    
+const VERTEX_SHADER: &str = r#"#version 300 es
+    in vec3 aPosition;
+    in vec3 aColor;
+    in vec2 aTexCoord;
+    in vec3 aNormal;
+
     uniform mat4 uModelViewProjection;
     uniform mat4 uModel;
     uniform mat3 uNormalMatrix;
-    
-    varying vec3 vColor;
-    varying vec2 vTexCoord;
-    varying vec3 vPos;
-    varying vec3 vNormal;
-    varying vec3 vFragPos;
-    
+
+    out vec3 vColor;
+    out vec2 vTexCoord;
+    out vec3 vPos;
+    out vec3 vNormal;
+    out vec3 vFragPos;
+
     void main() {
         gl_Position = uModelViewProjection * vec4(aPosition, 1.0);
         vPos = aPosition;
         vColor = aColor;
         vTexCoord = aTexCoord;
-        
-        // Calculate world space position and normal
         vFragPos = vec3(uModel * vec4(aPosition, 1.0));
-        vNormal = uNormalMatrix * aNormal; // Assuming aNormal is available in mesh
+        vNormal = uNormalMatrix * aNormal;
     }
 "#;
 
-const INSTANCED_VERTEX_SHADER: &str = r#"
-    attribute vec3 aPosition;
-    attribute vec3 aNormal;
-    attribute vec2 aTexCoord;
-    
-    attribute vec3 aInstancePosition;
-    attribute float aInstanceScale;
-    attribute vec3 aInstanceColor;
-    attribute float aInstanceLight;
+const INSTANCED_VERTEX_SHADER: &str = r#"#version 300 es
+    in vec3 aPosition;
+    in vec3 aNormal;
+    in vec2 aTexCoord;
+
+    in vec3 aInstancePosition;
+    in float aInstanceScale;
+    in vec3 aInstanceColor;
+    in float aInstanceLight;
 
     uniform mat4 uView;
     uniform mat4 uProjection;
-    
-    varying vec3 vColor;
-    varying vec2 vTexCoord;
-    varying vec3 vPos;
-    varying vec3 vNormal;
-    varying vec3 vFragPos;
+
+    out vec3 vColor;
+    out vec2 vTexCoord;
+    out vec3 vPos;
+    out vec3 vNormal;
+    out vec3 vFragPos;
 
     void main() {
         vec3 scaledPos = aPosition * aInstanceScale;
         vec3 worldPos = scaledPos + aInstancePosition;
-        
+
         gl_Position = uProjection * uView * vec4(worldPos, 1.0);
-        
-        vPos = aPosition; 
+
+        vPos = aPosition;
         vColor = aInstanceColor * aInstanceLight;
         vTexCoord = aTexCoord;
         vFragPos = worldPos;
-        vNormal = aNormal; 
+        vNormal = aNormal;
     }
 "#;
 
-const FRAGMENT_SHADER: &str = r#"
+const FRAGMENT_SHADER: &str = r#"#version 300 es
     precision highp float;
-    varying vec3 vColor;
-    varying vec2 vTexCoord;
-    varying vec3 vPos;
-    varying vec3 vNormal;
-    varying vec3 vFragPos;
-    
+    in vec3 vColor;
+    in vec2 vTexCoord;
+    in vec3 vPos;
+    in vec3 vNormal;
+    in vec3 vFragPos;
+    out vec4 fragColor;
+
     uniform sampler2D uTexture;
     uniform sampler2D uNightTexture;
     uniform int uUseTexture;
@@ -89,7 +88,7 @@ const FRAGMENT_SHADER: &str = r#"
     uniform bool uIsRing;
     uniform float uRingInnerRadius;
     uniform float uGlobalAlpha;
-    
+
     uniform vec3 uLightPos;
     const vec3 lightColor = vec3(0.75, 0.75, 0.75);
     const float ambientStrength = 0.3;
@@ -106,6 +105,19 @@ const FRAGMENT_SHADER: &str = r#"
     uniform int uPhotometryMode;
     uniform vec4 uPhotometryParams;
     uniform vec2 uPhotometryParams2;
+
+    uniform int uShadowCount;
+    uniform vec4 uOccluders[4];
+
+    float sphereShadow(vec3 origin, vec3 dir, float lightDist, vec4 occ) {
+        vec3 oc = occ.xyz - origin;
+        float t = dot(oc, dir);
+        if (t <= 0.0 || t >= lightDist) return 0.0;
+        float d2 = dot(oc, oc) - t * t;
+        float r2 = occ.w * occ.w;
+        if (d2 >= r2) return 0.0;
+        return 1.0 - smoothstep(r2 * 0.35, r2, d2);
+    }
 
     float hapkeHGPhase(float cosA, float g) {
         float d = 1.0 + g * g - 2.0 * g * cosA;
@@ -187,7 +199,7 @@ const FRAGMENT_SHADER: &str = r#"
             float ehRadius = 0.33;
             
             if (r < ehRadius) {
-                gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
+                fragColor = vec4(0.0, 0.0, 0.0, 1.0);
                 return;
             }
             
@@ -208,9 +220,9 @@ const FRAGMENT_SHADER: &str = r#"
             vec3 distortDir = normalize(viewDir - normal * strength);
             
             vec2 uv = dirToUV(distortDir);
-            vec3 bgColor = texture2D(uBackgroundTexture, uv).rgb;
-            
-            gl_FragColor = vec4(bgColor, 1.0);
+            vec3 bgColor = texture(uBackgroundTexture, uv).rgb;
+
+            fragColor = vec4(bgColor, 1.0);
             return;
         }
 
@@ -267,7 +279,7 @@ const FRAGMENT_SHADER: &str = r#"
             // ── MÁSCARA TIERRA/OCÉANO ──
             // UV corregido al marco terrestre (descuenta la rotación diferencial de la capa de nubes)
             vec2 earthUV = vec2(fract(vTexCoord.x - uCloudRotOffset / 6.28318530), vTexCoord.y);
-            vec4 earthSample = texture2D(uBackgroundTexture, earthUV);
+            vec4 earthSample = texture(uBackgroundTexture, earthUV);
             // Océano: canal azul dominante; tierra: rojo/verde dominantes
             float oceanness = smoothstep(0.0, 0.25, earthSample.b - max(earthSample.r, earthSample.g * 0.85));
             float terrainFactor = mix(0.68, 1.0, oceanness); // ~32 % menos nubes sobre tierra
@@ -312,7 +324,7 @@ const FRAGMENT_SHADER: &str = r#"
             color = mix(vec3(0.58, 0.71, 0.87), vec3(0.97, 0.98, 1.00), thick);
             alpha = cloudA * 0.85;
         } else if (uUseTexture == 1) {
-            vec4 texColor = texture2D(uTexture, texCoord);
+            vec4 texColor = texture(uTexture, texCoord);
             if (texColor.a < 0.1) {
                 discard;
             }
@@ -324,7 +336,7 @@ const FRAGMENT_SHADER: &str = r#"
         
         if (uUseLighting) {
             vec3 ambient = ambientStrength * lightColor;
-            
+
             vec3 norm = normalize(vNormal);
             vec3 lightDir = normalize(uLightPos - vFragPos);
 
@@ -345,20 +357,35 @@ const FRAGMENT_SHADER: &str = r#"
                 diff = 0.0;
                 ambient *= 0.5;
             }
-            
+
             float dist = length(vFragPos - uLightPos);
             if (dist < 1.0) {
                 diff = 1.0;
                 ambient = vec3(1.0);
             }
-            
+
+            float terminator = clamp(diff, 0.0, 1.0);
+
+            if (uShadowCount > 0) {
+                vec3 toLight = uLightPos - vFragPos;
+                float lightDist = length(toLight);
+                vec3 sDir = toLight / max(lightDist, 1e-5);
+                float occ = 0.0;
+                for (int i = 0; i < 4; i++) {
+                    if (i >= uShadowCount) break;
+                    occ = max(occ, sphereShadow(vFragPos, sDir, lightDist, uOccluders[i]));
+                }
+                diff *= 1.0 - occ;
+                ambient *= 1.0 - occ * 0.92;
+            }
+
             vec3 diffuse = diff * lightColor;
-            
+
             vec3 dayColor = (ambient + diffuse) * color;
-            
+
             if (uUseNightTexture == 1) {
-                vec3 nightColor = texture2D(uNightTexture, texCoord).rgb;
-                float mixFactor = smoothstep(0.0, 0.2, diff);
+                vec3 nightColor = texture(uNightTexture, texCoord).rgb;
+                float mixFactor = smoothstep(0.0, 0.2, terminator);
                 result = mix(nightColor, dayColor, mixFactor);
             } else {
                 result = dayColor;
@@ -381,28 +408,29 @@ const FRAGMENT_SHADER: &str = r#"
         
         result = pow(result, vec3(1.1));
 
-        gl_FragColor = vec4(result, alpha * uGlobalAlpha);
+        fragColor = vec4(result, alpha * uGlobalAlpha);
     }
 "#;
 
-const SKYBOX_VERTEX_SHADER: &str = r#"
-    attribute vec3 aPosition;
-    varying vec3 vTexCoord;
+const SKYBOX_VERTEX_SHADER: &str = r#"#version 300 es
+    in vec3 aPosition;
+    out vec3 vTexCoord;
     uniform mat4 uProjection;
     uniform mat4 uView;
-    
+
     void main() {
         vTexCoord = aPosition;
         vec4 pos = uProjection * uView * vec4(aPosition, 1.0);
-        gl_Position = pos.xyww; 
+        gl_Position = pos.xyww;
     }
 "#;
 
-const SKYBOX_FRAGMENT_SHADER: &str = r#"
+const SKYBOX_FRAGMENT_SHADER: &str = r#"#version 300 es
     precision mediump float;
-    varying vec3 vTexCoord;
+    in vec3 vTexCoord;
+    out vec4 fragColor;
     uniform sampler2D uSkybox;
-    
+
     const vec2 invAtan = vec2(0.1591, 0.3183);
     vec2 SampleSphericalMap(vec3 v)
     {
@@ -411,10 +439,10 @@ const SKYBOX_FRAGMENT_SHADER: &str = r#"
         uv += 0.5;
         return uv;
     }
-    
+
     void main() {
         vec2 uv = SampleSphericalMap(normalize(vTexCoord));
-        gl_FragColor = texture2D(uSkybox, uv); 
+        fragColor = texture(uSkybox, uv);
     }
 "#;
 
@@ -446,6 +474,8 @@ pub struct Renderer {
     u_photometry_mode_location: WebGlUniformLocation,
     u_photometry_params_location: WebGlUniformLocation,
     u_photometry_params2_location: WebGlUniformLocation,
+    u_shadow_count_location: WebGlUniformLocation,
+    u_occluders_location: WebGlUniformLocation,
     unit_cube_vertex_buffer: WebGlBuffer,
     unit_cube_index_buffer: WebGlBuffer,
     unit_cube_index_count: i32,
@@ -531,6 +561,10 @@ impl Renderer {
             .ok_or("Failed to get uPhotometryParams location")?;
         let u_photometry_params2_location = gl.get_uniform_location(&program, "uPhotometryParams2")
             .ok_or("Failed to get uPhotometryParams2 location")?;
+        let u_shadow_count_location = gl.get_uniform_location(&program, "uShadowCount")
+            .ok_or("Failed to get uShadowCount location")?;
+        let u_occluders_location = gl.get_uniform_location(&program, "uOccluders[0]")
+            .ok_or("Failed to get uOccluders location")?;
 
         // Instancing setup
         let instanced_program = create_instanced_program(&gl)?;
@@ -634,6 +668,8 @@ impl Renderer {
             u_photometry_mode_location,
             u_photometry_params_location,
             u_photometry_params2_location,
+            u_shadow_count_location,
+            u_occluders_location,
             instanced_program,
             u_instanced_view_loc,
             u_instanced_proj_loc,
@@ -658,6 +694,17 @@ impl Renderer {
 
     pub fn set_light_position(&self, x: f32, y: f32, z: f32) {
         self.gl.uniform3f(Some(&self.u_light_pos_location), x, y, z);
+    }
+
+    pub fn set_shadow_occluders(&self, occluders: &[[f32; 4]]) {
+        self.gl.use_program(Some(&self.program));
+        let count = occluders.len().min(4) as i32;
+        self.gl.uniform1i(Some(&self.u_shadow_count_location), count);
+        let mut flat = [0.0f32; 16];
+        for (i, occ) in occluders.iter().take(4).enumerate() {
+            flat[i * 4..i * 4 + 4].copy_from_slice(occ);
+        }
+        self.gl.uniform4fv_with_f32_array(Some(&self.u_occluders_location), &flat);
     }
 
     pub fn clear(&self, r: f32, g: f32, b: f32) {

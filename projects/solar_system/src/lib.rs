@@ -97,6 +97,47 @@ fn photometry_preset(name: &str) -> Option<[f32; 6]> {
 
 const BELT_PHOTOMETRY: [f32; 6] = [0.08, -0.20, 0.05, 0.8, 0.0, 1.0];
 
+fn collect_shadow_occluders(
+    bodies: &[Body],
+    positions: &[Vector3<f32>],
+    target: Vector3<f32>,
+    star_rel: Vector3<f32>,
+    body_index: usize,
+    max_count: usize,
+) -> Vec<[f32; 4]> {
+    let body_rel = positions[body_index] - target;
+    let to_light = star_rel - body_rel;
+    let light_dist = to_light.norm();
+    if light_dist < 1e-5 {
+        return Vec::new();
+    }
+    let dir = to_light / light_dist;
+    let mut candidates: Vec<(f32, [f32; 4])> = Vec::new();
+    for (j, other) in bodies.iter().enumerate() {
+        if j == 0 || j == body_index {
+            continue;
+        }
+        if other.name.starts_with("Asteroid") || other.name.starts_with("Kuiper") || other.name.starts_with("Oort") {
+            continue;
+        }
+        let rel = positions[j] - target;
+        let oc = rel - body_rel;
+        let t = oc.dot(&dir);
+        if t <= other.radius * 0.5 || t >= light_dist {
+            continue;
+        }
+        let d2 = oc.dot(&oc) - t * t;
+        let penumbra = other.radius * 3.0;
+        if d2 >= penumbra * penumbra {
+            continue;
+        }
+        let relevance = d2 / (other.radius * other.radius + 1e-9);
+        candidates.push((relevance, [rel.x, rel.y, rel.z, other.radius]));
+    }
+    candidates.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
+    candidates.into_iter().take(max_count).map(|(_, v)| v).collect()
+}
+
 impl SolarSystem {
     pub fn new(renderer: Renderer, system_type: SystemType) -> Self {        let mut bodies = Vec::new();
         let sphere_mesh = Mesh::sphere(1.0, 20, 20, 1.0, 1.0, 1.0);
@@ -968,8 +1009,8 @@ impl SolarSystem {
 
 
 
-        let rel_light_pos = Vector3::new(0.0, 0.0, 0.0) - target;
-        self.renderer.set_light_position(rel_light_pos.x, rel_light_pos.y, rel_light_pos.z);
+        let star_rel = positions[0] - target;
+        self.renderer.set_light_position(star_rel.x, star_rel.y, star_rel.z);
 
         self.renderer.gl.disable(web_sys::WebGl2RenderingContext::DEPTH_TEST);
         
@@ -1095,6 +1136,13 @@ impl SolarSystem {
 
             let final_render_radius = if is_black_hole { 0.3 } else { render_radius };
 
+            let body_shadow_list = if should_use_lighting {
+                collect_shadow_occluders(&self.bodies, &positions, target, star_rel, i, 4)
+            } else {
+                Vec::new()
+            };
+            self.renderer.set_shadow_occluders(&body_shadow_list);
+
             self.renderer.draw_mesh(
                 &body.mesh,
                 pos.x, pos.y, pos.z,
@@ -1117,6 +1165,11 @@ impl SolarSystem {
 
             if use_texture {
                 if let Some(ring_tex) = &body.ring_texture {
+                    let mut ring_shadow_list: Vec<[f32; 4]> = Vec::with_capacity(4);
+                    ring_shadow_list.push([pos.x, pos.y, pos.z, final_render_radius]);
+                    ring_shadow_list.extend(body_shadow_list.iter().cloned().take(3));
+                    self.renderer.set_shadow_occluders(&ring_shadow_list);
+
                     self.renderer.gl.enable(web_sys::WebGl2RenderingContext::BLEND);
                     self.renderer.gl.blend_func(web_sys::WebGl2RenderingContext::SRC_ALPHA, web_sys::WebGl2RenderingContext::ONE_MINUS_SRC_ALPHA);
                     
@@ -1145,6 +1198,7 @@ impl SolarSystem {
                 }
 
                 if let Some(cloud_tex) = &body.cloud_texture {
+                    self.renderer.set_shadow_occluders(&body_shadow_list);
                     self.renderer.gl.enable(web_sys::WebGl2RenderingContext::BLEND);
                     self.renderer.gl.blend_func(web_sys::WebGl2RenderingContext::ONE, web_sys::WebGl2RenderingContext::ONE);
                     self.renderer.draw_mesh(
