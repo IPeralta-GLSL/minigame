@@ -61,6 +61,7 @@ pub struct SolarSystem {
     current_time: f64,
     background_mesh: Mesh,
     background_texture: Option<WebGlTexture>,
+    galaxy_texture: Option<WebGlTexture>,
     focused_body_index: Option<usize>,
     sphere_mesh: Mesh,
     asteroid_mesh: Mesh,
@@ -76,6 +77,7 @@ pub struct SolarSystem {
     positions: Vec<Vector3<f32>>,
     info_speed_element: Option<Element>,
     last_speed_text: String,
+    galaxy_labels: Vec<(HtmlElement, (f32, f32))>,
 }
 
 fn photometry_preset(name: &str) -> Option<[f32; 6]> {
@@ -99,6 +101,84 @@ fn photometry_preset(name: &str) -> Option<[f32; 6]> {
 }
 
 const BELT_PHOTOMETRY: [f32; 6] = [0.08, -0.20, 0.05, 0.8, 0.0, 1.0];
+
+fn galaxy_hash(x: i32, y: i32, seed: i32) -> f32 {
+    let mut h = (x.wrapping_mul(374761393)).wrapping_add(y.wrapping_mul(668265263)).wrapping_add(seed.wrapping_mul(1442695041));
+    h = h ^ (h >> 13);
+    h = h.wrapping_mul(1274126177);
+    ((h ^ (h >> 16)) as u32) as f32 / u32::MAX as f32
+}
+
+fn galaxy_noise(x: f32, y: f32, seed: i32) -> f32 {
+    let xi = x.floor() as i32;
+    let yi = y.floor() as i32;
+    let fx = x - xi as f32;
+    let fy = y - yi as f32;
+    let fx = fx * fx * (3.0 - 2.0 * fx);
+    let fy = fy * fy * (3.0 - 2.0 * fy);
+    let a = galaxy_hash(xi, yi, seed);
+    let b = galaxy_hash(xi + 1, yi, seed);
+    let c = galaxy_hash(xi, yi + 1, seed);
+    let d = galaxy_hash(xi + 1, yi + 1, seed);
+    a + (b - a) * fx + (c - a) * fy + (a - b - c + d) * fx * fy
+}
+
+fn generate_milky_way_texture() -> (Vec<u8>, i32, i32) {
+    let size: i32 = 1024;
+    let mut data = vec![0u8; (size * size * 4) as usize];
+    let half = (size - 1) as f32 / 2.0;
+    let pi = std::f32::consts::PI;
+    let tau = std::f32::consts::TAU;
+    for y in 0..size {
+        for x in 0..size {
+            let px = (x as f32 - half) / half;
+            let py = (y as f32 - half) / half;
+            let r = (px * px + py * py).sqrt();
+            let theta = py.atan2(px);
+
+            let mut arm = 0.0f32;
+            if r < 1.05 {
+                let spiral = (r + 0.14).ln() * 3.4;
+                for k in 0..2 {
+                    let a = theta - spiral - k as f32 * pi;
+                    let a = (a + pi).rem_euclid(tau) - pi;
+                    let d = (a * (r + 0.28)).abs();
+                    arm = arm.max((-d * d * 13.0).exp());
+                }
+            }
+
+            let radial = (-r * 2.35).exp();
+            let bulge = (-(r * r) * 8.5).exp();
+            let n1 = galaxy_noise(px * 6.0, py * 6.0, 0);
+            let n2 = galaxy_noise(px * 18.0, py * 18.0, 7);
+            let arms = arm * radial * (0.55 + 0.45 * n1) + 0.05 * n2 * radial;
+
+            let dust = if r > 0.12 && r < 0.6 {
+                (galaxy_noise(px * 9.0 + 3.0, py * 9.0, 11) - 0.52).max(0.0) * arm.min(1.0)
+            } else {
+                0.0
+            };
+
+            let mut intensity = arms * 0.85 + bulge * 1.2;
+            intensity *= 1.0 - dust * 0.75;
+
+            let star_dot = if galaxy_noise(px * 170.0, py * 170.0, 21) > 0.985 && arms > 0.06 { 0.55 } else { 0.0 };
+            let total = (intensity + star_dot).clamp(0.0, 1.5);
+
+            let mix_core = (bulge / (bulge + arms + 1e-4)).min(1.0);
+            let cr = 0.62 + 0.38 * mix_core;
+            let cg = 0.68 + 0.22 * mix_core;
+            let cb = 0.95 - 0.25 * mix_core;
+
+            let idx = ((y * size + x) * 4) as usize;
+            data[idx] = (total * cr * 255.0).min(255.0) as u8;
+            data[idx + 1] = (total * cg * 255.0).min(255.0) as u8;
+            data[idx + 2] = (total * cb * 255.0).min(255.0) as u8;
+            data[idx + 3] = (intensity.min(1.0) * 255.0) as u8;
+        }
+    }
+    (data, size, size)
+}
 
 fn collect_shadow_occluders(
     bodies: &[Body],
@@ -193,6 +273,7 @@ impl Drop for SolarSystem {
             if let Some(t) = &body.ring_texture { gl.delete_texture(Some(t)); }
         }
         if let Some(t) = &self.background_texture { gl.delete_texture(Some(t)); }
+        if let Some(t) = &self.galaxy_texture { gl.delete_texture(Some(t)); }
     }
 }
 
@@ -461,7 +542,7 @@ impl SolarSystem {
         let p_eris = 203443.0;
         bodies.push(create_body("Eris", 0.00075, 6767.0, get_orbit_speed(p_eris), 0.0, (0.9, 0.9, 0.9), Some(0), Mesh::sphere, Some("projects/solar_system/assets/textures/2k_eris_fictional.jpg"), None, None, None, 0.0, 1.08, 78.0, 44.0, 0.0, 0.0, 0.441, "1.66 × 10^22 kg", 30.0, "The most massive and second-largest known dwarf planet.", None));
 
-        for i in 0..2000 {
+        for i in 0..3000 {
             let angle: f32 = rng.gen_range(0.0..360.0);
             let dist: f32 = rng.gen_range(3000.0..5500.0);
             let size: f32 = rng.gen_range(0.0002..0.0006);
@@ -494,7 +575,7 @@ impl SolarSystem {
             ));
         }
 
-        for i in 0..10000 {
+        for i in 0..30000 {
             let angle: f32 = rng.gen_range(0.0..360.0);
             // Real scale: Inner Oort ~2,000 AU (200,000 units) to Outer Oort ~50,000 AU (5,000,000 units)
             // Using a logarithmic distribution to have more objects in the inner part would be better, 
@@ -586,6 +667,12 @@ impl SolarSystem {
         let background_texture = load_texture("projects/solar_system/assets/textures/8k_stars.jpg");
         let background_mesh = Mesh::sphere(1.0, 40, 40, 1.0, 1.0, 1.0);
 
+        let (galaxy_data, galaxy_w, galaxy_h) = generate_milky_way_texture();
+        let galaxy_texture = renderer.create_texture_from_rgba(galaxy_w, galaxy_h, &galaxy_data).ok();
+        if let Some(tex) = &galaxy_texture {
+            renderer.upgrade_texture_from_url(tex, "projects/solar_system/assets/textures/milky_way_esa.jpg");
+        }
+
 
         let trail_points = 1000;
         for i in 0..bodies.len() {
@@ -669,6 +756,37 @@ impl SolarSystem {
             }
         }
 
+        let mut galaxy_labels = Vec::new();
+        if let Some(container) = &labels_container {
+            let galaxy_label_data: [(&str, (f32, f32)); 10] = [
+                ("Galactic Center", (0.50, 0.55)),
+                ("Bar", (0.465, 0.45)),
+                ("Near 3kpc Arm", (0.61, 0.47)),
+                ("Far 3kpc Arm", (0.40, 0.42)),
+                ("Norma Arm", (0.63, 0.52)),
+                ("Centaurus Arm", (0.61, 0.58)),
+                ("Carina-Sagittarius Arm", (0.72, 0.63)),
+                ("Perseus Arm", (0.33, 0.47)),
+                ("Outer Arm", (0.27, 0.60)),
+                ("Orion Arm", (0.47, 0.66)),
+            ];
+            for (text, uv) in galaxy_label_data {
+                let el = document.create_element("div").unwrap().dyn_into::<HtmlElement>().unwrap();
+                el.set_class_name("solar-label galaxy-label");
+                el.set_text_content(Some(text));
+                let style = el.style();
+                style.set_property("display", "none").unwrap();
+                style.set_property("font-size", "11px").unwrap();
+                style.set_property("letter-spacing", "1.2px").unwrap();
+                style.set_property("opacity", "0").unwrap();
+                style.set_property("pointer-events", "none").unwrap();
+                style.set_property("text-shadow", "0 0 6px rgba(0,0,0,0.9), 0 0 12px rgba(0,0,0,0.8)").unwrap();
+                style.set_property("white-space", "nowrap").unwrap();
+                container.append_child(&el).unwrap();
+                galaxy_labels.push((el, uv));
+            }
+        }
+
         let sun_texture = if system_type == SystemType::Solar { bodies[0].texture.clone() } else { None };
 
         let focused_body_index = match system_type {
@@ -709,6 +827,7 @@ impl SolarSystem {
             current_time: now_ms,
             background_mesh,
             background_texture,
+            galaxy_texture,
             focused_body_index,
             sphere_mesh,
             asteroid_mesh,
@@ -724,6 +843,7 @@ impl SolarSystem {
             positions: initial_positions,
             info_speed_element: None,
             last_speed_text: String::new(),
+            galaxy_labels,
         }
     }
 
@@ -848,6 +968,9 @@ impl SolarSystem {
         // Smooth zoom: exponential lerp toward target distance
         let zoom_speed = 1.0 - (-10.0_f32 * safe_dt as f32).exp();
         self.camera_distance += (self.camera_target_distance - self.camera_distance) * zoom_speed;
+        if self.camera_distance > 5_000_000.0 && self.camera_target_distance > 5_000_000.0 {
+            self.camera_distance = self.camera_target_distance;
+        }
 
         let min_cam_dist = self.focused_body_index
             .map(|i| self.bodies[i].radius * 1.5)
@@ -990,7 +1113,12 @@ impl SolarSystem {
 
         let aspect = width as f32 / height as f32;
         let near_plane = 0.001_f32.min(self.camera_distance * 0.05).max(1e-7);
-        let projection = Matrix4::new_perspective(aspect, 45.0 * std::f32::consts::PI / 180.0, near_plane, 200000000.0);
+        let far_plane = if self.camera_distance > 2_000_000.0 {
+            300_000_000_000.0
+        } else {
+            400_000_000.0
+        };
+        let projection = Matrix4::new_perspective(aspect, 45.0 * std::f32::consts::PI / 180.0, near_plane, far_plane);
         
 
 
@@ -1013,12 +1141,20 @@ impl SolarSystem {
         let star_rel = positions[0] - target;
         self.renderer.set_light_position(star_rel.x, star_rel.y, star_rel.z);
 
+        let stars_fade = if self.camera_distance <= 20_000_000.0 {
+            1.0
+        } else {
+            (1.0 - (self.camera_distance - 20_000_000.0) / 60_000_000.0).max(0.0)
+        };
+
         self.renderer.gl.disable(web_sys::WebGl2RenderingContext::DEPTH_TEST);
-        
 
         self.renderer.gl.uniform1i(Some(&self.renderer.u_use_lighting_location), 0);
 
-
+        if stars_fade > 0.003 {
+            self.renderer.set_global_alpha(stars_fade);
+            self.renderer.gl.enable(web_sys::WebGl2RenderingContext::BLEND);
+            self.renderer.gl.blend_func(web_sys::WebGl2RenderingContext::SRC_ALPHA, web_sys::WebGl2RenderingContext::ONE_MINUS_SRC_ALPHA);
             self.renderer.draw_mesh(
                 &self.background_mesh,
                 rel_cam_x, rel_cam_y, rel_cam_z,
@@ -1039,13 +1175,22 @@ impl SolarSystem {
                 None,
                 None,
                 false
-            );        
+            );
+            self.renderer.gl.disable(web_sys::WebGl2RenderingContext::BLEND);
+            self.renderer.set_global_alpha(1.0);
+        }
         self.renderer.gl.uniform1i(Some(&self.renderer.u_use_lighting_location), 1);
         
         self.renderer.enable_depth_test();
 
         let mut instance_data = Vec::with_capacity(self.bodies.len() * 7);
         let mut asteroid_count = 0;
+
+        let belt_alpha = if self.camera_distance <= 2_000_000.0 {
+            1.0
+        } else {
+            (1.0 - (self.camera_distance - 2_000_000.0) / 18_000_000.0).max(0.0)
+        };
         
         struct BodyScreenData {
             index: usize,
@@ -1061,7 +1206,7 @@ impl SolarSystem {
             let abs_pos = positions[i];
             let pos = abs_pos - target;
             
-            if !body.trail.is_empty() && !body.name.starts_with("Asteroid") && !body.name.starts_with("Kuiper") && !body.name.starts_with("Oort") {
+            if !body.trail.is_empty() && self.camera_distance <= 5_000_000.0 && !body.name.starts_with("Asteroid") && !body.name.starts_with("Kuiper") && !body.name.starts_with("Oort") {
                 let offset = if let Some(pidx) = body.parent {
                     positions[pidx] - target
                 } else {
@@ -1087,8 +1232,9 @@ impl SolarSystem {
             let is_small_body = body.name.starts_with("Asteroid") || body.name.starts_with("Kuiper") || body.name.starts_with("Oort");
             
             if is_small_body {
-                let scale_factor = 0.0005;
-                let min_size = dist * scale_factor; 
+                if belt_alpha < 0.02 { continue; }
+                let scale_factor = 0.0004;
+                let min_size = (dist * scale_factor).min(300.0);
                 let render_radius = if min_size > body.radius { min_size } else { body.radius };
                 
                 instance_data.push(pos.x);
@@ -1125,6 +1271,10 @@ impl SolarSystem {
             };
             
             let is_star = body.name == "Sun" || body.name == "Sirius A";
+
+            if self.camera_distance > 5_000_000.0 && !is_star && body.name != "Black Hole" {
+                continue;
+            }
 
             let color_override = if !use_texture || is_star {
                 Some(body.color)
@@ -1486,6 +1636,53 @@ impl SolarSystem {
             }
         }
 
+        let mut galaxy_label_state: Option<((f32, f32), f32, f32)> = None;
+        if let Some(galaxy_tex) = &self.galaxy_texture {
+            let t = ((self.camera_distance - 30_000_000.0) / 190_000_000.0).clamp(0.0, 1.0);
+            let eased = t * t * (3.0 - 2.0 * t);
+            let galaxy_fade = eased;
+            if galaxy_fade > 0.005 {
+                let star_clip = projection * view * Vector4::new(star_rel.x, star_rel.y, star_rel.z, 1.0);
+                if star_clip.w > 0.0 {
+                    let ndc_x = star_clip.x / star_clip.w;
+                    let ndc_y = star_clip.y / star_clip.w;
+                    if ndc_x >= -1.3 && ndc_x <= 1.3 && ndc_y >= -1.3 && ndc_y <= 1.3 {
+                        let sun_px = ((ndc_x + 1.0) * width as f32 / 2.0, (ndc_y + 1.0) * height as f32 / 2.0);
+                        let radius_px = height as f32 * (1.1 + 0.7 * eased);
+                        let center = (sun_px.0 + radius_px * 0.094, sun_px.1 + radius_px * 0.264);
+                        self.renderer.gl.enable(web_sys::WebGl2RenderingContext::BLEND);
+                        self.renderer.gl.blend_func(web_sys::WebGl2RenderingContext::SRC_ALPHA, web_sys::WebGl2RenderingContext::ONE);
+                        self.renderer.draw_screen_texture(galaxy_tex, center, radius_px, 1.3, 0.2, galaxy_fade);
+                        self.renderer.gl.disable(web_sys::WebGl2RenderingContext::BLEND);
+                        galaxy_label_state = Some((center, radius_px, galaxy_fade));
+                    }
+                }
+            }
+        }
+
+        if let Some((gc, gr, gf)) = galaxy_label_state {
+            let q = 1.3f32;
+            let rot = 0.2f32;
+            let (rc, rs) = (rot.cos(), rot.sin());
+            for (el, uv) in &self.galaxy_labels {
+                let prx = (uv.0 - 0.5) * 2.0;
+                let pry = -(uv.1 - 0.5) * 2.0;
+                let px = prx * rc + (pry / q) * rs;
+                let py = -prx * rs + (pry / q) * rc;
+                let sx = gc.0 + gr * px;
+                let sy = height as f32 - (gc.1 + gr * py);
+                let style = el.style();
+                style.set_property("display", "block").unwrap();
+                style.set_property("left", &format!("{}px", sx)).unwrap();
+                style.set_property("top", &format!("{}px", sy)).unwrap();
+                style.set_property("opacity", &format!("{:.2}", gf)).unwrap();
+            }
+        } else {
+            for (el, _) in &self.galaxy_labels {
+                el.style().set_property("display", "none").unwrap();
+            }
+        }
+
         if asteroid_count > 0 {
              self.renderer.draw_instanced_mesh(
                 &self.asteroid_mesh,
@@ -1495,7 +1692,7 @@ impl SolarSystem {
                 &view,
                  &Vector3::new(0.0, 0.0, 0.0),
                  None,
-                 1.0,
+                 belt_alpha,
                  Some((rel_cam_x, rel_cam_y, rel_cam_z)),
                  Some(BELT_PHOTOMETRY)
              );
@@ -1529,8 +1726,16 @@ impl SolarSystem {
 
     pub fn handle_input(&mut self, key: &str) {
         match key {
-            "ArrowUp" => { self.camera_target_distance *= 0.9; self.camera_target_distance = self.camera_target_distance.max(0.0001); },
-            "ArrowDown" => { self.camera_target_distance *= 1.1; self.camera_target_distance = self.camera_target_distance.min(100000000.0); },
+            "ArrowUp" => {
+                let f = if self.camera_target_distance > 50.0 { 1.0 / 1.35 } else { 0.9 };
+                self.camera_target_distance *= f;
+                self.camera_target_distance = self.camera_target_distance.max(0.0001);
+            },
+            "ArrowDown" => {
+                let f = if self.camera_target_distance > 50.0 { 1.35 } else { 1.1 };
+                self.camera_target_distance *= f;
+                self.camera_target_distance = self.camera_target_distance.min(50000000000.0);
+            },
             "ArrowLeft" => self.camera_target_rotation.1 -= 0.1,
             "ArrowRight" => self.camera_target_rotation.1 += 0.1,
             _ => {}
@@ -1551,19 +1756,23 @@ impl SolarSystem {
             let dx = x - self.last_mouse_pos.0;
             let dy = y - self.last_mouse_pos.1;
 
-            self.camera_target_rotation.1 += dx as f32 * 0.01;
-            self.camera_target_rotation.0 += dy as f32 * 0.01;
-            self.camera_target_rotation.0 = self.camera_target_rotation.0.max(-1.5).min(1.5);
+            if self.camera_distance <= 20_000_000.0 {
+                let zoom_factor = 1.0 + self.camera_distance.max(1.0).log10().max(0.0) * 0.7;
+                let sensitivity = 0.01 / zoom_factor;
+                self.camera_target_rotation.1 += dx as f32 * sensitivity;
+                self.camera_target_rotation.0 += dy as f32 * sensitivity;
+                self.camera_target_rotation.0 = self.camera_target_rotation.0.max(-1.5).min(1.5);
+            }
 
             self.last_mouse_pos = (x, y);
         }
     }
 
     pub fn handle_wheel(&mut self, delta: f32) {
-        let zoom_sensitivity = 0.001;
+        let zoom_sensitivity = if self.camera_target_distance > 50.0 { 0.004 } else { 0.0012 };
         let factor = (delta * zoom_sensitivity).exp();
         self.camera_target_distance *= factor;
-        self.camera_target_distance = self.camera_target_distance.max(0.0001).min(100000000.0);
+        self.camera_target_distance = self.camera_target_distance.max(0.0001).min(50000000000.0);
     }
 
     pub fn pick_body(&self, x: i32, y: i32, width: i32, height: i32) -> i32 {
@@ -1583,7 +1792,12 @@ impl SolarSystem {
         let aspect = width as f32 / height as f32;
         let fov_y = 45.0_f32.to_radians();
         let near_plane = 0.001_f32.min(self.camera_distance * 0.05).max(1e-7);
-        let projection = nalgebra::Matrix4::new_perspective(aspect, fov_y, near_plane, 200000000.0);
+        let far_plane = if self.camera_distance > 2_000_000.0 {
+            300_000_000_000.0
+        } else {
+            400_000_000.0
+        };
+        let projection = nalgebra::Matrix4::new_perspective(aspect, fov_y, near_plane, far_plane);
         let view = nalgebra::Matrix4::look_at_rh(
             &nalgebra::Point3::new(rel_cam_x, rel_cam_y, rel_cam_z),
             &nalgebra::Point3::new(0.0, 0.0, 0.0),

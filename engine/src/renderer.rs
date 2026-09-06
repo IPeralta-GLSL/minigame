@@ -115,6 +115,7 @@ const FRAGMENT_SHADER: &str = r#"#version 300 es
     uniform int uShadowCount;
     uniform vec4 uOccluders[4];
     uniform int uIsStar;
+    uniform int uAlphaFromLuminance;
 
     float sphereShadow(vec3 origin, vec3 dir, float lightDist, vec4 occ) {
         vec3 oc = occ.xyz - origin;
@@ -461,7 +462,12 @@ const FRAGMENT_SHADER: &str = r#"#version 300 es
         
         result = pow(result, vec3(1.1));
 
-        fragColor = vec4(result, alpha * uGlobalAlpha);
+        float outAlpha = alpha;
+        if (uAlphaFromLuminance == 1) {
+            float edgeFade = 1.0 - smoothstep(0.28, 0.52, length(vTexCoord - 0.5));
+            outAlpha = dot(result, vec3(0.2126, 0.7152, 0.0722)) * 0.85 * edgeFade;
+        }
+        fragColor = vec4(result, outAlpha * uGlobalAlpha);
     }
 "#;
 
@@ -524,6 +530,38 @@ const GLOW_FRAGMENT_SHADER: &str = r#"#version 300 es
     }
 "#;
 
+const SCREEN_TEX_VERTEX_SHADER: &str = r#"#version 300 es
+    in vec2 aPos;
+    void main() {
+        gl_Position = vec4(aPos, 0.9999, 1.0);
+    }
+"#;
+
+const SCREEN_TEX_FRAGMENT_SHADER: &str = r#"#version 300 es
+    precision highp float;
+    uniform sampler2D uSTTexture;
+    uniform vec2 uSTCenter;
+    uniform float uSTRadius;
+    uniform float uSTSquash;
+    uniform float uSTRotation;
+    uniform float uSTAlpha;
+    out vec4 fragColor;
+
+    void main() {
+        vec2 p = (gl_FragCoord.xy - uSTCenter) / max(uSTRadius, 1.0);
+        float c = cos(uSTRotation);
+        float s = sin(uSTRotation);
+        vec2 pr = vec2(p.x * c - p.y * s, (p.x * s + p.y * c) * uSTSquash);
+        vec2 uv = vec2(pr.x, -pr.y) * 0.5 + 0.5;
+        if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) { discard; }
+        vec3 col = texture(uSTTexture, uv).rgb;
+        float lum = dot(col, vec3(0.2126, 0.7152, 0.0722));
+        float edgeFade = 1.0 - smoothstep(0.28, 0.5, length(uv - 0.5));
+        float a = lum * edgeFade * uSTAlpha * 0.85;
+        fragColor = vec4(col * a, a);
+    }
+"#;
+
 pub struct Renderer {
     pub gl: WebGl2RenderingContext,
     program: WebGlProgram,
@@ -555,6 +593,7 @@ pub struct Renderer {
     u_shadow_count_location: WebGlUniformLocation,
     u_occluders_location: WebGlUniformLocation,
     u_is_star_location: WebGlUniformLocation,
+    u_alpha_from_luminance_location: WebGlUniformLocation,
     unit_cube_vertex_buffer: WebGlBuffer,
     unit_cube_index_buffer: WebGlBuffer,
     unit_cube_index_count: i32,
@@ -588,6 +627,14 @@ pub struct Renderer {
     u_glow_radius_loc: WebGlUniformLocation,
     u_glow_color_loc: WebGlUniformLocation,
     a_glow_pos_loc: i32,
+    screen_tex_program: WebGlProgram,
+    u_st_center_loc: WebGlUniformLocation,
+    u_st_radius_loc: WebGlUniformLocation,
+    u_st_squash_loc: WebGlUniformLocation,
+    u_st_rotation_loc: WebGlUniformLocation,
+    u_st_alpha_loc: WebGlUniformLocation,
+    u_st_texture_loc: WebGlUniformLocation,
+    a_st_pos_loc: i32,
     u_atmosphere_glow_location: WebGlUniformLocation,
     u_ring_shadow_location: WebGlUniformLocation,
     u_ring_normal_location: WebGlUniformLocation,
@@ -656,6 +703,8 @@ impl Renderer {
             .ok_or("Failed to get uOccluders location")?;
         let u_is_star_location = gl.get_uniform_location(&program, "uIsStar")
             .ok_or("Failed to get uIsStar location")?;
+        let u_alpha_from_luminance_location = gl.get_uniform_location(&program, "uAlphaFromLuminance")
+            .ok_or("Failed to get uAlphaFromLuminance location")?;
 
         // Instancing setup
         let instanced_program = create_instanced_program(&gl)?;
@@ -697,6 +746,15 @@ impl Renderer {
         let u_glow_radius_loc = gl.get_uniform_location(&glow_program, "uGlowRadius").ok_or("Failed to get uGlowRadius")?;
         let u_glow_color_loc = gl.get_uniform_location(&glow_program, "uGlowColor").ok_or("Failed to get uGlowColor")?;
         let a_glow_pos_loc = gl.get_attrib_location(&glow_program, "aPos");
+
+        let screen_tex_program = create_screen_tex_program(&gl)?;
+        let u_st_center_loc = gl.get_uniform_location(&screen_tex_program, "uSTCenter").ok_or("Failed to get uSTCenter")?;
+        let u_st_radius_loc = gl.get_uniform_location(&screen_tex_program, "uSTRadius").ok_or("Failed to get uSTRadius")?;
+        let u_st_squash_loc = gl.get_uniform_location(&screen_tex_program, "uSTSquash").ok_or("Failed to get uSTSquash")?;
+        let u_st_rotation_loc = gl.get_uniform_location(&screen_tex_program, "uSTRotation").ok_or("Failed to get uSTRotation")?;
+        let u_st_alpha_loc = gl.get_uniform_location(&screen_tex_program, "uSTAlpha").ok_or("Failed to get uSTAlpha")?;
+        let u_st_texture_loc = gl.get_uniform_location(&screen_tex_program, "uSTTexture").ok_or("Failed to get uSTTexture")?;
+        let a_st_pos_loc = gl.get_attrib_location(&screen_tex_program, "aPos");
 
         let u_atmosphere_glow_location = gl.get_uniform_location(&program, "uAtmosphereGlow")
             .ok_or("Failed to get uAtmosphereGlow location")?;
@@ -779,6 +837,7 @@ impl Renderer {
             u_shadow_count_location,
             u_occluders_location,
             u_is_star_location,
+            u_alpha_from_luminance_location,
             instanced_program,
             u_instanced_view_loc,
             u_instanced_proj_loc,
@@ -803,12 +862,55 @@ impl Renderer {
             u_glow_radius_loc,
             u_glow_color_loc,
             a_glow_pos_loc,
+            screen_tex_program,
+            u_st_center_loc,
+            u_st_radius_loc,
+            u_st_squash_loc,
+            u_st_rotation_loc,
+            u_st_alpha_loc,
+            u_st_texture_loc,
+            a_st_pos_loc,
             u_atmosphere_glow_location,
             u_ring_shadow_location,
             u_ring_normal_location,
             u_ring_center_location,
             u_ring_radii_location,
         })
+    }
+
+    pub fn set_alpha_from_luminance(&self, enabled: bool) {
+        self.gl.use_program(Some(&self.program));
+        self.gl.uniform1i(Some(&self.u_alpha_from_luminance_location), if enabled { 1 } else { 0 });
+    }
+
+    pub fn set_global_alpha(&self, alpha: f32) {
+        self.gl.use_program(Some(&self.program));
+        self.gl.uniform1f(Some(&self.u_global_alpha_location), alpha);
+    }
+
+    pub fn create_texture_from_rgba(&self, width: i32, height: i32, data: &[u8]) -> Result<WebGlTexture, JsValue> {
+        let texture = self.gl.create_texture().ok_or("Failed to create texture")?;
+        self.gl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&texture));
+        let _ = self.gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_opt_u8_array(
+            WebGl2RenderingContext::TEXTURE_2D,
+            0,
+            WebGl2RenderingContext::RGBA as i32,
+            width,
+            height,
+            0,
+            WebGl2RenderingContext::RGBA,
+            WebGl2RenderingContext::UNSIGNED_BYTE,
+            Some(data),
+        );
+        self.gl.tex_parameteri(WebGl2RenderingContext::TEXTURE_2D, WebGl2RenderingContext::TEXTURE_MAG_FILTER, WebGl2RenderingContext::LINEAR as i32);
+        self.gl.generate_mipmap(WebGl2RenderingContext::TEXTURE_2D);
+        self.gl.tex_parameteri(WebGl2RenderingContext::TEXTURE_2D, WebGl2RenderingContext::TEXTURE_MIN_FILTER, WebGl2RenderingContext::LINEAR_MIPMAP_LINEAR as i32);
+        self.gl.tex_parameteri(WebGl2RenderingContext::TEXTURE_2D, WebGl2RenderingContext::TEXTURE_WRAP_S, WebGl2RenderingContext::CLAMP_TO_EDGE as i32);
+        self.gl.tex_parameteri(WebGl2RenderingContext::TEXTURE_2D, WebGl2RenderingContext::TEXTURE_WRAP_T, WebGl2RenderingContext::CLAMP_TO_EDGE as i32);
+        if let Some((param, max)) = self.max_anisotropy {
+            self.gl.tex_parameterf(WebGl2RenderingContext::TEXTURE_2D, param, max);
+        }
+        Ok(texture)
     }
 
     pub fn set_light_position(&self, x: f32, y: f32, z: f32) {
@@ -1319,6 +1421,100 @@ impl Renderer {
         );
     }
 
+    pub fn draw_billboard(&self, mesh: &Mesh, x: f32, y: f32, z: f32, scale: f32, tilt: f32, view: &Matrix4<f32>, projection: &Matrix4<f32>, texture: &WebGlTexture, alpha: f32) {
+        self.gl.use_program(Some(&self.program));
+
+        self.gl.uniform1i(Some(&self.u_use_lighting_location), 0);
+        self.gl.uniform1i(Some(&self.u_is_star_location), 0);
+        self.gl.uniform1i(Some(&self.u_alpha_from_luminance_location), 1);
+        self.gl.uniform1i(Some(&self.u_is_ring_location), 0);
+        self.gl.uniform1i(Some(&self.u_is_black_hole_location), 0);
+        self.gl.uniform1i(Some(&self.u_is_frozen_location), 0);
+        if let Some(loc) = &self.u_is_cloud_location {
+            self.gl.uniform1i(Some(loc), 0);
+        }
+        self.gl.uniform1i(Some(&self.u_use_night_texture_location), 0);
+        self.gl.uniform1i(Some(&self.u_photometry_mode_location), 0);
+        self.gl.uniform1i(Some(&self.u_shadow_count_location), 0);
+        self.gl.uniform1i(Some(&self.u_ring_shadow_location), 0);
+        self.gl.uniform1i(Some(&self.u_use_uniform_color_location), 0);
+        self.gl.uniform3f(Some(&self.u_time_color_location), 1.0, 1.0, 1.0);
+        self.gl.uniform3f(Some(&self.u_atmosphere_glow_location), 0.0, 0.0, 0.0);
+        self.gl.uniform3f(Some(&self.u_camera_pos_location), 0.0, 0.0, 0.0);
+        self.gl.uniform1f(Some(&self.u_global_alpha_location), alpha);
+
+        self.gl.active_texture(WebGl2RenderingContext::TEXTURE0);
+        self.gl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(texture));
+        self.gl.uniform1i(Some(&self.u_use_texture_location), 1);
+        self.gl.uniform1i(Some(&self.u_texture_location), 0);
+
+        self.gl.bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, Some(&self.dynamic_vertex_buffer));
+        unsafe {
+            let vert_array = js_sys::Float32Array::view(&mesh.vertices);
+            self.gl.buffer_data_with_array_buffer_view(
+                WebGl2RenderingContext::ARRAY_BUFFER,
+                &vert_array,
+                WebGl2RenderingContext::STATIC_DRAW
+            );
+        }
+        self.gl.bind_buffer(WebGl2RenderingContext::ELEMENT_ARRAY_BUFFER, Some(&self.dynamic_index_buffer));
+        unsafe {
+            let idx_array = js_sys::Uint16Array::view(&mesh.indices);
+            self.gl.buffer_data_with_array_buffer_view(
+                WebGl2RenderingContext::ELEMENT_ARRAY_BUFFER,
+                &idx_array,
+                WebGl2RenderingContext::STATIC_DRAW
+            );
+        }
+
+        let pos_loc = self.gl.get_attrib_location(&self.program, "aPosition") as u32;
+        let col_loc = self.gl.get_attrib_location(&self.program, "aColor") as u32;
+        let tex_loc = self.gl.get_attrib_location(&self.program, "aTexCoord") as u32;
+        let norm_loc = self.gl.get_attrib_location(&self.program, "aNormal") as u32;
+        self.gl.vertex_attrib_pointer_with_i32(pos_loc, 3, WebGl2RenderingContext::FLOAT, false, 44, 0);
+        self.gl.enable_vertex_attrib_array(pos_loc);
+        self.gl.vertex_attrib_pointer_with_i32(col_loc, 3, WebGl2RenderingContext::FLOAT, false, 44, 12);
+        self.gl.enable_vertex_attrib_array(col_loc);
+        self.gl.vertex_attrib_pointer_with_i32(tex_loc, 2, WebGl2RenderingContext::FLOAT, false, 44, 24);
+        self.gl.enable_vertex_attrib_array(tex_loc);
+        self.gl.vertex_attrib_pointer_with_i32(norm_loc, 3, WebGl2RenderingContext::FLOAT, false, 44, 32);
+        self.gl.enable_vertex_attrib_array(norm_loc);
+
+        let mut rot = nalgebra::Matrix3::identity();
+        for i in 0..3 {
+            for j in 0..3 {
+                rot[(i, j)] = view[(j, i)];
+            }
+        }
+        let tilt_rot = nalgebra::Rotation3::new(Vector3::x() * tilt);
+        let rot = rot * tilt_rot.into_inner();
+
+        let mut model = Matrix4::identity();
+        for i in 0..3 {
+            for j in 0..3 {
+                model[(i, j)] = rot[(i, j)] * scale;
+            }
+        }
+        model[(0, 3)] = x;
+        model[(1, 3)] = y;
+        model[(2, 3)] = z;
+
+        let mvp = projection * view * model;
+        let mvp_array: [f32; 16] = mvp.as_slice().try_into().unwrap();
+        self.gl.uniform_matrix4fv_with_f32_array(Some(&self.mvp_location), false, &mvp_array);
+        let model_array: [f32; 16] = model.as_slice().try_into().unwrap();
+        self.gl.uniform_matrix4fv_with_f32_array(Some(&self.model_location), false, &model_array);
+        let normal_array: [f32; 9] = rot.as_slice().try_into().unwrap();
+        self.gl.uniform_matrix3fv_with_f32_array(Some(&self.normal_matrix_location), false, &normal_array);
+
+        self.gl.draw_elements_with_i32(
+            WebGl2RenderingContext::TRIANGLES,
+            mesh.indices.len() as i32,
+            WebGl2RenderingContext::UNSIGNED_SHORT,
+            0
+        );
+    }
+
     pub fn set_ring_shadow(&self, enabled: bool, normal: (f32, f32, f32), center: (f32, f32, f32), inner: f32, outer: f32) {
         self.gl.use_program(Some(&self.program));
         self.gl.uniform1i(Some(&self.u_ring_shadow_location), if enabled { 1 } else { 0 });
@@ -1354,6 +1550,36 @@ impl Renderer {
             self.gl.disable_vertex_attrib_array(self.a_glow_pos_loc as u32);
         }
         self.gl.disable(WebGl2RenderingContext::BLEND);
+        self.gl.enable(WebGl2RenderingContext::DEPTH_TEST);
+    }
+
+    pub fn draw_screen_texture(&self, texture: &WebGlTexture, center_px: (f32, f32), radius_px: f32, squash: f32, rotation: f32, alpha: f32) {
+        self.gl.use_program(Some(&self.screen_tex_program));
+        self.gl.disable(WebGl2RenderingContext::DEPTH_TEST);
+        self.gl.uniform2f(Some(&self.u_st_center_loc), center_px.0, center_px.1);
+        self.gl.uniform1f(Some(&self.u_st_radius_loc), radius_px);
+        self.gl.uniform1f(Some(&self.u_st_squash_loc), squash);
+        self.gl.uniform1f(Some(&self.u_st_rotation_loc), rotation);
+        self.gl.uniform1f(Some(&self.u_st_alpha_loc), alpha);
+        self.gl.active_texture(WebGl2RenderingContext::TEXTURE0);
+        self.gl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(texture));
+        self.gl.uniform1i(Some(&self.u_st_texture_loc), 0);
+        let quad = [-1.0f32, -1.0, 3.0, -1.0, -1.0, 3.0];
+        self.gl.bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, Some(&self.dynamic_vertex_buffer));
+        unsafe {
+            let arr = js_sys::Float32Array::view(&quad);
+            self.gl.buffer_data_with_array_buffer_view(
+                WebGl2RenderingContext::ARRAY_BUFFER,
+                &arr,
+                WebGl2RenderingContext::DYNAMIC_DRAW,
+            );
+        }
+        if self.a_st_pos_loc != -1 {
+            self.gl.vertex_attrib_pointer_with_i32(self.a_st_pos_loc as u32, 2, WebGl2RenderingContext::FLOAT, false, 8, 0);
+            self.gl.enable_vertex_attrib_array(self.a_st_pos_loc as u32);
+            self.gl.draw_arrays(WebGl2RenderingContext::TRIANGLES, 0, 3);
+            self.gl.disable_vertex_attrib_array(self.a_st_pos_loc as u32);
+        }
         self.gl.enable(WebGl2RenderingContext::DEPTH_TEST);
     }
 
@@ -1435,6 +1661,20 @@ impl Renderer {
         Ok(texture)
     }
 
+    pub fn upgrade_texture_from_url(&self, texture: &WebGlTexture, url: &str) {
+        let gl = self.gl.clone();
+        let target = texture.clone();
+        let aniso = self.max_anisotropy;
+        let url_owned = url.to_string();
+        wasm_bindgen_futures::spawn_local(async move {
+            let _permit = AcquireStreamPermit.await;
+            match load_texture_source(&url_owned).await {
+                Ok(source) => upload_texture_source(&gl, &target, &source, aniso),
+                Err(_) => {}
+            }
+        });
+    }
+
     fn create_placeholder_texture(&self) -> Result<WebGlTexture, JsValue> {
         let texture = self.gl.create_texture().ok_or("Failed to create texture")?;
         self.gl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&texture));
@@ -1459,6 +1699,7 @@ impl Drop for Renderer {
         self.gl.delete_program(Some(&self.instanced_program));
         self.gl.delete_program(Some(&self.skybox_program));
         self.gl.delete_program(Some(&self.glow_program));
+        self.gl.delete_program(Some(&self.screen_tex_program));
         self.gl.delete_buffer(Some(&self.unit_cube_vertex_buffer));
         self.gl.delete_buffer(Some(&self.unit_cube_index_buffer));
         self.gl.delete_buffer(Some(&self.dynamic_vertex_buffer));
@@ -1655,6 +1896,22 @@ fn create_skybox_program(gl: &WebGl2RenderingContext) -> Result<WebGlProgram, Js
 fn create_glow_program(gl: &WebGl2RenderingContext) -> Result<WebGlProgram, JsValue> {
     let vert_shader = compile_shader(gl, WebGl2RenderingContext::VERTEX_SHADER, GLOW_VERTEX_SHADER)?;
     let frag_shader = compile_shader(gl, WebGl2RenderingContext::FRAGMENT_SHADER, GLOW_FRAGMENT_SHADER)?;
+
+    let program = gl.create_program().ok_or("Unable to create program")?;
+    gl.attach_shader(&program, &vert_shader);
+    gl.attach_shader(&program, &frag_shader);
+    gl.link_program(&program);
+
+    if gl.get_program_parameter(&program, WebGl2RenderingContext::LINK_STATUS).as_bool().unwrap_or(false) {
+        Ok(program)
+    } else {
+        Err(JsValue::from_str(&gl.get_program_info_log(&program).unwrap_or_default()))
+    }
+}
+
+fn create_screen_tex_program(gl: &WebGl2RenderingContext) -> Result<WebGlProgram, JsValue> {
+    let vert_shader = compile_shader(gl, WebGl2RenderingContext::VERTEX_SHADER, SCREEN_TEX_VERTEX_SHADER)?;
+    let frag_shader = compile_shader(gl, WebGl2RenderingContext::FRAGMENT_SHADER, SCREEN_TEX_FRAGMENT_SHADER)?;
 
     let program = gl.create_program().ok_or("Unable to create program")?;
     gl.attach_shader(&program, &vert_shader);
